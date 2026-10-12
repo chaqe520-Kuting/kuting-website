@@ -28,7 +28,7 @@ THUMB_DIR = os.path.join("images", "thumbs")
 OUT = os.path.join("data", "photos.js")
 FULL, THUMB = 1600, 480
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
-NAME_RE = re.compile(r"^(\d{4})\D?(\d{1,2})\D?(\d{1,2})日?[\s_\-－．.]*(.+)$")
+NAME_RE = re.compile(r"^(\d{3,4})\D?(\d{1,2})\D?(\d{1,2})日?[\s_\-－．.]*(.+)$")
 
 
 def natural_key(name):
@@ -96,7 +96,8 @@ def main():
             warnings.append("資料夾名稱要以日期開頭（例如 2027-02-13 玉皇大帝聖誕），已略過：" + folder)
             continue
         y, mo, d, title = m.groups()
-        date = "%s-%02d-%02d" % (y, int(mo), int(d))
+        y = int(y) + 1911 if len(y) == 3 else int(y)  # 民國年（例如 115）換成西元
+        date = "%d-%02d-%02d" % (y, int(mo), int(d))
 
         photos = []
         for name in sorted(os.listdir(path), key=natural_key):
