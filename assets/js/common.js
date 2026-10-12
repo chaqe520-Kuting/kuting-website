@@ -205,9 +205,18 @@
       "</div></li>";
   }
 
+  // 相簿：「相簿」資料夾自動產生的 PHOTO_ALBUMS + albums.js 手動填的 ALBUMS，新的在前
+  // 有真實相簿後，範例相簿自動隱藏
+  function albums() {
+    var list = (window.PHOTO_ALBUMS || []).concat(window.ALBUMS || []);
+    var real = list.filter(function (a) { return !a.sample; });
+    if (real.length) list = real;
+    return list.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  }
+
   window.KT = {
     esc: esc, parseDate: parseDate, ymd: ymd, today: today, lunar: lunar,
-    formatDate: formatDate, allEvents: allEvents, eventHTML: eventHTML,
+    formatDate: formatDate, allEvents: allEvents, eventHTML: eventHTML, albums: albums,
     WEEK: WEEK, LOTUS_SVG: LOTUS_SVG
   };
 

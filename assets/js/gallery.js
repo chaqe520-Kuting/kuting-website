@@ -1,8 +1,13 @@
 /* 活動相簿：相簿列表、單一相簿、照片放大檢視、影片 */
 document.addEventListener("DOMContentLoaded", function () {
   var KT = window.KT, esc = KT.esc;
-  var albums = (window.ALBUMS || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  var albums = KT.albums();
   var videos = window.VIDEOS || [];
+  var playlist = playlistId(window.VIDEO_PLAYLIST);
+  // 有真實影片或播放清單後，範例影片自動隱藏
+  if (playlist || videos.some(function (v) { return !v.sample; })) {
+    videos = videos.filter(function (v) { return !v.sample; });
+  }
 
   var indexEl = document.getElementById("album-index");
   var detailEl = document.getElementById("album-detail");
@@ -15,6 +20,13 @@ document.addEventListener("DOMContentLoaded", function () {
     return /^[\w-]{11}$/.test(url) ? url : "";
   }
 
+  function playlistId(url) {
+    if (!url) return "";
+    var m = /[?&]list=([\w-]+)/.exec(url);
+    if (m) return m[1];
+    return /^[\w-]{10,}$/.test(url) ? url : "";
+  }
+
   function renderIndex() {
     document.getElementById("album-grid").innerHTML = albums.length ? albums.map(function (a) {
       return '<a class="card" href="#' + encodeURIComponent(a.id) + '">' +
@@ -22,6 +34,13 @@ document.addEventListener("DOMContentLoaded", function () {
         '<div class="card-body"><h3>' + esc(a.title) + (a.sample ? sampleBadge : "") + "</h3>" +
         "<p>" + esc(a.date.replace(/-/g, "/")) + "・" + a.photos.length + " 張照片</p></div></a>";
     }).join("") : '<p class="empty">相簿整理中，敬請期待。</p>';
+
+    document.getElementById("video-playlist").innerHTML = playlist
+      ? '<div class="video-wrap"><iframe src="https://www.youtube-nocookie.com/embed/videoseries?list=' + playlist +
+        '" title="古亭院影片" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>' +
+        '<p class="playlist-link"><a href="https://www.youtube.com/playlist?list=' + playlist +
+        '" target="_blank" rel="noopener">到 YouTube 看全部影片 →</a></p>'
+      : "";
 
     document.getElementById("video-grid").innerHTML = videos.length ? videos.map(function (v) {
       var id = youtubeId(v.youtube), media;
@@ -36,7 +55,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return '<div class="card"><div class="video-wrap">' + media + "</div>" +
         '<div class="card-body"><h3>' + esc(v.title) + (v.sample ? sampleBadge : "") + "</h3>" +
         "<p>" + esc((v.date || "").replace(/-/g, "/")) + (v.description ? "　" + esc(v.description) : "") + "</p></div></div>";
-    }).join("") : '<p class="empty">影片整理中，敬請期待。</p>';
+    }).join("") : (playlist ? "" : '<p class="empty">影片整理中，敬請期待。</p>');
   }
 
   function renderDetail(a) {
@@ -47,7 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
       (a.description ? "<p>" + esc(a.description) + "</p>" : "") +
       '<div class="photo-grid">' + a.photos.map(function (p, i) {
         return '<button type="button" data-i="' + i + '" aria-label="放大檢視：' + esc(p.caption || "") + '">' +
-          '<img src="' + esc(p.src) + '" alt="' + esc(p.caption || a.title) + '" loading="lazy"></button>';
+          '<img src="' + esc(p.thumb || p.src) + '" alt="' + esc(p.caption || a.title) + '" loading="lazy"></button>';
       }).join("") + "</div>";
     detailEl.querySelectorAll(".photo-grid button").forEach(function (b) {
       b.addEventListener("click", function () { openLightbox(a.photos, +b.dataset.i); });
@@ -71,7 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function show() {
     var p = lbList[lbIdx];
     lbImg.src = p.src; lbImg.alt = p.caption || "";
-    lbCap.textContent = (p.caption || "") + "（" + (lbIdx + 1) + " / " + lbList.length + "）";
+    lbCap.textContent = (p.caption ? p.caption + "　" : "") + (lbIdx + 1) + " / " + lbList.length;
   }
   function openLightbox(list, i) { lbList = list; lbIdx = i; show(); lb.classList.add("open"); }
   function close() { lb.classList.remove("open"); }

@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return "<dt>" + esc(i[0]) + "</dt><dd>" + i[1] + "</dd>";
   }).join("");
 
-  var albums = (window.ALBUMS || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 3);
+  var albums = KT.albums().slice(0, 3);
   document.getElementById("latest-albums").innerHTML = albums.map(function (a) {
     return '<a class="card" href="gallery.html#' + encodeURIComponent(a.id) + '">' +
       '<img class="album-cover" src="' + esc(a.cover) + '" alt="' + esc(a.title) + '" loading="lazy">' +

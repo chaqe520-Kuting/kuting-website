@@ -18,7 +18,8 @@
 | --- | --- |
 | 院名、地址、電話、開放時間、測試版提示 | `data/site.js` |
 | 法會日期、時間、地點、每月例行共修 | `data/events.js` |
-| 相簿照片、影片 | `data/albums.js`（照片檔放在 `images` 資料夾） |
+| 相簿照片 | 上傳到 `相簿` 資料夾（自動建立相簿） |
+| 影片 | `data/albums.js` 的 YouTube 播放清單 |
 | 佛學文章 | `data/articles.js` |
 
 每個檔案最上面都有中文說明，照著複製一個區塊、修改文字即可。
@@ -32,14 +33,18 @@
 4. 改好後按綠色的「Commit changes...」，再按一次「Commit changes」。
 5. 等一兩分鐘，重新整理網站就會看到更新。
 
-### 上傳照片
+### 上傳法會照片
 
-1. 到 `images` 資料夾，按「Add file」→「Upload files」。
-2. 把照片拖進去（建議先縮小到寬約 1600 像素、每張 1 MB 以內）。
-3. 按「Commit changes」。
-4. 再到 `data/albums.js` 新增相簿或照片，`src` 填照片的位置，例如 `images/2027-yufo/01.jpg`。
+1. 在電腦上建立資料夾，名稱用「日期 法會名稱」，例如 `2027-02-13 玉皇大帝聖誕`，把照片放進去。
+2. 打開存放庫的 `相簿` 資料夾，按「Add file」→「Upload files」，把整個資料夾拖進去，按「Commit changes」。
+3. 3～5 分鐘後網站就會出現新相簿。GitHub 會自動縮小照片、轉正方向、移除拍攝地點資訊（`tools/build_albums.py`）。
 
-影片請上傳到 YouTube，再把影片網址貼到 `data/albums.js` 的 `VIDEOS` 清單。
+詳細說明在 `相簿/使用說明.txt`。
+
+### 影片
+
+影片上傳到 YouTube，加進古亭院的播放清單，再把播放清單網址貼到 `data/albums.js` 的 `VIDEO_PLAYLIST`。
+之後加進播放清單的影片，網站會自動顯示。
 
 ## 範例內容
 
@@ -54,4 +59,4 @@
 ## 改完看不到新內容？
 
 瀏覽器會暫存舊版網頁（GitHub Pages 約保留 10 分鐘）。可以按 `Ctrl + F5`（Mac 按 `Cmd + Shift + R`）強制重新整理。
-工程人員修改 CSS 或 JS 後，請把各頁 HTML 裡 `?v=7` 的數字加 1，讓所有人的瀏覽器都抓新版。
+工程人員修改 CSS 或 JS 後，請把各頁 HTML 裡 `?v=8` 的數字加 1，讓所有人的瀏覽器都抓新版。
