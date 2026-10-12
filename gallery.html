@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=9">
+<link rel="stylesheet" href="assets/css/style.css?v=10">
 </head>
 <body>
 <header id="site-header" class="site-header"></header>
@@ -34,14 +34,20 @@
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="照片檢視">
   <button class="lb-btn lb-close" type="button" aria-label="關閉">×</button>
   <button class="lb-btn lb-prev" type="button" aria-label="上一張">‹</button>
-  <figure><img alt=""><figcaption></figcaption></figure>
+  <figure><img alt="">
+    <div class="lb-nav">
+      <button type="button" class="lb-step" data-step="-1">‹ 上一張</button>
+      <figcaption></figcaption>
+      <button type="button" class="lb-step" data-step="1">下一張 ›</button>
+    </div>
+  </figure>
   <button class="lb-btn lb-next" type="button" aria-label="下一張">›</button>
 </div>
 <footer id="site-footer" class="site-footer"></footer>
-<script src="data/site.js?v=9"></script>
-<script src="data/photos.js?v=9"></script>
-<script src="data/albums.js?v=9"></script>
-<script src="assets/js/common.js?v=9"></script>
-<script src="assets/js/gallery.js?v=9"></script>
+<script src="data/site.js?v=10"></script>
+<script src="data/photos.js?v=10"></script>
+<script src="data/albums.js?v=10"></script>
+<script src="assets/js/common.js?v=10"></script>
+<script src="assets/js/gallery.js?v=10"></script>
 </body>
 </html>
