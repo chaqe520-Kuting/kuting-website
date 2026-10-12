@@ -57,17 +57,19 @@ document.addEventListener("DOMContentLoaded", function () {
     label.textContent = state.year + " 年";
     var from = new Date(state.year, 0, 1, 12), to = new Date(state.year, 11, 31, 12);
     var evs = eventsIn(from, to).filter(function (e) { return !e.regular; });
-    var html = "";
-    var any = false;
-    for (var mo = 0; mo < 12; mo++) {
-      var inMonth = evs.filter(function (e) { return e.dateObj.getMonth() === mo; });
-      if (!inMonth.length) continue;
-      any = true;
-      html += '<div class="month-block"><h3>' + (mo + 1) + ' 月</h3><ul class="event-list">' +
-        inMonth.map(function (e) { return KT.eventHTML(e, { markPast: true }); }).join("") + "</ul></div>";
-    }
-    if (!any) html += '<p class="empty">' + state.year + " 年尚無法會資訊。</p>";
-    viewYear.innerHTML = html;
+    // 分上半年（1～6 月）、下半年（7～12 月）兩欄
+    var halves = [["上半年", 0, 5], ["下半年", 6, 11]];
+    viewYear.innerHTML = '<div class="year-halves">' + halves.map(function (h) {
+      var html = "";
+      for (var mo = h[1]; mo <= h[2]; mo++) {
+        var inMonth = evs.filter(function (e) { return e.dateObj.getMonth() === mo; });
+        if (!inMonth.length) continue;
+        html += '<div class="month-block"><h3>' + (mo + 1) + ' 月</h3><ul class="event-list">' +
+          inMonth.map(function (e) { return KT.eventHTML(e, { markPast: true }); }).join("") + "</ul></div>";
+      }
+      return '<section class="year-half"><h2>' + h[0] + '<span>' + (h[1] + 1) + "～" + (h[2] + 1) + " 月</span></h2>" +
+        (html || '<p class="empty">尚無法會資訊。</p>') + "</section>";
+    }).join("") + "</div>";
   }
 
   function render() {

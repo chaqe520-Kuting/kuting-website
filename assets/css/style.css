@@ -350,6 +350,18 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
   .cal-ev { font-size: 0; height: 6px; padding: 0; margin-top: 4px; }
 }
 
+.year-halves { display: grid; gap: 28px; grid-template-columns: 1fr 1fr; align-items: start; }
+@media (max-width: 860px) { .year-halves { grid-template-columns: 1fr; } }
+.year-half > h2 {
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--primary);
+  color: #f1d27a;
+  border-radius: 8px;
+  font-size: 1.25rem;
+}
+.year-half > h2 span { margin-left: 10px; font-size: .9rem; font-weight: 400; color: #f6e7c1; }
+.year-half > .empty { margin-top: 16px; }
 .month-block { margin-top: 28px; }
 .month-block > h3 {
   font-size: 1.2rem;
@@ -472,3 +484,4 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
 .cal-notes { margin-top: 24px; }
 .cal-notes ul { margin: 0; padding-left: 1.2em; }
 .cal-notes li { margin: 2px 0; }
+.h2-note { margin-left: 10px; font-size: .9rem; font-weight: 400; color: var(--text-muted); }
