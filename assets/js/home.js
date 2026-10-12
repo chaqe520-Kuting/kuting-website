@@ -6,15 +6,15 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("hero-name").textContent = SITE.name || "古亭院";
   document.getElementById("hero-slogan").textContent = SITE.slogan || "";
 
-  // 近期法會：今天起一年內，最近的 5 筆
+  // 近期法會：今天起三個月內的法會
   var from = KT.today();
-  var to = new Date(from); to.setDate(to.getDate() + 365);
+  var to = new Date(from); to.setMonth(to.getMonth() + 3);
   var upcoming = KT.allEvents(from, to).filter(function (e) {
     return e.endObj >= from && e.dateObj <= to;
-  }).slice(0, 5);
+  });
   document.getElementById("upcoming").innerHTML = upcoming.length
     ? upcoming.map(function (e) { return KT.eventHTML(e); }).join("")
-    : '<li class="empty">近期暫無法會，請參閱完整行事曆。</li>';
+    : '<li class="empty">三個月內暫無法會，請參閱完整行事曆。</li>';
 
   document.getElementById("intro-text").innerHTML = (SITE.intro || []).map(function (p) {
     return "<p>" + esc(p) + "</p>";
