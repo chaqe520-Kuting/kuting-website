@@ -1,15 +1,22 @@
-/* 古亭院網站 共用樣式 */
+/* 古亭院網站 共用樣式
+ * 配色取自古亭院山門實景：
+ *   匾額朱紅、匾額金字、檜木門扇、佛龕金、供桌墨綠、深木色
+ */
 :root {
-  --bg: #faf6ee;
+  --bg: #fbf6ec;           /* 淺木白：頁面底色 */
   --surface: #ffffff;
-  --surface-alt: #f3ecdf;
-  --text: #2b2420;
-  --text-muted: #6b5f55;
-  --primary: #7a2e1f;      /* 赭紅 */
-  --primary-dark: #5a2015;
-  --accent: #b08a3e;       /* 金 */
-  --border: #e3d8c5;
-  --shadow: 0 2px 10px rgba(60, 40, 20, 0.08);
+  --surface-alt: #f4e6cf;  /* 淺檜木：區塊底色 */
+  --text: #3b2618;         /* 深木色：內文 */
+  --text-muted: #75604c;
+  --primary: #8e1f2c;      /* 匾額朱紅：頁首、按鈕、標題 */
+  --primary-dark: #6b1520;
+  --accent: #c9a046;       /* 匾額金字：線條、重點 */
+  --wood: #d9a15b;         /* 檜木門扇 */
+  --altar-gold: #b8742b;   /* 佛龕金 */
+  --green: #2f4a3e;        /* 供桌墨綠：例行共修 */
+  --footer: #3a2618;       /* 深木色：頁尾 */
+  --border: #e6d3b3;
+  --shadow: 0 2px 10px rgba(70, 40, 15, 0.08);
   --radius: 10px;
   --max: 1080px;
   --font-serif: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
@@ -55,6 +62,7 @@ h1, h2, h3, h4 {
   position: sticky;
   top: 0;
   z-index: 50;
+  border-bottom: 3px solid var(--accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .site-header .container {
@@ -75,6 +83,7 @@ h1, h2, h3, h4 {
   letter-spacing: 0.15em;
 }
 .brand:hover { color: #fff; }
+.brand-mark { color: var(--accent); }
 .brand-mark {
   width: 36px;
   height: 36px;
@@ -144,22 +153,25 @@ h1, h2, h3, h4 {
 /* ===== 首頁橫幅 ===== */
 .hero {
   background:
-    radial-gradient(circle at 50% 120%, rgba(176, 138, 62, 0.35), transparent 60%),
-    linear-gradient(180deg, #5a2015, #7a2e1f);
+    linear-gradient(180deg, rgba(60, 12, 18, 0.55), rgba(107, 21, 32, 0.78)),
+    url("../../images/hero-gate.jpg") center 35% / cover no-repeat,
+    var(--primary-dark);
   color: #fff;
   text-align: center;
-  padding: 64px 16px 72px;
+  padding: 88px 16px 96px;
 }
 .hero h1 {
-  color: #fff;
+  color: #f1d27a;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   font-size: clamp(2rem, 6vw, 3rem);
   letter-spacing: 0.3em;
   margin-bottom: 0.3em;
 }
 .hero p {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   margin: 0 auto;
   max-width: 36em;
-  color: #f3e6d0;
+  color: #f6e7c4;
   font-size: 1.05rem;
 }
 .hero .lotus { width: 72px; margin: 0 auto 16px; opacity: 0.9; }
@@ -167,7 +179,7 @@ h1, h2, h3, h4 {
 /* ===== 頁面標題 ===== */
 .page-title {
   background: var(--surface-alt);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 3px solid var(--altar-gold);
   padding: 36px 0 28px;
 }
 .page-title h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing: 0.12em; }
@@ -238,7 +250,7 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
   flex: none;
   width: 78px;
   text-align: center;
-  border-right: 1px solid var(--border);
+  border-right: 2px solid var(--wood);
   padding-right: 14px;
 }
 .event-date .m { font-size: 0.85rem; color: var(--text-muted); }
@@ -306,7 +318,7 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
   line-height: 1.4;
 }
 .cal-cell.other { background: #fbf9f4; color: #b9ad9f; }
-.cal-cell.today { background: #fff7e6; }
+.cal-cell.today { background: #fdf0d6; box-shadow: inset 0 0 0 2px var(--accent); }
 .cal-cell .num { font-weight: 700; font-size: 0.95rem; }
 .cal-cell .lunar { color: var(--text-muted); font-size: 0.75rem; margin-left: 4px; }
 .cal-cell .lunar.key { color: var(--primary); font-weight: 700; }
@@ -322,7 +334,7 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cal-ev.regular { background: var(--accent); }
+.cal-ev.regular { background: var(--green); }
 
 @media (max-width: 640px) {
   .cal-cell { min-height: 64px; padding: 3px; }
@@ -433,13 +445,14 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
 
 /* ===== 頁尾 ===== */
 .site-footer {
-  background: #3a2a22;
-  color: #d9cbb8;
+  background: var(--footer);
+  color: #e2cfb2;
+  border-top: 4px solid var(--accent);
   padding: 32px 0;
   font-size: 0.93rem;
 }
-.site-footer a { color: #f0d9a8; }
+.site-footer a { color: #e8c877; }
 .site-footer .container { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .site-footer h4 { color: #fff; margin-bottom: 0.3em; letter-spacing: 0.1em; }
 .site-footer p { margin: 0; }
-.copyright { text-align: center; margin-top: 20px; color: #a89580; font-size: 0.85rem; }
+.copyright { text-align: center; margin-top: 20px; color: #b59a7a; font-size: 0.85rem; }
