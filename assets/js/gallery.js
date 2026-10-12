@@ -87,16 +87,33 @@ document.addEventListener("DOMContentLoaded", function () {
   var lb = document.getElementById("lightbox");
   var lbImg = lb.querySelector("img"), lbCap = lb.querySelector("figcaption");
   var lbList = [], lbIdx = 0;
+  // 大圖快取：載好的照片不用再等
+  var loaded = {};
+  function loadFull(p, cb) {
+    if (loaded[p.src]) { if (cb) cb(); return; }
+    var im = new Image();
+    im.onload = function () { loaded[p.src] = true; if (cb) cb(); };
+    im.src = p.src;
+  }
   function show() {
-    var p = lbList[lbIdx];
-    lb.classList.add("loading");
-    lbImg.onload = function () { lb.classList.remove("loading"); };
-    lbImg.src = p.src; lbImg.alt = p.caption || "";
+    var p = lbList[lbIdx], idx = lbIdx;
     lbCap.textContent = (p.caption ? p.caption + "　" : "") + (lbIdx + 1) + " / " + lbList.length;
-    // 先載入前後兩張，切換時比較快
-    [1, -1].forEach(function (n) {
+    lbImg.alt = p.caption || "";
+    if (loaded[p.src] || !p.thumb) {
+      lbImg.src = p.src;
+      lb.classList.remove("loading");
+    } else {
+      // 先立刻顯示已經載好的小圖，清楚的大圖載好後再換上
+      lbImg.src = p.thumb;
+      lb.classList.add("loading");
+      loadFull(p, function () {
+        if (lbIdx === idx && lbList[idx] === p) { lbImg.src = p.src; lb.classList.remove("loading"); }
+      });
+    }
+    // 預先載入後面兩張和前一張
+    [1, 2, -1].forEach(function (n) {
       var q = lbList[(lbIdx + n + lbList.length) % lbList.length];
-      if (q) new Image().src = q.src;
+      if (q) loadFull(q);
     });
   }
   function openLightbox(list, i) { lbList = list; lbIdx = i; show(); lb.classList.add("open"); }

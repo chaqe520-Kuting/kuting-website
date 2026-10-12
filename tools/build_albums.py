@@ -1,7 +1,7 @@
 """整理「相簿」資料夾的照片，產生網站用的相簿清單 data/photos.js。
 
 GitHub 每次收到新照片時會自動執行（.github/workflows/albums.yml）：
-  1. 照片轉成 JPG、長邊縮到 1600 像素、轉正方向，並移除拍攝地點等資訊。
+  1. 照片轉成 JPG、長邊縮到 1280 像素、轉正方向，並移除拍攝地點等資訊。
   2. 另外做一份小圖（長邊 480 像素）放在 images/thumbs，相簿列表載入比較快。
   3. 依資料夾名稱（例如「2027-02-13 玉皇大帝聖誕」）產生相簿名稱和日期。
 
@@ -26,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALBUM_DIR = "相簿"
 THUMB_DIR = os.path.join("images", "thumbs")
 OUT = os.path.join("data", "photos.js")
-FULL, THUMB = 1600, 480
+FULL, THUMB = 1280, 480
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 NAME_RE = re.compile(r"^(\d{3,4})\D?(\d{1,2})\D?(\d{1,2})日?[\s_\-－．.]*(.+)$")
 
@@ -57,7 +57,7 @@ def process_photo(src):
         im.thumbnail((FULL, FULL), Image.LANCZOS)
         if dst != src and os.path.exists(dst):
             dst = base + "-1.jpg"
-        im.save(dst, "JPEG", quality=82, optimize=True, progressive=True)
+        im.save(dst, "JPEG", quality=78, optimize=True, progressive=True)
     if dst != src:
         os.remove(src)
     return dst
