@@ -6,9 +6,9 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("hero-name").textContent = SITE.name || "古亭院";
   document.getElementById("hero-slogan").textContent = SITE.slogan || "";
 
-  // 近期法會：今天起 60 天內，最多 5 筆
+  // 近期法會：今天起一年內，最近的 5 筆
   var from = KT.today();
-  var to = new Date(from); to.setDate(to.getDate() + 60);
+  var to = new Date(from); to.setDate(to.getDate() + 365);
   var upcoming = KT.allEvents(from, to).filter(function (e) {
     return e.endObj >= from && e.dateObj <= to;
   }).slice(0, 5);

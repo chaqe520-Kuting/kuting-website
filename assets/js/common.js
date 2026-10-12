@@ -106,8 +106,22 @@
   } catch (e) { lunarFmt = null; }
 
   // 回傳 { month: 9, day: 3, leap: false, text: "九月初三", dayText: "初三" }；瀏覽器不支援時回傳 null
+  // 瀏覽器內建農曆在少數月份會與台灣農民曆差一天，在這裡校正
+  // start～end 這段期間為農曆 month 月（從 start 當天算初一）
+  var LUNAR_FIX = [
+    { start: "2027-02-06", end: "2027-03-07", month: 1 }
+  ];
+
   function lunar(d) {
     if (!lunarFmt) return null;
+    var key = ymd(d);
+    for (var i = 0; i < LUNAR_FIX.length; i++) {
+      var f = LUNAR_FIX[i];
+      if (key >= f.start && key <= f.end) {
+        var dd = Math.round((parseDate(key) - parseDate(f.start)) / 86400000) + 1;
+        return lunarText(f.month, dd, false);
+      }
+    }
     var parts = lunarFmt.formatToParts(d), m = "", day = "";
     parts.forEach(function (p) {
       if (p.type === "month") m = p.value;
@@ -116,6 +130,10 @@
     var leap = /bis/i.test(m);
     var mn = parseInt(m, 10), dn = parseInt(day, 10);
     if (!mn || !dn) return null;
+    return lunarText(mn, dn, leap);
+  }
+
+  function lunarText(mn, dn, leap) {
     var dayText;
     if (dn === 10) dayText = "初十";
     else if (dn === 20) dayText = "二十";
@@ -169,7 +187,8 @@
       ? "至 " + (e.endObj.getMonth() + 1) + "/" + e.endObj.getDate()
       : "";
     var meta = [];
-    if (l) meta.push("<span>農曆" + l.text + "</span>");
+    if (e.lunar) meta.push("<span>農曆" + esc(e.lunar) + "</span>");
+    else if (l) meta.push("<span>農曆" + l.text + "</span>");
     if (dateRange) meta.push("<span>" + dateRange + "</span>");
     if (e.time) meta.push("<span>" + esc(e.time) + "</span>");
     if (e.place) meta.push("<span>" + esc(e.place) + "</span>");
