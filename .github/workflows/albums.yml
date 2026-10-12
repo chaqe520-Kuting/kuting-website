@@ -1,0 +1,40 @@
+# 上傳照片到「相簿」資料夾後，自動縮小照片並更新網站的相簿清單
+name: 整理相簿照片
+
+on:
+  push:
+    branches: [main]
+    paths: ["相簿/**", "tools/build_albums.py", ".github/workflows/albums.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: albums
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "pillow>=10" "pillow-heif>=0.18"
+      - run: python tools/build_albums.py
+      - name: 存回整理好的照片
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A 相簿 images/thumbs data/photos.js
+          if git diff --cached --quiet; then echo "沒有需要更新的照片"; exit 0; fi
+          git commit -m "自動整理相簿照片"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # 請 GitHub Pages 重新發布網站
+          curl -sS -X POST -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages/builds" || true
