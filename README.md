@@ -50,3 +50,8 @@
 ## 在自己電腦上預覽（工程人員用）
 
 直接用瀏覽器打開 `index.html` 即可，或在資料夾內執行 `python3 -m http.server` 後開啟 <http://localhost:8000>。
+
+## 改完看不到新內容？
+
+瀏覽器會暫存舊版網頁（GitHub Pages 約保留 10 分鐘）。可以按 `Ctrl + F5`（Mac 按 `Cmd + Shift + R`）強制重新整理。
+工程人員修改 CSS 或 JS 後，請把各頁 HTML 裡 `?v=3` 的數字加 1，讓所有人的瀏覽器都抓新版。

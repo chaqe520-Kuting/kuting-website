@@ -75,14 +75,14 @@ h1, h2, h3, h4 {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #fff;
+  color: #f1d27a;
   text-decoration: none;
   font-family: var(--font-serif);
   font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: 0.15em;
 }
-.brand:hover { color: #fff; }
+.brand:hover { color: #f6dd92; }
 .brand-mark { color: var(--accent); }
 .brand-mark {
   width: 36px;
@@ -171,10 +171,10 @@ h1, h2, h3, h4 {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   margin: 0 auto;
   max-width: 36em;
-  color: #f6e7c4;
+  color: #f1d27a;
   font-size: 1.05rem;
 }
-.hero .lotus { width: 72px; margin: 0 auto 16px; opacity: 0.9; }
+.hero .lotus { width: 72px; margin: 0 auto 16px; opacity: 0.95; color: #f1d27a; }
 
 /* ===== 頁面標題 ===== */
 .page-title {
@@ -453,6 +453,6 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
 }
 .site-footer a { color: #e8c877; }
 .site-footer .container { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.site-footer h4 { color: #fff; margin-bottom: 0.3em; letter-spacing: 0.1em; }
+.site-footer h4 { color: #f1d27a; margin-bottom: 0.3em; letter-spacing: 0.1em; }
 .site-footer p { margin: 0; }
 .copyright { text-align: center; margin-top: 20px; color: #b59a7a; font-size: 0.85rem; }
