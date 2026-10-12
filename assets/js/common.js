@@ -108,9 +108,8 @@
   // 回傳 { month: 9, day: 3, leap: false, text: "九月初三", dayText: "初三" }；瀏覽器不支援時回傳 null
   // 瀏覽器內建農曆在少數月份會與台灣農民曆差一天，在這裡校正
   // start～end 這段期間為農曆 month 月（從 start 當天算初一）
-  var LUNAR_FIX = [
-    { start: "2027-02-06", end: "2027-03-07", month: 1 }
-  ];
+  // 例如 { start: "2027-02-06", end: "2027-03-07", month: 1 }
+  var LUNAR_FIX = [];
 
   function lunar(d) {
     if (!lunarFmt) return null;
