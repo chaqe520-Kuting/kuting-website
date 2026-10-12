@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", function () {
     label.textContent = state.year + " 年";
     var from = new Date(state.year, 0, 1, 12), to = new Date(state.year, 11, 31, 12);
     var evs = eventsIn(from, to).filter(function (e) { return !e.regular; });
-    var html = '<p class="event-meta">全年列表僅列出大型法會；每月農曆初一、十五例行共修請見「每月」檢視。</p>';
+    var html = "";
     var any = false;
     for (var mo = 0; mo < 12; mo++) {
       var inMonth = evs.filter(function (e) { return e.dateObj.getMonth() === mo; });
@@ -93,6 +93,13 @@ document.addEventListener("DOMContentLoaded", function () {
     } else state.year++;
     render();
   });
+
+  var notes = window.CALENDAR_NOTES || [];
+  var notesEl = document.getElementById("cal-notes");
+  if (notes.length && notesEl) {
+    notesEl.innerHTML = "<ul>" + notes.map(function (n) { return "<li>" + KT.esc(n) + "</li>"; }).join("") + "</ul>";
+    notesEl.hidden = false;
+  }
 
   render();
 });
