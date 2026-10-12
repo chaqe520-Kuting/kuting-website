@@ -89,8 +89,15 @@ document.addEventListener("DOMContentLoaded", function () {
   var lbList = [], lbIdx = 0;
   function show() {
     var p = lbList[lbIdx];
+    lb.classList.add("loading");
+    lbImg.onload = function () { lb.classList.remove("loading"); };
     lbImg.src = p.src; lbImg.alt = p.caption || "";
     lbCap.textContent = (p.caption ? p.caption + "　" : "") + (lbIdx + 1) + " / " + lbList.length;
+    // 先載入前後兩張，切換時比較快
+    [1, -1].forEach(function (n) {
+      var q = lbList[(lbIdx + n + lbList.length) % lbList.length];
+      if (q) new Image().src = q.src;
+    });
   }
   function openLightbox(list, i) { lbList = list; lbIdx = i; show(); lb.classList.add("open"); }
   function close() { lb.classList.remove("open"); }
@@ -98,6 +105,14 @@ document.addEventListener("DOMContentLoaded", function () {
   lb.querySelector(".lb-close").addEventListener("click", close);
   lb.querySelector(".lb-prev").addEventListener("click", function () { step(-1); });
   lb.querySelector(".lb-next").addEventListener("click", function () { step(1); });
+  lb.querySelectorAll(".lb-step").forEach(function (b) {
+    b.addEventListener("click", function () { step(+b.dataset.step); });
+  });
+  // 點照片右半邊看下一張、左半邊看上一張
+  lbImg.addEventListener("click", function (e) {
+    var r = lbImg.getBoundingClientRect();
+    step(e.clientX - r.left < r.width / 2 ? -1 : 1);
+  });
   lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
   document.addEventListener("keydown", function (e) {
     if (!lb.classList.contains("open")) return;
