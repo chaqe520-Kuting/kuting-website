@@ -58,7 +58,7 @@ window.ALBUMS = [
  *   例如 "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx"
  *   之後在 YouTube 新增到播放清單的影片，網站會自動顯示，不用再改這裡。
  */
-window.VIDEO_PLAYLIST = "";
+window.VIDEO_PLAYLIST = "https://www.youtube.com/playlist?list=PLBS8vMNMpxMo";
 
 /*
  * 個別影片清單（有播放清單的話可以不填）
