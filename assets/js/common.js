@@ -64,8 +64,10 @@
     if (!el) return;
     el.className = "site-footer";
     var contact = [];
-    if (SITE.address) contact.push("<p>地址：" + esc(SITE.address) + "</p>");
-    if (SITE.phone) contact.push("<p>電話：" + esc(SITE.phone) + "</p>");
+    if (SITE.address) contact.push("<p>地址：" + esc(SITE.address) +
+      (SITE.mapUrl ? '（<a href="' + esc(SITE.mapUrl) + '" target="_blank" rel="noopener">地圖</a>）' : "") + "</p>");
+    if (SITE.phone) contact.push('<p>電話：<a href="tel:' + String(SITE.phone).replace(/[^\d+]/g, "") + '">' + esc(SITE.phone) + "</a></p>");
+    if (SITE.openHours) contact.push("<p>開放：" + esc(SITE.openHours) + "</p>");
     if (SITE.email) contact.push('<p>信箱：<a href="mailto:' + esc(SITE.email) + '">' + esc(SITE.email) + "</a></p>");
     el.innerHTML =
       '<div class="container">' +

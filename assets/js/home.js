@@ -20,9 +20,15 @@ document.addEventListener("DOMContentLoaded", function () {
     return "<p>" + esc(p) + "</p>";
   }).join("");
 
-  var info = [["開放時間", SITE.openHours], ["地址", SITE.address], ["電話", SITE.phone], ["交通", SITE.transport]];
+  var tel = String(SITE.phone || "").replace(/[^\d+]/g, "");
+  var info = [
+    ["開放時間", esc(SITE.openHours)],
+    ["地址", esc(SITE.address)],
+    ["電話", SITE.phone ? '<a href="tel:' + tel + '">' + esc(SITE.phone) + "</a>" : ""],
+    ["交通", esc(SITE.transport) + (SITE.mapUrl ? '<br><a href="' + esc(SITE.mapUrl) + '" target="_blank" rel="noopener">開啟 Google 地圖導航 →</a>' : "")]
+  ];
   document.getElementById("info-list").innerHTML = info.filter(function (i) { return i[1]; }).map(function (i) {
-    return "<dt>" + esc(i[0]) + "</dt><dd>" + esc(i[1]) + "</dd>";
+    return "<dt>" + esc(i[0]) + "</dt><dd>" + i[1] + "</dd>";
   }).join("");
 
   var albums = (window.ALBUMS || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 3);
