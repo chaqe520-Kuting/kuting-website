@@ -1,7 +1,7 @@
 """抓古亭院 YouTube 頻道的影片標題，產生網站影片清單 data/channel_videos.js。
 
 GitHub 每小時自動執行（.github/workflows/videos.yml）：
-  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，用 yt-dlp 讀頻道「影片」分頁的全部影片；
+  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，用 yt-dlp 讀頻道「上傳的影片」清單（含直式短影片）；
   yt-dlp 失敗時改讀 YouTube 的 RSS（最新 15 部，較舊的影片沿用原本清單）。
 
 在自己電腦執行：pip install yt-dlp，再執行 python3 tools/fetch_videos.py
@@ -53,13 +53,16 @@ def parse_feed(xml):
 
 
 def fetch_with_ytdlp(cid):
-    """用 yt-dlp 讀頻道「影片」分頁（全部影片，新到舊）；沒有安裝或失敗回傳 None"""
-    url = "https://www.youtube.com/channel/%s/videos" % cid
+    """用 yt-dlp 讀頻道「上傳的影片」清單（含直式短影片，新到舊）；沒有安裝或失敗回傳 None"""
+    url = "https://www.youtube.com/playlist?list=UU" + cid[2:]
     try:
-        out = subprocess.run(
+        r = subprocess.run(
             ["yt-dlp", "--flat-playlist", "-J", "--extractor-args", "youtubetab:approximate_date", url],
-            capture_output=True, text=True, timeout=120, check=True).stdout
-        entries = json.loads(out).get("entries") or []
+            capture_output=True, text=True, timeout=120)
+        if r.returncode:
+            print("yt-dlp 讀取失敗：" + r.stderr.strip()[-500:])
+            return None
+        entries = json.loads(r.stdout).get("entries") or []
     except Exception as e:
         print("yt-dlp 讀取失敗（%s）" % e)
         return None
