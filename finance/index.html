@@ -1,0 +1,2472 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>嘉義古亭院 財務儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6EFDD;
+    --paper-deep:#EFE4C8;
+    --ink:#2B2420;
+    --ink-soft:#6B5D4F;
+    --temple-red:#8C2A26;
+    --temple-red-deep:#6E1F1C;
+    --gold:#B8862E;
+    --gold-light:#D9AE5D;
+    --jade:#3F6B54;
+    --line:#D8C9A3;
+    --card:#FFFCF4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(184,134,46,0.08), transparent 40%),
+      radial-gradient(circle at 90% 10%, rgba(140,42,38,0.06), transparent 45%);
+    color:var(--ink);
+    font-family:"Noto Sans TC", sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:36px 22px 80px;}
+
+  header.top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    border-bottom:3px double var(--temple-red);
+    padding-bottom:18px;
+    margin-bottom:30px;
+    flex-wrap:wrap;
+  }
+  header.top .title-block{max-width:640px;}
+  header.top h1{
+    font-family:"Noto Serif TC", serif;
+    font-weight:900;
+    font-size:32px;
+    margin:0 0 6px;
+    color:var(--temple-red-deep);
+    letter-spacing:1px;
+  }
+  header.top p{margin:0;color:var(--ink-soft);font-size:14px;}
+  .version-badge{
+    display:inline-block;
+    margin-left:8px;
+    padding:2px 9px;
+    background:var(--paper-deep);
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-size:11.5px;
+    color:var(--temple-red-deep);
+    font-weight:700;
+    vertical-align:middle;
+  }
+  .version-link{
+    background:none;border:none;
+    color:var(--gold);
+    font-size:12.5px;
+    text-decoration:underline;
+    cursor:pointer;
+    margin-left:6px;
+    font-family:"Noto Sans TC",sans-serif;
+    vertical-align:middle;
+  }
+  .version-link:hover{color:var(--temple-red);}
+  .changelog-panel{margin-bottom:30px;}
+  .changelog-entry{
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .changelog-entry:last-child{border-bottom:none;}
+  .changelog-entry .cl-version{
+    font-family:"Noto Serif TC",serif;
+    font-weight:700;
+    color:var(--temple-red-deep);
+    font-size:13.5px;
+  }
+  .changelog-entry .cl-date{color:var(--ink-soft);font-size:12px;margin-left:8px;}
+  .changelog-entry ul{margin:6px 0 0;padding-left:20px;font-size:13px;color:var(--ink);}
+  .changelog-entry li{margin-bottom:3px;}
+  .year-select{
+    display:flex;align-items:center;gap:8px;
+    font-family:"Noto Serif TC",serif;
+    font-size:15px;
+  }
+  select#yearPick{
+    font-family:"Noto Sans TC",sans-serif;
+    padding:8px 12px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--ink);
+    font-size:14px;
+  }
+
+  .summary-row{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:34px;
+  }
+  .stat{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 16px;
+    position:relative;
+    overflow:hidden;
+  }
+  .stat::before{
+    content:"";
+    position:absolute;top:0;left:0;bottom:0;width:4px;
+    background:var(--gold);
+  }
+  .stat.red::before{background:var(--temple-red);}
+  .stat.jade::before{background:var(--jade);}
+  .stat .label{font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .stat .value{font-family:"Noto Serif TC",serif;font-weight:700;font-size:22px;}
+  .stat .value.neg{color:var(--temple-red);}
+  .stat .value.pos{color:var(--jade);}
+
+  section{margin-bottom:40px;}
+  h2.section-title{
+    font-family:"Noto Serif TC",serif;
+    font-size:19px;
+    font-weight:700;
+    color:var(--temple-red-deep);
+    border-left:5px solid var(--gold);
+    padding-left:12px;
+    margin:0 0 16px;
+  }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:22px;
+  }
+  .charts-grid{
+    display:grid;
+    grid-template-columns:1.4fr 1fr;
+    gap:18px;
+  }
+  .chart-box{position:relative;height:300px;}
+  .chart-box.tall{height:340px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{
+    text-align:right;
+    font-family:"Noto Serif TC",serif;
+    font-weight:700;
+    color:var(--temple-red-deep);
+    border-bottom:2px solid var(--gold);
+    padding:8px 10px;
+    white-space:nowrap;
+  }
+  thead th:first-child, tbody td:first-child{text-align:left;}
+  tbody td{
+    text-align:right;
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody tr:hover{background:rgba(184,134,46,0.07);}
+  .muted{color:var(--ink-soft);font-size:12.5px;}
+  .pending{color:var(--gold);font-style:normal;}
+  .expense-amount{color:#2457A8;font-weight:600;}
+  .export-row{
+    display:flex;align-items:center;flex-wrap:wrap;gap:14px;
+    background:var(--paper-deep);border:1px solid var(--line);border-radius:10px;
+    padding:10px 16px;margin-bottom:16px;
+  }
+  .export-title{font-family:"Noto Serif TC",serif;font-weight:700;color:var(--temple-red-deep);font-size:13.5px;}
+  .balance-ref-box{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    background:var(--paper-deep);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 18px;
+    margin-bottom:10px;
+  }
+  .balance-ref-item{display:flex;flex-direction:column;gap:4px;min-width:160px;}
+  .balance-ref-label{font-size:12px;color:var(--ink-soft);}
+  .balance-ref-value{
+    font-family:"Noto Serif TC",serif;
+    font-weight:700;
+    font-size:18px;
+    color:var(--temple-red-deep);
+  }
+  .balance-ref-value.preview{color:var(--jade);}
+  .suggest-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .suggest-block label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:700;}
+  .suggest-block .pill-row{min-height:30px;margin-bottom:8px;}
+  .suggest-block .pill{display:inline-flex;align-items:center;gap:6px;}
+  .suggest-block .pill .x{cursor:pointer;font-weight:700;opacity:0.6;}
+  .suggest-block .pill .x:hover{opacity:1;color:var(--temple-red);}
+  .suggest-add-row{display:flex;gap:8px;}
+  .suggest-add-row input{
+    flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:6px;
+    font-size:13px;font-family:"Noto Sans TC",sans-serif;
+  }
+  @media (max-width:760px){ .suggest-grid{grid-template-columns:1fr;} }
+
+  .tab-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+
+  .form-row{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:14px;
+  }
+  .form-row label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px;}
+  .form-row input, .form-row select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    font-size:14px;
+    font-family:"Noto Sans TC",sans-serif;
+    background:#fff;
+    color:var(--ink);
+  }
+  .btn{
+    background:var(--temple-red);
+    color:#fff;
+    border:none;
+    padding:10px 22px;
+    border-radius:7px;
+    font-size:14px;
+    font-family:"Noto Sans TC",sans-serif;
+    font-weight:700;
+    cursor:pointer;
+    letter-spacing:0.5px;
+  }
+  .btn:hover{background:var(--temple-red-deep);}
+  .btn.secondary{
+    background:transparent;
+    color:var(--temple-red);
+    border:1.5px solid var(--temple-red);
+  }
+  .btn.secondary:hover{background:rgba(140,42,38,0.06);}
+  .btn.small{padding:5px 12px;font-size:12.5px;}
+  .form-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  #loginMsg, #entryMsg{font-size:13px;color:var(--jade);font-weight:700;}
+  #liveEntryBody .row-edit{color:var(--gold);cursor:pointer;background:none;border:none;font-size:12.5px;margin-right:8px;text-decoration:underline;font-family:inherit;}
+  #liveEntryBody .row-del{color:var(--temple-red);cursor:pointer;background:none;border:none;font-size:12.5px;text-decoration:underline;font-family:inherit;}
+  @media (max-width:760px){
+    .form-row{grid-template-columns:1fr 1fr;}
+  }
+
+  .filter-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .filter-row .tab-row{margin-bottom:0;}
+  .month-filter{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);}
+  .month-filter select{
+    padding:7px 10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:13.5px;
+    font-family:"Noto Sans TC",sans-serif;
+    background:#fff;
+    color:var(--ink);
+  }
+  .tab-btn{
+    background:transparent;
+    border:1.5px solid var(--line);
+    color:var(--ink-soft);
+    padding:9px 18px;
+    border-radius:20px;
+    font-size:13.5px;
+    font-family:"Noto Sans TC",sans-serif;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    background:var(--temple-red);
+    border-color:var(--temple-red);
+    color:#fff;
+  }
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .search-box{
+    width:100%;
+    padding:9px 14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    font-family:"Noto Sans TC",sans-serif;
+    background:#fff;
+    margin-bottom:12px;
+  }
+  .search-box:focus{outline:none;border-color:var(--gold);}
+  .pill{
+    background:var(--paper-deep);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:6px 14px;
+    border-radius:16px;
+    font-size:12.5px;
+    cursor:pointer;
+    font-family:"Noto Sans TC",sans-serif;
+  }
+  .pill:hover{border-color:var(--gold);}
+  .pill.active{
+    background:var(--temple-red);
+    border-color:var(--temple-red);
+    color:#fff;
+  }
+  .detail-table-wrap{max-height:360px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;}
+  .detail-table-wrap table{margin:0;}
+  .detail-table-wrap thead th{position:sticky;top:0;background:var(--card);}
+  .detail-table-wrap tbody td{
+    white-space:normal;
+    word-break:break-word;
+    vertical-align:top;
+  }
+  .detail-table-wrap thead th.sortable{
+    cursor:pointer;
+    user-select:none;
+  }
+  .detail-table-wrap thead th.sortable:hover{color:var(--gold);}
+  .detail-table-wrap thead th.sortable .arrow{
+    display:inline-block;
+    width:10px;
+    font-size:11px;
+    opacity:0.5;
+  }
+  .detail-table-wrap thead th.sortable.active .arrow{opacity:1;color:var(--gold);}
+  .detail-total{
+    margin-top:12px;
+    text-align:right;
+    font-family:"Noto Serif TC",serif;
+    font-weight:700;
+    font-size:15px;
+    color:var(--temple-red-deep);
+  }
+
+  footer.note{
+    margin-top:10px;
+    font-size:12px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+  @media (max-width:760px){
+    .summary-row{grid-template-columns:repeat(2,1fr);}
+    .charts-grid{grid-template-columns:1fr;}
+  }
+  /* 未登入時，只顯示標題與登入框，其餘一律隱藏 */
+  body.locked .gated{ display:none !important; }
+  .admin-tools{ margin-top:28px; }
+  .admin-tools summary{ cursor:pointer; font-weight:700; color:var(--temple-red-deep); }
+  .admin-tools .tool-block{ margin-top:16px; padding-top:14px; border-top:1px dashed #d8c9a8; }
+  .admin-tools code{ background:#f4ecd8; padding:2px 6px; border-radius:4px; word-break:break-all; }
+  /* v1.11.2 明細表欄寬比照「最近登記」：固定欄寬，項目／摘要吃剩餘寬度、過長才換行 */
+  .detail-table-wrap{overflow-x:auto;}
+  #mergedTable, #bankTable, #incomeTable{table-layout:fixed;min-width:640px;}
+  #mergedTable th, #bankTable th, #incomeTable th,
+  #mergedTable td, #bankTable td, #incomeTable td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #mergedTable th:nth-child(1), #bankTable th:nth-child(1), #incomeTable th:nth-child(1){width:7em;text-align:left;}
+  #mergedTable th:nth-child(2){width:4.5em;text-align:left;}
+  #mergedTable td:nth-child(2){text-align:left;}
+  #mergedTable th:nth-child(3), #bankTable th:nth-child(2), #incomeTable th:nth-child(2){width:7.5em;}
+  #mergedTable th:nth-child(4), #bankTable th:nth-child(3), #incomeTable th:nth-child(3){text-align:right;}
+  #mergedTable td:nth-child(4), #bankTable td:nth-child(3), #incomeTable td:nth-child(3){white-space:normal;overflow:visible;text-align:left;}
+  #mergedTable th:nth-child(n+5), #bankTable th:nth-child(n+4), #incomeTable th:nth-child(n+4){width:7.5em;}
+  /* v1.11.0 操作紀錄 */
+  .audit-filters{ display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:12px; }
+  .audit-filters label{ display:block; font-size:12px; color:var(--ink-soft); }
+  .audit-act{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; white-space:nowrap; background:#f4ecd8; color:var(--ink-soft); }
+  .audit-act.create{ background:#e3efe6; color:#2E6B44; }
+  .audit-act.update{ background:#fbf0d9; color:#8a6418; }
+  .audit-act.delete{ background:#f6dedc; color:var(--temple-red-deep); }
+  #auditTable th, #auditTable td{ vertical-align:top; text-align:left; font-size:13px; }
+  #auditTable td.audit-time{ white-space:nowrap; }
+  .audit-diff{ color:var(--ink-soft); font-size:12.5px; }
+  .audit-diff b{ color:var(--temple-red-deep); font-weight:600; }
+  footer.version-footer{ margin-top:6px; font-size:12px; color:var(--ink-soft); text-align:center; }
+</style>
+</head>
+<body class="locked">
+<!-- Netlify 縮圖辨識標籤：平常隱藏，只有 Netlify 截圖程式（無頭瀏覽器）才顯示；網址加 ?label=1 可預覽 -->
+<div id="netlifyThumbLabel" style="display:none;background:#2E7D32;padding:clamp(6px,1.6vw,22px) 0;">
+<svg viewBox="-60 -40 5720 1080" role="img" aria-label="財務儀表板" style="height:clamp(34px,8vw,120px);width:auto;display:block;margin:0 auto;"><path fill="#fff" d="M146 723C120 790 74 859 20 903C47 918 95 951 116 971C172 919 227 835 260 752ZM282 764C324 816 369 887 389 934L490 883C469 836 423 770 379 721ZM196 345H339V438H196ZM196 526H339V620H196ZM196 165H339V256H196ZM84 69V715H457V69ZM744 34V267H482V378H702C644 515 551 649 450 724C476 745 512 785 532 812C612 743 685 643 744 529V834C744 849 738 854 723 855C708 855 664 855 617 853C635 885 654 938 659 970C731 970 781 965 815 946C851 926 862 894 862 834V378H971V267H862V34Z M1734 30C1693 122 1620 213 1542 270C1569 286 1617 318 1639 337C1654 324 1669 310 1684 295C1705 325 1729 352 1755 378C1719 396 1677 411 1632 424L1637 400L1564 377L1548 382H1500L1550 329C1530 315 1505 300 1476 285C1533 237 1589 176 1623 119L1547 72L1528 76H1204V177H1445C1425 199 1404 221 1381 240C1354 227 1327 216 1302 207L1227 284C1289 310 1366 347 1421 382H1190V486H1316C1281 566 1229 644 1173 693C1191 725 1218 774 1228 809C1276 765 1318 698 1353 623V838C1353 850 1349 852 1337 853C1324 853 1284 853 1246 852C1262 884 1277 933 1281 966C1343 966 1389 963 1423 945C1458 926 1466 894 1466 840V486H1519C1510 537 1498 588 1487 625L1568 663C1586 617 1603 557 1617 494C1629 510 1639 526 1645 537C1721 516 1790 488 1850 451C1910 489 1979 519 2055 538C2071 508 2105 461 2131 437C2063 424 2001 404 1946 377C1987 336 2020 288 2045 231H2105V132H1808C1821 109 1834 85 1845 61ZM1760 501C1757 532 1754 562 1750 591H1604V690H1724C1694 769 1635 833 1514 877C1539 899 1570 942 1583 970C1742 907 1813 809 1848 690H1964C1954 784 1941 826 1927 840C1917 849 1909 851 1894 851C1878 851 1844 850 1808 846C1826 877 1839 923 1840 957C1886 958 1928 958 1953 955C1983 950 2005 943 2026 919C2055 888 2073 810 2089 636C2091 621 2093 591 2093 591H1869C1873 562 1876 532 1879 501ZM1847 316C1814 290 1786 262 1764 231H1912C1896 263 1874 291 1847 316Z M3038 28C3027 56 3008 95 2989 124H2862C2848 96 2822 57 2797 29L2702 62C2716 80 2731 103 2743 124H2617V202H2863V240H2650V315H2863V355H2589V438H3264V355H2979V315H3202V240H2979V202H3235V124H3106L3155 60ZM3066 500C3104 526 3150 566 3172 594H3063C3059 552 3056 506 3056 459H2952C2953 506 2956 551 2961 594H2829V537C2865 531 2899 524 2929 516L2870 447C2801 467 2683 482 2583 489C2593 509 2603 540 2606 559C2644 557 2684 554 2725 550V594H2580V675H2725V727L2573 740L2581 827L2725 812V867C2725 878 2721 881 2709 882C2698 883 2659 883 2625 881C2638 905 2650 942 2655 967C2714 967 2757 966 2789 953C2820 939 2829 917 2829 870V801L2937 789L2935 706L2829 716V675H2972C2981 725 2992 770 3006 809C2962 838 2913 862 2864 881C2883 898 2916 938 2929 957C2968 939 3008 917 3046 892C3079 942 3121 971 3173 971C3238 971 3267 947 3281 850C3257 841 3226 824 3206 804C3202 855 3196 873 3180 873C3161 873 3143 858 3127 832C3171 796 3209 755 3239 711L3148 680C3132 703 3113 724 3091 744C3085 723 3080 700 3075 675H3272V594H3177L3248 541C3224 513 3174 475 3135 450ZM2530 33C2481 171 2399 310 2313 397C2331 426 2362 488 2373 515C2393 494 2412 471 2431 445V969H2543V270C2579 204 2611 134 2636 66Z M3685 969C3715 950 3761 936 4047 850C4040 825 4030 776 4027 743L3811 802V632C3858 598 3902 560 3940 521C4016 729 4140 876 4348 946C4366 914 4401 866 4427 841C4337 816 4261 774 4200 720C4258 687 4323 644 4380 603L4280 529C4242 566 4185 610 4132 646C4100 605 4074 560 4054 510H4392V408H4008V352H4319V257H4008V204H4358V103H4008V30H3887V103H3549V204H3887V257H3599V352H3887V408H3506V510H3790C3703 579 3583 640 3471 675C3496 699 3532 744 3549 772C3595 755 3641 734 3686 710V783C3686 827 3658 851 3635 863C3654 887 3678 940 3685 969Z M5046 89V374C5046 531 5036 748 4923 897C4950 910 4999 948 5019 969C5109 852 5143 684 5156 534C5183 615 5216 689 5257 753C5210 806 5156 848 5095 876C5120 897 5151 942 5167 970C5227 937 5282 896 5329 847C5377 899 5433 942 5499 974C5517 943 5553 896 5580 873C5512 845 5453 804 5404 753C5472 651 5519 522 5544 362L5470 339L5450 343H5162V200H5551V89ZM5238 452H5411C5392 527 5364 595 5328 655C5290 594 5260 526 5238 452ZM4777 30V237H4645V348H4766C4737 468 4681 605 4619 685C4638 714 4665 762 4676 796C4714 743 4748 668 4777 585V969H4890V546C4915 592 4941 640 4955 673L5022 580C5004 552 4919 435 4890 402V348H5002V237H4890V30Z"/></svg>
+</div>
+<script>(function(){try{var u=navigator.userAgent||"";if(navigator.webdriver||/headless|puppeteer|playwright|phantom|screenshot|netlify/i.test(u)||/[?&]label=1/.test(location.search)){document.getElementById("netlifyThumbLabel").style.display="block";}}catch(e){}})();</script>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <h1>嘉義古亭院 財務儀表板</h1>
+      <p>昇龍觀世音菩薩 · 現金與銀行存款收支總覽
+        <span class="version-badge" id="versionBadge">v1.0</span>
+        <button class="version-link" id="toggleChangelogBtn">版本紀錄</button>
+      </p>
+    </div>
+    <div class="year-select gated">
+      <span>檢視年度</span>
+      <select id="yearPick"></select>
+    </div>
+  </header>
+
+  <div class="panel changelog-panel" id="changelogPanel" style="display:none;">
+    <h3 style="font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;margin:0 0 12px;">版本紀錄</h3>
+    <div id="changelogList"></div>
+  </div>
+
+  <section id="entrySection">
+    <h2 class="section-title">日常收支登記<span id="liveStatus" class="muted" style="font-weight:400;font-size:12px;margin-left:8px;"></span></h2>
+    <div class="panel">
+
+      <div id="loginBox">
+        <p class="muted">登記新的收支，需要先登入會計人員帳號。</p>
+        <div class="form-row">
+          <div>
+            <label>姓名／帳號</label>
+            <input type="text" id="loginUsername" placeholder="例如：陳師姑">
+          </div>
+          <div>
+            <label>密碼</label>
+            <input type="password" id="loginPassword" placeholder="自設密碼">
+          </div>
+        </div>
+        <div class="form-footer">
+          <button class="btn" id="loginBtn">登入</button>
+          <span id="loginMsg" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="entryBox" style="display:none;">
+        <p class="muted">登入身分：<b id="currentUserName"></b> &nbsp;<button class="btn secondary small" id="logoutBtn">登出</button></p>
+
+        <div class="balance-ref-box">
+          <div class="balance-ref-item">
+            <span class="balance-ref-label">目前現金餘額（參考用）</span>
+            <span class="balance-ref-value" id="refCashBalance">—</span>
+          </div>
+          <div class="balance-ref-item">
+            <span class="balance-ref-label">目前銀行餘額（參考用）</span>
+            <span class="balance-ref-value" id="refBankBalance">—</span>
+          </div>
+          <div class="balance-ref-item" id="refPreviewWrap" style="display:none;">
+            <span class="balance-ref-label">登記這筆後，餘額將變為</span>
+            <span class="balance-ref-value preview" id="refPreviewBalance">—</span>
+          </div>
+        </div>
+        <p class="muted" style="margin-top:-8px;margin-bottom:14px;">登記銀行匯款前，可先對照這個金額跟手機銀行／存摺上的實際餘額是否一致，確認無誤再送出。</p>
+
+        <div class="form-row">
+          <div>
+            <label>日期</label>
+            <input type="date" id="entryDate">
+          </div>
+          <div>
+            <label>帳別</label>
+            <select id="entryAccount">
+              <option value="cash">現金</option>
+              <option value="bank">銀行</option>
+            </select>
+          </div>
+          <div>
+            <label>收支別</label>
+            <select id="entryDirection">
+              <option value="in">收入</option>
+              <option value="out">支出</option>
+            </select>
+          </div>
+          <div>
+            <label>金額</label>
+            <input type="number" id="entryAmount" min="0" placeholder="0">
+          </div>
+        </div>
+
+        <div class="form-row" id="entryPersonFields">
+          <div>
+            <label id="entryNameLabel">姓名</label>
+            <input type="text" id="entryName" list="nameList" placeholder="捐款人／匯款人（可從建議清單選）">
+          </div>
+          <div>
+            <label>活動名稱（選填）</label>
+            <input type="text" id="entryActivity" list="activityList" placeholder="例如：中元普渡">
+          </div>
+          <div style="grid-column:span 2;" id="entryItemInWrap">
+            <label>項目／摘要</label>
+            <input type="text" id="entryItemIn" list="itemInList" placeholder="例如：香油錢">
+          </div>
+          <div style="grid-column:span 2;display:none;" id="entryItemOutWrap">
+            <label>項目／摘要</label>
+            <input type="text" id="entryItemOut" list="itemOutList" placeholder="例如：瓦斯費">
+          </div>
+        </div>
+
+        <div class="form-row" id="entryExpenseFields" style="display:none;">
+          <div id="entryCategoryWrap">
+            <label>分類（現金支出）</label>
+            <select id="entryCategory"></select>
+          </div>
+          <div style="grid-column:span 3;align-self:end;">
+            <span class="muted">現金支出請選分類，才會統計到支出分類圓餅圖。</span>
+          </div>
+        </div>
+
+        <datalist id="nameList"></datalist>
+        <datalist id="activityList"></datalist>
+        <datalist id="itemInList"></datalist>
+        <datalist id="itemOutList"></datalist>
+
+        <div class="form-row">
+          <div style="grid-column:1 / -1;">
+            <label>備註（選填）</label>
+            <input type="text" id="entryNote">
+          </div>
+        </div>
+
+        <div class="form-footer">
+          <button class="btn" id="submitEntryBtn">新增登記</button>
+          <button class="btn secondary" id="cancelEditBtn" style="display:none;">取消編輯</button>
+          <span id="entryMsg" class="muted"></span>
+        </div>
+
+        <h3 style="font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;margin:22px 0 10px;">最近登記（線上即時）</h3>
+        <div class="detail-table-wrap">
+          <table id="liveEntryTable">
+            <thead><tr><th>日期</th><th>帳別</th><th>收支</th><th>姓名／分類</th><th>項目</th><th>金額</th><th>登記人</th><th>操作</th></tr></thead>
+            <tbody id="liveEntryBody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:22px;">
+          <button class="btn secondary small" id="toggleSuggestEditorBtn">管理登記建議清單 ▾</button>
+          <button class="btn secondary small" id="exportSuggestBtn" style="margin-left:8px;">匯出建議清單</button>
+        </div>
+        <div id="suggestEditor" style="display:none;margin-top:14px;">
+          <p class="muted">這裡新增的詞會優先出現在登記表單的下拉建議最前面，方便之後登記者快速選用（所有登入的會計人員共用同一份清單）。</p>
+          <div class="suggest-grid">
+            <div class="suggest-block">
+              <label>姓名</label>
+              <div class="pill-row" id="suggestPills_names"></div>
+              <div class="suggest-add-row"><input type="text" id="suggestInput_names" placeholder="新增姓名..."><button class="btn small" data-list="names">新增</button></div>
+            </div>
+            <div class="suggest-block">
+              <label>活動名稱</label>
+              <div class="pill-row" id="suggestPills_activities"></div>
+              <div class="suggest-add-row"><input type="text" id="suggestInput_activities" placeholder="新增活動名稱..."><button class="btn small" data-list="activities">新增</button></div>
+            </div>
+            <div class="suggest-block">
+              <label>收入項目／摘要</label>
+              <div class="pill-row" id="suggestPills_itemsIn"></div>
+              <div class="suggest-add-row"><input type="text" id="suggestInput_itemsIn" placeholder="新增收入項目..."><button class="btn small" data-list="itemsIn">新增</button></div>
+            </div>
+            <div class="suggest-block">
+              <label>支出項目／摘要</label>
+              <div class="pill-row" id="suggestPills_itemsOut"></div>
+              <div class="suggest-add-row"><input type="text" id="suggestInput_itemsOut" placeholder="新增支出項目..."><button class="btn small" data-list="itemsOut">新增</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="noDbMsg" class="muted" style="display:none;">此功能需要從已發布的連結開啟才能使用（目前以唯讀模式顯示歷史資料）。</div>
+    </div>
+  </section>
+
+  <div class="gated" id="gatedContent">
+  <section class="summary-row" id="summaryRow"></section>
+
+  <section>
+    <h2 class="section-title">月度收支趨勢</h2>
+    <div class="panel charts-grid">
+      <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
+      <div class="chart-box tall"><canvas id="pieChart"></canvas></div>
+    </div>
+  </section>
+
+  <section>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <h2 class="section-title" style="margin-bottom:0;" id="balanceChartTitle">累計結餘走勢（現金＋銀行）</h2>
+      <div class="month-filter">
+        <label for="balanceModePick">顯示範圍</label>
+        <select id="balanceModePick">
+          <option value="all">現金＋銀行</option>
+          <option value="cash">僅現金</option>
+          <option value="bank">僅銀行</option>
+        </select>
+      </div>
+    </div>
+    <div class="panel"><div class="chart-box"><canvas id="balanceChart"></canvas></div></div>
+  </section>
+
+  <section>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <h2 class="section-title" style="margin-bottom:0;">月份明細</h2>
+      <button class="btn secondary small" id="exportExcelBtn">匯出 Excel</button>
+    </div>
+    <div class="panel" style="overflow-x:auto;">
+      <table id="detailTable">
+        <thead>
+          <tr>
+            <th>年月</th><th>現金收入</th><th>現金支出</th><th>銀行收入</th><th>銀行支出</th>
+            <th>本月收支合計</th><th>累計餘額</th><th>備註</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">收支明細查詢</h2>
+    <div class="panel">
+      <div class="filter-row">
+        <div class="tab-row">
+          <button class="tab-btn active" id="tabIncomeBtn">現金收入（依活動／項目）</button>
+          <button class="tab-btn" id="tabExpenseBtn">現金支出（依分類）</button>
+          <button class="tab-btn" id="tabBankBtn">銀行存款明細</button>
+          <button class="tab-btn" id="tabMergedBtn">現金＋銀行 合併查詢</button>
+        </div>
+        <div class="month-filter">
+          <label for="monthFilter">月份篩選</label>
+          <select id="monthFilter"></select>
+        </div>
+      </div>
+
+      <div class="export-row">
+        <span class="export-title">匯出 Excel（備份／核對用）</span>
+        <div class="month-filter">
+          <label for="exportYearPick">年度</label>
+          <select id="exportYearPick"></select>
+        </div>
+        <div class="month-filter">
+          <label for="exportMonthPick">月份</label>
+          <select id="exportMonthPick"></select>
+        </div>
+        <button class="btn small" id="exportDetailBtn">匯出明細 Excel</button>
+        <span class="muted" id="exportMsg"></span>
+      </div>
+
+      <div id="incomePane">
+        <p class="muted">點選下方活動／項目快速篩選，或直接用關鍵字搜尋姓名／項目／活動（可同時使用）。</p>
+        <input type="text" id="incomeSearch" class="search-box" placeholder="輸入姓名、項目或活動關鍵字搜尋全部列表...">
+        <div class="pill-row" id="activityPills"></div>
+        <div class="detail-table-wrap">
+          <table id="incomeTable">
+            <thead><tr>
+              <th class="sortable" data-sort="ym">年月</th>
+              <th class="sortable" data-sort="name">姓名</th>
+              <th class="sortable" data-sort="item">項目／摘要</th>
+              <th class="sortable" data-sort="amount">金額</th>
+            </tr></thead>
+            <tbody id="incomeBody"></tbody>
+          </table>
+        </div>
+        <div class="detail-total" id="incomeTotal"></div>
+      </div>
+
+      <div id="expensePane" style="display:none;">
+        <p class="muted">點選下方分類，或直接點圓餅圖的區塊，查看各月支出金額；也可用關鍵字搜尋分類名稱。</p>
+        <input type="text" id="expenseSearch" class="search-box" placeholder="輸入分類關鍵字搜尋（例如：瓦斯、師父）...">
+        <div class="pill-row" id="categoryPills"></div>
+        <div class="detail-table-wrap">
+          <table id="expenseTable">
+            <thead><tr>
+              <th class="sortable" data-sort="ym">年月</th>
+              <th class="sortable" data-sort="amount">金額</th>
+            </tr></thead>
+            <tbody id="expenseBody"></tbody>
+          </table>
+        </div>
+        <div class="detail-total" id="expenseTotal"></div>
+      </div>
+
+      <div id="bankPane" style="display:none;">
+        <p class="muted">銀行帳戶存入／提領逐筆明細，點選下方存入／支出快速篩選，或用關鍵字搜尋姓名／項目。</p>
+        <input type="text" id="bankSearch" class="search-box" placeholder="輸入姓名或項目關鍵字搜尋全部銀行明細...">
+        <div class="pill-row" id="bankTypePills">
+          <button class="pill active" data-type="ALL">全部</button>
+          <button class="pill" data-type="in">存入（收入）</button>
+          <button class="pill" data-type="out">支出（提領）</button>
+        </div>
+        <div class="detail-table-wrap">
+          <table id="bankTable">
+            <thead><tr>
+              <th class="sortable" data-sort="ym">年月</th>
+              <th class="sortable" data-sort="name">姓名</th>
+              <th class="sortable" data-sort="item">項目／摘要</th>
+              <th class="sortable" data-sort="in">存入</th>
+              <th class="sortable" data-sort="out">支出</th>
+            </tr></thead>
+            <tbody id="bankBody"></tbody>
+          </table>
+        </div>
+        <div class="detail-total" id="bankTotal"></div>
+      </div>
+
+      <div id="mergedPane" style="display:none;">
+        <p class="muted">合併「現金登記」與「銀行存款」兩本帳的逐筆收入／支出，可一次查到某人不論用現金或匯款的所有紀錄；每筆都會標示來源帳本。</p>
+        <input type="text" id="mergedSearch" class="search-box" placeholder="輸入姓名或項目關鍵字，搜尋現金＋銀行全部明細...">
+        <div class="pill-row" id="mergedTypePills">
+          <button class="pill active" data-type="ALL">全部</button>
+          <button class="pill" data-type="in">收入／存入</button>
+          <button class="pill" data-type="out">支出／提領</button>
+        </div>
+        <div class="detail-table-wrap">
+          <table id="mergedTable">
+            <thead><tr>
+              <th class="sortable" data-sort="ym">年月</th>
+              <th class="sortable" data-sort="source">來源</th>
+              <th class="sortable" data-sort="name">姓名</th>
+              <th class="sortable" data-sort="item">項目／摘要</th>
+              <th class="sortable" data-sort="in">收入</th>
+              <th class="sortable" data-sort="out">支出</th>
+            </tr></thead>
+            <tbody id="mergedBody"></tbody>
+          </table>
+        </div>
+        <div class="detail-total" id="mergedTotal"></div>
+        <p class="muted" style="margin-top:10px;">＊現金支出僅有月度分類小計、沒有逐筆記錄，因此「合併查詢」的支出僅涵蓋銀行提領；現金支出請至「現金支出」分頁查看。</p>
+      </div>
+
+      <p class="muted" style="margin-top:14px;">＊明細金額為逐筆人工登帳資料，若與月度合計有些微差異，請以「月份明細」表格中的官方月結金額為準。</p>
+    </div>
+  </section>
+
+
+  <details class="panel admin-tools" id="adminTools">
+    <summary>管理工具（僅會計人員可見）</summary>
+
+    <div class="tool-block">
+      <h3 style="margin:0 0 8px;font-size:15px;">一、新增會計人員帳號</h3>
+      <p class="muted" style="margin:0 0 8px;">為了安全，網頁不再開放自行註冊。新帳號請由管理者在 Firebase 後台建立：先在這裡輸入姓名，取得對應的登入 Email，再貼到 Firebase 後台。</p>
+      <div class="form-row">
+        <div><label>會計人員姓名</label><input type="text" id="newAcctName" placeholder="例如：陳師姑"></div>
+        <div style="align-self:end;"><button class="btn small" id="genEmailBtn">產生登入 Email</button></div>
+      </div>
+      <p id="genEmailOut" class="muted" style="margin-top:8px;"></p>
+      <p class="muted" style="margin:6px 0 0;">步驟：Firebase 後台 → Authentication → 使用者 → 新增使用者 → 電子郵件貼上方產生的 Email → 密碼自訂（至少8個字元；Firebase 後台只檢查6個，請自行設滿8個）→ 新增。之後該人員就能在這個網頁用「姓名＋密碼」登入。</p>
+    </div>
+
+    <div class="tool-block">
+      <h3 style="margin:0 0 8px;font-size:15px;">二、匯入歷史資料（僅首次搬移使用，限管理者）</h3>
+      <p class="muted" style="margin:0 0 8px;">選擇管理者保管的「finance-seed-data.json」檔案，一次把 113～115 年度歷史資料存進資料庫。再次匯入會覆蓋舊的歷史資料，請勿重複操作。</p>
+      <input type="file" id="seedFile" accept="application/json,.json">
+      <button class="btn small" id="importSeedBtn">開始匯入</button>
+      <p id="importMsg" class="muted" style="margin-top:8px;"></p>
+    </div>
+  </details>
+  </div>
+
+  <div class="panel gated" id="adminSetupBox" style="display:none;margin-top:28px;">
+    <h3 style="margin:0 0 8px;font-size:15px;color:var(--temple-red-deep);">設定管理者（只需做一次）</h3>
+    <p class="muted" style="margin:0 0 10px;">目前尚未設定管理者。管理者可以查看「操作紀錄」、新增其他管理者、匯入歷史資料。第一位管理者設定後，這個按鈕就會消失，之後只能由管理者新增。</p>
+    <button class="btn small" id="adminSetupBtn">把我（目前登入者）設為管理者</button>
+    <span id="adminSetupMsg" class="muted" style="margin-left:8px;"></span>
+  </div>
+
+  <section class="gated" id="auditSection" style="display:none;margin-top:28px;">
+    <h2 class="section-title">操作紀錄（僅管理者可見）</h2>
+    <div class="panel">
+      <p class="muted" style="margin:0 0 12px;">記錄誰在什麼時間新增、修改、刪除了哪一筆收支登記，以及匯入歷史資料、建議清單與管理者異動。紀錄由資料庫保護，任何人（包括管理者）都不能修改或刪除。</p>
+      <div class="audit-filters">
+        <div><label>人員</label><select id="auditUserPick"><option value="">全部人員</option></select></div>
+        <div><label>動作</label><select id="auditActionPick"><option value="">全部動作</option></select></div>
+        <div><label>關鍵字</label><input type="text" id="auditSearch" placeholder="姓名、項目、金額..."></div>
+        <div>
+          <button class="btn secondary small" id="auditReloadBtn">重新整理</button>
+          <button class="btn secondary small" id="auditMoreBtn">載入更早的紀錄</button>
+          <button class="btn secondary small" id="auditExportBtn">匯出 Excel</button>
+        </div>
+      </div>
+      <div class="detail-table-wrap">
+        <table id="auditTable">
+          <thead><tr><th>時間</th><th>人員</th><th>動作</th><th>內容</th><th>變更</th></tr></thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+      <p id="auditMsg" class="muted" style="margin-top:8px;"></p>
+
+      <div class="tool-block" style="margin-top:18px;padding-top:14px;border-top:1px dashed #d8c9a8;">
+        <h3 style="margin:0 0 8px;font-size:15px;">管理者名單</h3>
+        <div class="pill-row" id="adminPills"></div>
+        <div class="suggest-add-row" style="margin-top:8px;">
+          <select id="adminAddPick"><option value="">選擇會計人員…</option></select>
+          <button class="btn small" id="adminAddBtn">設為管理者</button>
+        </div>
+        <p class="muted" style="margin:6px 0 0;">建議至少設兩位管理者，避免唯一的管理者無法登入時沒人能查看紀錄。名單只列出已登入過網頁的會計人員。</p>
+        <p id="adminMsg" class="muted"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">此儀表板資料整理自寺方提供的 Excel 帳冊（114～115年度）。</footer>
+  <footer class="version-footer" id="versionFooter"></footer>
+</div>
+
+<script>
+/* ---------------- 歷史資料（v1.10.0 起不再寫在網頁裡，改存 Firestore「seed」集合，登入後才讀取） ---------------- */
+let OPENINGS = {};
+let OPENINGS_CASH = {};
+let OPENINGS_BANK = {};
+let OPENING_BALANCE = { year: 0, cash: 0, bank: 0, total: 0 };
+let SEED_MONTHS = [];
+let INCOME_RECORDS = [];
+let BANK_RECORDS = [];
+let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／表格
+
+const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+/* ---------------- 版本紀錄 ---------------- */
+const APP_VERSION = 'v1.11.2';
+const APP_DATE = '2026-10-08';
+const CHANGELOG = [
+  { version:'v1.11.2', date:'2026-10-08', items:[
+    '收支明細查詢（合併查詢、銀行存款明細、現金收入）欄位排列比照「最近登記」：年月、來源、姓名、金額固定寬度，項目／摘要放寬',
+    '項目／摘要內容過長時才換行；手機畫面可左右滑動',
+  ]},
+  { version:'v1.11.1', date:'2026-10-08', items:[
+    '收支明細查詢（合併查詢、銀行存款明細、現金收入）調整欄寬：年月、來源、姓名、金額不再斷行，來源欄縮短',
+    '項目／摘要使用剩餘寬度，內容過長時才換成兩行',
+    '欄位標題對齊方式與內容一致',
+  ]},
+  { version:'v1.11.0', date:'2026-10-07', items:[
+    '新增「操作紀錄」：每次新增、修改、刪除收支登記，都會記下時間、登記人與修改前後內容；匯入歷史資料、建議清單與管理者異動也會記錄',
+    '操作紀錄只能新增、不能修改或刪除（由資料庫規則保護），且沒有寫紀錄的登記會被資料庫拒絕',
+    '新增「管理者」：只有管理者看得到操作紀錄（可依人員／動作／關鍵字篩選、匯出 Excel），可新增其他管理者',
+    '匯入歷史資料改為僅限管理者',
+    '帳號設定說明：密碼改為至少 8 個字元',
+    '頁尾顯示版本號與日期',
+  ]},
+  { version:'v1.10.0', date:'2026-10-06', items:[
+    '資安加強：未登入時只顯示登入畫面，所有收支數字、圖表、明細都看不到；登入後才從資料庫讀取',
+    '歷史資料（113～115年度）從網頁檔案搬到 Firestore 資料庫，不再包含在公開的網頁原始碼中',
+    '移除「註冊新帳號」按鈕，新帳號改由管理者在 Firebase 後台建立；登入後新增「管理工具」（產生帳號 Email、匯入歷史資料）',
+    '登出後會自動重新整理頁面，清除畫面上的資料',
+  ]},
+  { version:'v1.9.1', date:'2026-10-05', items:[
+    '修正日常收支登記：選「支出」時「姓名」與「活動名稱」欄位消失的問題，現在收入、支出都會顯示並儲存這兩個欄位',
+    '現金支出另外顯示「分類」欄位；最近登記清單與銀行／合併明細會一併顯示姓名與活動名稱',
+    '支出項目的下拉建議，新增參考歷史銀行支出的項目名稱',
+  ]},
+  { version:'v1.9', date:'2026-10-05', items:[
+    '收支明細查詢新增「匯出明細 Excel」：可選年度／月份／全部資料，一次匯出現金收入、銀行存款、現金支出分類、合併明細、網頁登記明細（含完整日期與登記人）五個工作表，供留存備份與核對',
+  ]},
+  { version:'v1.8', date:'2026-10-02', items:[
+    '日常收支登記新增「目前帳戶餘額」參考顯示（現金／銀行），登記銀行匯款時可直接對照手機銀行／存摺餘額',
+    '輸入金額時即時預覽「登記後餘額將變為」，送出前可先核對是否正確',
+  ]},
+  { version:'v1.7', date:'2026-10-02', items:[
+    '收支明細查詢移除 NT$ 字樣，支出金額改以藍色字顯示',
+    '預設開啟「現金＋銀行 合併查詢」分頁',
+    '累計結餘走勢新增「現金＋銀行／僅現金／僅銀行」切換',
+    '月份明細新增「匯出 Excel」功能',
+    '日常收支登記新增「管理登記建議清單」，可手動新增/刪除姓名、活動名稱、項目摘要的建議詞，並可匯出',
+    '新增版本紀錄面板',
+  ]},
+  { version:'v1.6', date:'2026-10-01', items:[
+    '新增日常收支登記功能：會計人員登入（Firebase Authentication）後可直接登記現金／銀行收支，多人即時同步（Firestore）',
+    '登記表單姓名／活動名稱／項目摘要支援自動建議（依歷史資料出現頻率排序）',
+    '收支明細查詢支援欄位排序（點表頭切換由新到舊／由舊到新）',
+  ]},
+  { version:'v1.5', date:'2026-10-01', items:[
+    '新增「銀行存款明細」與「現金＋銀行 合併查詢」分頁',
+    '收支明細查詢新增全部年度合併檢視、月份篩選、關鍵字搜尋',
+  ]},
+  { version:'v1.4', date:'2026-09-11', items:[
+    '新增113年度資料',
+    '移除手動新增月份表單，改為「收支明細查詢」（依活動／分類瀏覽逐筆資料）',
+  ]},
+  { version:'v1.3', date:'2026-09-11', items:[
+    '新增114年度資料',
+  ]},
+  { version:'v1.0', date:'2026-09-11', items:[
+    '初版上線：115年度財務儀表板，月度收支圖表、支出分類圓餅圖、累計結餘走勢',
+  ]},
+];
+
+function renderChangelog(){
+  document.getElementById('versionBadge').textContent = APP_VERSION;
+  const vf = document.getElementById('versionFooter');
+  if(vf) vf.innerHTML = `古亭院財務記帳 ${APP_VERSION}（${APP_DATE}）　<a href="#" id="footerChangelogLink" style="color:inherit;">改動清單</a>`;
+  const fl = document.getElementById('footerChangelogLink');
+  if(fl) fl.onclick = ev=>{ ev.preventDefault(); const el = document.getElementById('changelogPanel'); el.style.display = ''; el.scrollIntoView({behavior:'smooth'}); };
+  document.getElementById('changelogList').innerHTML = CHANGELOG.map(c=>`
+    <div class="changelog-entry">
+      <span class="cl-version">${c.version}</span><span class="cl-date">${c.date}</span>
+      <ul>${c.items.map(i=>`<li>${i}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+const CAT_LABELS = {worship:'拜拜用品／祭祀', food:'餐飲／菜錢', flowers:'水果／花材', util:'水電瓦斯', master:'師父／供養', equip:'設備家具', misc:'雜支其他'};
+const CAT_COLORS = ['#8C2A26','#B8862E','#3F6B54','#D9AE5D','#6E1F1C','#7A8B6F','#C99A4A'];
+
+let monthsData = [];
+let openings = OPENINGS;
+let trendChart, pieChart, balanceChart;
+let activeCategory = null;   // expense pill/pie selection
+let activeActivity = '__ALL__'; // income pill selection
+
+/* ---------------- 表格欄位排序（點表頭切換） ---------------- */
+const sortState = {
+  income:  {key:'ym', dir:-1},
+  expense: {key:'ym', dir:-1},
+  bank:    {key:'ym', dir:-1},
+  merged:  {key:'ym', dir:-1},
+};
+function sortCompare(a, b){
+  if(a===null || a===undefined) a = -Infinity;
+  if(b===null || b===undefined) b = -Infinity;
+  if(typeof a === 'string' || typeof b === 'string'){
+    return String(a).localeCompare(String(b), 'zh-Hant');
+  }
+  return a - b;
+}
+function applySort(arr, stateKey, keyFn){
+  const st = sortState[stateKey];
+  return [...arr].sort((a,b)=> sortCompare(keyFn(a, st.key), keyFn(b, st.key)) * st.dir);
+}
+function wireSortHeaders(tableId, stateKey, onChange){
+  document.querySelectorAll(`#${tableId} thead th.sortable`).forEach(th=>{
+    const key = th.dataset.sort;
+    const st = sortState[stateKey];
+    const active = st.key === key;
+    th.classList.toggle('active', active);
+    th.innerHTML = th.textContent.replace(/\s*[▲▼↕]?$/,'') + ` <span class="arrow">${active ? (st.dir===1?'▲':'▼') : '↕'}</span>`;
+    th.onclick = ()=>{
+      if(st.key === key){ st.dir *= -1; } else { st.key = key; st.dir = 1; }
+      onChange();
+    };
+  });
+}
+
+
+const fmt = n => (n === null || n === undefined || isNaN(n)) ? null : Math.round(n);
+const money = n => n === null || n === undefined ? '—' : ('NT$ ' + Math.round(n).toLocaleString());
+const moneySigned = n => {
+  if(n === null || n === undefined) return '—';
+  const v = Math.round(n);
+  return (v >= 0 ? '+' : '') + 'NT$ ' + v.toLocaleString();
+};
+// 收支明細查詢專用：不加 NT$ 字樣，純數字加千分位
+const moneyPlain = n => n === null || n === undefined ? '—' : Math.round(n).toLocaleString();
+
+function loadData(){
+  monthsData = JSON.parse(JSON.stringify(SEED_MONTHS));
+  openings = OPENINGS;
+  monthsData.sort((a,b)=> a.year - b.year || a.month - b.month);
+}
+
+function computeRows(){
+  let cum = null, cumCash = null, cumBank = null;
+  let lastYear = null;
+  return monthsData.map(m=>{
+    const net = (m.cashIn||0) - (m.cashOut||0) + (m.bankIn||0) - (m.bankOut||0);
+    const netCash = (m.cashIn||0) - (m.cashOut||0);
+    const netBank = (m.bankIn||0) - (m.bankOut||0);
+    const hasData = m.cashIn!==null || m.cashOut!==null || m.bankIn!==null || m.bankOut!==null;
+    const hasCash = m.cashIn!==null || m.cashOut!==null;
+    const hasBank = m.bankIn!==null || m.bankOut!==null;
+    // 每個年度的第一筆資料列（不一定是1月，例如113年從7月才開始記帳），
+    // 如果有指定期初結餘，就從該金額重新起算（例如115年改採實際盤點金額）
+    if(m.year !== lastYear){
+      if(openings[m.year] !== undefined) cum = openings[m.year];
+      if(OPENINGS_CASH[m.year] !== undefined) cumCash = OPENINGS_CASH[m.year];
+      if(OPENINGS_BANK[m.year] !== undefined) cumBank = OPENINGS_BANK[m.year];
+      lastYear = m.year;
+    }
+    if(cum === null) cum = OPENING_BALANCE.total; // 找不到任何期初結餘基準時，退回全域預設值
+    if(cumCash === null) cumCash = OPENING_BALANCE.cash;
+    if(cumBank === null) cumBank = OPENING_BALANCE.bank;
+    cum = hasData ? cum + net : cum;
+    cumCash = hasCash ? cumCash + netCash : cumCash;
+    cumBank = hasBank ? cumBank + netBank : cumBank;
+    return {
+      ...m, net, cumBalance: hasData ? cum : null,
+      cumCash: hasCash ? cumCash : null,
+      cumBank: hasBank ? cumBank : null,
+    };
+  });
+}
+
+function openingForYear(year){
+  if(openings[year] !== undefined) return openings[year];
+  const years = Object.keys(openings).map(Number).filter(y=>y < year).sort((a,b)=>b-a);
+  return years.length ? openings[years[0]] : OPENING_BALANCE.total;
+}
+
+function populateYearPicker(rows){
+  const years = Array.from(new Set(rows.map(r=>r.year))).sort();
+  const sel = document.getElementById('yearPick');
+  const yearOptions = years.map(y=>`<option value="${y}">民國 ${y} 年</option>`).join('');
+  sel.innerHTML = yearOptions + `<option value="ALL">全部年度合併（${years[0]}～${years[years.length-1]}）</option>`;
+  sel.value = years[years.length-1];
+  sel.onchange = ()=>{ activeActivity = '__ALL__'; render(); };
+}
+
+function isCombinedView(){
+  return document.getElementById('yearPick').value === 'ALL';
+}
+
+function rowLabel(r){
+  return isCombinedView() ? `${r.year}/${r.month}` : MONTH_NAMES[r.month-1];
+}
+
+function renderSummary(yearRows){
+  const combined = isCombinedView();
+  const firstYear = yearRows.length ? yearRows[0].year : Number(document.getElementById('yearPick').value);
+  const openingForThisYear = openingForYear(firstYear);
+  const totalIn = yearRows.reduce((s,r)=> s + (r.cashIn||0) + (r.bankIn||0), 0);
+  const totalOut = yearRows.reduce((s,r)=> s + (r.cashOut||0) + (r.bankOut||0), 0);
+  const net = totalIn - totalOut;
+  const lastWithBalance = [...yearRows].reverse().find(r=>r.cumBalance!==null);
+  const latestBalance = lastWithBalance ? lastWithBalance.cumBalance : openingForThisYear;
+  const periodLabel = combined ? '全部期間' : '本年度';
+
+  const cards = [
+    {label:'期初結餘', value: money(openingForThisYear), cls:''},
+    {label:periodLabel+'總收入', value: money(totalIn), cls:'jade'},
+    {label:periodLabel+'總支出', value: money(totalOut), cls:'red'},
+    {label:'目前累計結餘', value: money(latestBalance), cls: net>=0 ? '' : ''},
+  ];
+  document.getElementById('summaryRow').innerHTML = cards.map(c=>`
+    <div class="stat ${c.cls}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderTrendChart(yearRows){
+  const labels = yearRows.map(rowLabel);
+  const cashIn = yearRows.map(r=>fmt(r.cashIn));
+  const cashOut = yearRows.map(r=>fmt(r.cashOut));
+  const bankIn = yearRows.map(r=>fmt(r.bankIn));
+  const bankOut = yearRows.map(r=>fmt(r.bankOut));
+
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'現金收入', data:cashIn, backgroundColor:'#3F6B54'},
+        {label:'現金支出', data:cashOut, backgroundColor:'#8C2A26'},
+        {label:'銀行收入', data:bankIn, backgroundColor:'#7A8B6F'},
+        {label:'銀行支出', data:bankOut, backgroundColor:'#C77B6E'},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        title:{display:true, text:'各月現金／銀行收支', font:{size:13}, color:'#2B2420'},
+        legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}}}
+      },
+      scales:{
+        x:{grid:{display:false}},
+        y:{ticks:{callback:v=>(v/1000)+'k'}, grid:{color:'#EEE3C8'}}
+      }
+    }
+  });
+}
+
+function renderPieChart(yearRows){
+  const totals = {};
+  Object.keys(CAT_LABELS).forEach(k=>totals[k]=0);
+  yearRows.forEach(r=>{
+    if(!r.categories) return;
+    Object.keys(CAT_LABELS).forEach(k=>{ totals[k] += (r.categories[k]||0); });
+  });
+  const keys = Object.keys(CAT_LABELS).filter(k=>totals[k] > 0);
+  if(pieChart) pieChart.destroy();
+
+  if(keys.length === 0){
+    document.getElementById('pieChart').getContext('2d').clearRect(0,0,9999,9999);
+    return;
+  }
+
+  pieChart = new Chart(document.getElementById('pieChart'), {
+    type:'doughnut',
+    data:{
+      labels: keys.map(k=>CAT_LABELS[k]),
+      datasets:[{ data: keys.map(k=>totals[k]), backgroundColor: keys.map((_,i)=>CAT_COLORS[i % CAT_COLORS.length]) }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      onClick:(evt, elements)=>{
+        if(!elements.length) return;
+        const key = keys[elements[0].index];
+        activeCategory = key;
+        showExpenseTab();
+        renderExpensePane(yearRows);
+      },
+      plugins:{
+        title:{display:true, text:'現金支出分類佔比（點選可查看明細）', font:{size:13}, color:'#2B2420'},
+        legend:{position:'bottom', labels:{boxWidth:12, font:{size:10.5}}}
+      }
+    }
+  });
+}
+
+const BALANCE_SERIES = {
+  all:  { field:'cumBalance', label:'現金＋銀行累計餘額', color:'#B8862E', point:'#8C2A26' },
+  cash: { field:'cumCash',    label:'現金累計餘額',       color:'#3F6B54', point:'#2C4A3A' },
+  bank: { field:'cumBank',    label:'銀行累計餘額',       color:'#2457A8', point:'#173A6E' },
+};
+let balanceChartMode = 'all';
+
+function renderBalanceChart(yearRows){
+  const labels = yearRows.map(rowLabel);
+  const cfg = BALANCE_SERIES[balanceChartMode];
+  const values = yearRows.map(r=>r[cfg.field]);
+  if(balanceChart) balanceChart.destroy();
+  balanceChart = new Chart(document.getElementById('balanceChart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label: cfg.label,
+        data: values,
+        borderColor: cfg.color,
+        backgroundColor: cfg.color + '26',
+        fill:true,
+        tension:0.3,
+        spanGaps:true,
+        pointRadius:4,
+        pointBackgroundColor: cfg.point
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{grid:{display:false}},
+        y:{ticks:{callback:v=>(v/10000)+'萬'}, grid:{color:'#EEE3C8'}}
+      }
+    }
+  });
+}
+
+let lastYearRows = [];
+
+function renderTable(yearRows){
+  lastYearRows = yearRows;
+  document.getElementById('detailBody').innerHTML = yearRows.map(r=>{
+    const pendingNote = (r.cashIn===null && r.cashOut===null) ? ' <span class="pending">（現金帳未入)</span>' : '';
+    return `
+    <tr>
+      <td>${r.year}年 ${MONTH_NAMES[r.month-1]}</td>
+      <td>${money(r.cashIn)}</td>
+      <td>${money(r.cashOut)}</td>
+      <td>${money(r.bankIn)}</td>
+      <td>${money(r.bankOut)}</td>
+      <td>${moneySigned(r.net)}</td>
+      <td>${money(r.cumBalance)}</td>
+      <td class="muted" style="text-align:left;">${(r.note||'')}${pendingNote}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportMonthlyExcel(){
+  if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
+  const header = ['年月','現金收入','現金支出','銀行收入','銀行支出','本月收支合計','累計餘額','備註'];
+  const rows = lastYearRows.map(r=>[
+    `${r.year}年${MONTH_NAMES[r.month-1]}`,
+    r.cashIn, r.cashOut, r.bankIn, r.bankOut, r.net, r.cumBalance, r.note||''
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  const yearLabel = document.getElementById('yearPick').selectedOptions[0].textContent;
+  XLSX.utils.book_append_sheet(wb, ws, '月份明細');
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `古亭院財務儀表板_月份明細_${yearLabel}_${today}.xlsx`);
+}
+
+/* ---------------- 收支明細查詢（收入依活動／項目、支出依分類） ---------------- */
+
+const TABS = [
+  {btn:'tabIncomeBtn', pane:'incomePane'},
+  {btn:'tabExpenseBtn', pane:'expensePane'},
+  {btn:'tabBankBtn', pane:'bankPane'},
+  {btn:'tabMergedBtn', pane:'mergedPane'},
+];
+function showTab(activePane){
+  TABS.forEach(t=>{
+    document.getElementById(t.btn).classList.toggle('active', t.pane===activePane);
+    document.getElementById(t.pane).style.display = t.pane===activePane ? '' : 'none';
+  });
+}
+function showIncomeTab(){ showTab('incomePane'); }
+function showExpenseTab(){ showTab('expensePane'); }
+function showBankTab(){ showTab('bankPane'); }
+function showMergedTab(){ showTab('mergedPane'); }
+
+function renderIncomePane(yearRows){
+  const combined = isCombinedView();
+  const monthSel = document.getElementById('monthFilter').value;
+  const allIncome = getIncomeRecordsAll();
+  let yearRecords = combined ? allIncome : allIncome.filter(r=>r[0]===yearRows[0].year);
+  if(monthSel !== 'ALL') yearRecords = yearRecords.filter(r=>r[1]===Number(monthSel));
+  const keyword = (document.getElementById('incomeSearch').value || '').trim().toLowerCase();
+
+  // build activity list with counts, ranked by total amount
+  const activityTotals = {};
+  yearRecords.forEach(r=>{
+    const act = r[3] || '（一般捐獻／無活動名稱）';
+    activityTotals[act] = (activityTotals[act]||0) + r[5];
+  });
+  const activities = Object.keys(activityTotals).sort((a,b)=>activityTotals[b]-activityTotals[a]);
+
+  if(!activities.includes(activeActivity) && activeActivity !== '__ALL__'){
+    activeActivity = '__ALL__';
+  }
+
+  const pillsHtml = ['__ALL__', ...activities].map(act=>{
+    const label = act === '__ALL__' ? '全部' : act;
+    const cls = act === activeActivity ? 'pill active' : 'pill';
+    return `<button class="${cls}" data-act="${encodeURIComponent(act)}">${label}${act!=='__ALL__' ? '（'+moneyPlain(activityTotals[act])+'）' : ''}</button>`;
+  }).join('');
+  document.getElementById('activityPills').innerHTML = pillsHtml;
+
+  document.querySelectorAll('#activityPills .pill').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeActivity = decodeURIComponent(btn.dataset.act);
+      renderIncomePane(computeRows().filter(r=> combined ? true : r.year===yearRows[0].year));
+    });
+  });
+
+  let filtered = activeActivity === '__ALL__'
+    ? yearRecords
+    : yearRecords.filter(r=> (r[3] || '（一般捐獻／無活動名稱）') === activeActivity);
+
+  if(keyword){
+    filtered = filtered.filter(r=>{
+      const hay = `${r[2]||''} ${r[3]||''} ${r[4]||''}`.toLowerCase();
+      return hay.includes(keyword);
+    });
+  }
+
+  filtered = applySort(filtered, 'income', (r, key)=>{
+    if(key==='ym') return r[0]*100+r[1];
+    if(key==='name') return r[2]||'';
+    if(key==='item') return r[4]||r[3]||'';
+    if(key==='amount') return r[5];
+  });
+  wireSortHeaders('incomeTable', 'income', ()=>renderIncomePane(yearRows));
+
+  document.getElementById('incomeBody').innerHTML = filtered.map(r=>`
+    <tr>
+      <td>${r[0]}/${MONTH_NAMES[r[1]-1]}</td>
+      <td>${r[2] || '（未填姓名）'}</td>
+      <td class="muted" style="text-align:left;">${r[4] || (r[3]||'')}</td>
+      <td>${moneyPlain(r[5])}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="muted">查無符合資料</td></tr>`;
+
+  const total = filtered.reduce((s,r)=>s+r[5],0);
+  document.getElementById('incomeTotal').textContent = `共 ${filtered.length} 筆，合計 ${moneyPlain(total)}`;
+}
+
+function renderExpensePane(yearRows){
+  const monthSel = document.getElementById('monthFilter').value;
+  const rowsInScope = monthSel === 'ALL' ? yearRows : yearRows.filter(r=>r.month===Number(monthSel));
+  const keys = Object.keys(CAT_LABELS);
+  const keyword = (document.getElementById('expenseSearch').value || '').trim().toLowerCase();
+  const visibleKeys = keyword ? keys.filter(k=>CAT_LABELS[k].toLowerCase().includes(keyword)) : keys;
+
+  if(!visibleKeys.includes(activeCategory)) activeCategory = visibleKeys[0] || keys[0];
+
+  document.getElementById('categoryPills').innerHTML = visibleKeys.map(k=>{
+    const cls = k === activeCategory ? 'pill active' : 'pill';
+    return `<button class="${cls}" data-cat="${k}">${CAT_LABELS[k]}</button>`;
+  }).join('') || `<span class="muted">找不到符合的分類</span>`;
+  document.querySelectorAll('#categoryPills .pill').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeCategory = btn.dataset.cat;
+      renderExpensePane(yearRows);
+    });
+  });
+
+  if(!activeCategory){
+    wireSortHeaders('expenseTable', 'expense', ()=>renderExpensePane(yearRows));
+    document.getElementById('expenseBody').innerHTML = `<tr><td colspan="2" class="muted">查無符合分類</td></tr>`;
+    document.getElementById('expenseTotal').textContent = '';
+    return;
+  }
+
+  let rowsWithCat = rowsInScope.filter(r=> r.categories && r.categories[activeCategory] > 0);
+  rowsWithCat = applySort(rowsWithCat, 'expense', (r, key)=>{
+    if(key==='ym') return r.year*100+r.month;
+    if(key==='amount') return r.categories[activeCategory];
+  });
+  wireSortHeaders('expenseTable', 'expense', ()=>renderExpensePane(yearRows));
+
+  document.getElementById('expenseBody').innerHTML = rowsWithCat.map(r=>`
+    <tr><td>${rowLabel(r)}</td><td class="expense-amount">${moneyPlain(r.categories[activeCategory])}</td></tr>
+  `).join('') || `<tr><td colspan="2" class="muted">此範圍此分類暫無明細資料</td></tr>`;
+
+  const missingMonths = rowsInScope.filter(r=> !r.categories || Object.keys(r.categories).length===0);
+  const total = rowsWithCat.reduce((s,r)=>s+r.categories[activeCategory],0);
+  let totalText = `${CAT_LABELS[activeCategory]}合計：${moneyPlain(total)}`;
+  if(missingMonths.length){
+    totalText += `（另有 ${missingMonths.length} 個月分類明細暫缺，不含在此合計內）`;
+  }
+  document.getElementById('expenseTotal').textContent = totalText;
+}
+
+let activeBankType = 'ALL';
+
+function renderBankPane(yearRows){
+  const combined = isCombinedView();
+  const monthSel = document.getElementById('monthFilter').value;
+  const allBank = getBankRecordsAll();
+  let records = combined ? allBank : allBank.filter(r=>r[0]===yearRows[0].year);
+  if(monthSel !== 'ALL') records = records.filter(r=>r[1]===Number(monthSel));
+  const keyword = (document.getElementById('bankSearch').value || '').trim().toLowerCase();
+
+  document.querySelectorAll('#bankTypePills .pill').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.type === activeBankType);
+    btn.onclick = ()=>{ activeBankType = btn.dataset.type; renderBankPane(yearRows); };
+  });
+
+  let filtered = activeBankType === 'ALL' ? records : records.filter(r=>r[5]===activeBankType);
+  if(keyword){
+    filtered = filtered.filter(r=>{
+      const hay = `${r[2]||''} ${r[3]||''}`.toLowerCase();
+      return hay.includes(keyword);
+    });
+  }
+
+  filtered = applySort(filtered, 'bank', (r, key)=>{
+    if(key==='ym') return r[0]*100+r[1];
+    if(key==='name') return r[2]||'';
+    if(key==='item') return r[3]||'';
+    if(key==='in') return r[5]==='in' ? r[4] : -1;
+    if(key==='out') return r[5]==='out' ? r[4] : -1;
+  });
+  wireSortHeaders('bankTable', 'bank', ()=>renderBankPane(yearRows));
+
+  document.getElementById('bankBody').innerHTML = filtered.map(r=>`
+    <tr>
+      <td>${r[0]}/${MONTH_NAMES[r[1]-1]}</td>
+      <td>${r[2] || '（未填姓名）'}</td>
+      <td class="muted" style="text-align:left;">${r[3]||''}</td>
+      <td>${r[5]==='in' ? moneyPlain(r[4]) : ''}</td>
+      <td class="expense-amount">${r[5]==='out' ? moneyPlain(r[4]) : ''}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" class="muted">查無符合資料</td></tr>`;
+
+  const totalIn = filtered.filter(r=>r[5]==='in').reduce((s,r)=>s+r[4],0);
+  const totalOut = filtered.filter(r=>r[5]==='out').reduce((s,r)=>s+r[4],0);
+  document.getElementById('bankTotal').textContent = `共 ${filtered.length} 筆，存入合計 ${moneyPlain(totalIn)}，支出合計 ${moneyPlain(totalOut)}`;
+}
+
+function getMergedRecords(){
+  const fromIncome = getIncomeRecordsAll().map(r=>({
+    year:r[0], month:r[1], source:'現金', name:r[2], item: r[4] || r[3] || '', type:'in', amount:r[5]
+  }));
+  const fromBank = getBankRecordsAll().map(r=>({
+    year:r[0], month:r[1], source:'銀行', name:r[2], item:r[3]||'', type:r[5], amount:r[4]
+  }));
+  const fromLiveCashOut = LIVE_CASH_EXPENSE.map(r=>({
+    year:r.year, month:r.month, source:'現金', name:r.name, item:r.item, type:'out', amount:r.amount
+  }));
+  return [...fromIncome, ...fromBank, ...fromLiveCashOut].sort((a,b)=> a.year-b.year || a.month-b.month);
+}
+
+let activeMergedType = 'ALL';
+
+function renderMergedPane(yearRows){
+  const combined = isCombinedView();
+  const monthSel = document.getElementById('monthFilter').value;
+  const all = getMergedRecords();
+  let records = combined ? all : all.filter(r=>r.year===yearRows[0].year);
+  if(monthSel !== 'ALL') records = records.filter(r=>r.month===Number(monthSel));
+  const keyword = (document.getElementById('mergedSearch').value || '').trim().toLowerCase();
+
+  document.querySelectorAll('#mergedTypePills .pill').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.type === activeMergedType);
+    btn.onclick = ()=>{ activeMergedType = btn.dataset.type; renderMergedPane(yearRows); };
+  });
+
+  let filtered = activeMergedType === 'ALL' ? records : records.filter(r=>r.type===activeMergedType);
+  if(keyword){
+    filtered = filtered.filter(r=>{
+      const hay = `${r.name||''} ${r.item||''}`.toLowerCase();
+      return hay.includes(keyword);
+    });
+  }
+
+  filtered = applySort(filtered, 'merged', (r, key)=>{
+    if(key==='ym') return r.year*100+r.month;
+    if(key==='source') return r.source||'';
+    if(key==='name') return r.name||'';
+    if(key==='item') return r.item||'';
+    if(key==='in') return r.type==='in' ? r.amount : -1;
+    if(key==='out') return r.type==='out' ? r.amount : -1;
+  });
+  wireSortHeaders('mergedTable', 'merged', ()=>renderMergedPane(yearRows));
+
+  document.getElementById('mergedBody').innerHTML = filtered.map(r=>`
+    <tr>
+      <td>${r.year}/${MONTH_NAMES[r.month-1]}</td>
+      <td>${r.source}</td>
+      <td>${r.name || '（未填姓名）'}</td>
+      <td class="muted" style="text-align:left;">${r.item}</td>
+      <td>${r.type==='in' ? moneyPlain(r.amount) : ''}</td>
+      <td class="expense-amount">${r.type==='out' ? moneyPlain(r.amount) : ''}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="6" class="muted">查無符合資料</td></tr>`;
+
+  const totalIn = filtered.filter(r=>r.type==='in').reduce((s,r)=>s+r.amount,0);
+  const totalOut = filtered.filter(r=>r.type==='out').reduce((s,r)=>s+r.amount,0);
+  document.getElementById('mergedTotal').textContent = `共 ${filtered.length} 筆，收入／存入合計 ${moneyPlain(totalIn)}，支出／提領合計 ${moneyPlain(totalOut)}`;
+}
+
+/* ================= 日常收支登記（Firebase 專案：Authentication + Firestore）================= */
+
+// 到 Firebase 主控台建立專案後，把「專案設定」裡的 SDK 設定值貼在這裡
+const firebaseConfig = {
+  apiKey: "AIzaSyDMbN8QCgIgeUigPgeDUC_8vSeIbneFAMk",
+  authDomain: "kuting-accounting115.firebaseapp.com",
+  projectId: "kuting-accounting115",
+  storageBucket: "kuting-accounting115.firebasestorage.app",
+  messagingSenderId: "321837318018",
+  appId: "1:321837318018:web:a4d254cf16e47c53c2599b",
+  measurementId: "G-6MD394MVWH"
+};
+
+let fbAuth = null;
+let fbDb = null;
+let entriesUnsub = null;
+let liveEntries = [];               // 所有線上登記（未刪除）
+let LIVE_INCOME = [];                // 衍生：現金收入明細格式
+let LIVE_BANK = [];                  // 衍生：銀行明細格式
+let LIVE_CASH_EXPENSE = [];          // 衍生：現金支出逐筆（供合併查詢用）
+let currentUser = null;              // {uid, name}
+let editingEntryId = null;
+let SEED_YM = new Set();
+
+function getIncomeRecordsAll(){ return INCOME_RECORDS.concat(LIVE_INCOME); }
+function getBankRecordsAll(){ return BANK_RECORDS.concat(LIVE_BANK); }
+
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Firebase Authentication 要求帳號是 email 格式；把姓名轉成固定、不重複的假 email，
+// 這樣會計人員還是只要輸入姓名+自設密碼，不用申請真正的 email 帳號
+async function usernameToEmail(username){
+  const hash = await sha256Hex(username.trim().toLowerCase());
+  return hash + '@gutingyuan-accounts.local';
+}
+
+function gregorianToROC(dateStr){
+  // dateStr: "YYYY-MM-DD"
+  const [gy, gm] = dateStr.split('-').map(Number);
+  return { year: gy - 1911, month: gm };
+}
+
+// 活動名稱與項目摘要都有填時，合併成「活動／項目」一個欄位顯示（銀行明細只有單一摘要欄）
+function joinLabel(activity, item){
+  return [activity, item].map(s=>(s||'').trim()).filter(Boolean).join('／');
+}
+
+function rebuildLiveDerived(){
+  LIVE_INCOME = [];
+  LIVE_BANK = [];
+  LIVE_CASH_EXPENSE = [];
+  const byYM = {}; // "y-m" -> {cashIn,cashOut,bankIn,bankOut,categories}
+
+  liveEntries.forEach(e=>{
+    const key = `${e.year}-${e.month}`;
+    if(!byYM[key]) byYM[key] = {year:e.year, month:e.month, cashIn:0, cashOut:0, bankIn:0, bankOut:0, categories:{}};
+    const acc = byYM[key];
+    if(e.account === 'cash'){
+      if(e.direction === 'in'){
+        acc.cashIn += e.amount;
+        LIVE_INCOME.push([e.year, e.month, e.name||'', e.activity||'', e.item||'', e.amount]);
+      } else {
+        acc.cashOut += e.amount;
+        const cat = e.category || 'misc';
+        acc.categories[cat] = (acc.categories[cat]||0) + e.amount;
+        LIVE_CASH_EXPENSE.push({year:e.year, month:e.month, name:e.name||'', item:joinLabel(e.activity, e.item) || CAT_LABELS[cat] || '', amount:e.amount});
+      }
+    } else {
+      if(e.direction === 'in'){ acc.bankIn += e.amount; }
+      else { acc.bankOut += e.amount; }
+      LIVE_BANK.push([e.year, e.month, e.name||'', joinLabel(e.activity, e.item), e.amount, e.direction]);
+    }
+  });
+
+  const liveMonthRows = Object.values(byYM)
+    .filter(r => !SEED_YM.has(`${r.year}-${r.month}`))
+    .map(r => ({
+      year:r.year, month:r.month,
+      cashIn:r.cashIn||null, cashOut:r.cashOut||null, bankIn:r.bankIn||null, bankOut:r.bankOut||null,
+      note:'網頁即時登記', categories:r.categories
+    }));
+
+  monthsData = JSON.parse(JSON.stringify(SEED_MONTHS)).concat(liveMonthRows);
+  monthsData.sort((a,b)=> a.year - b.year || a.month - b.month);
+  populateAutocompleteLists();
+}
+
+function showLiveStatus(text){
+  document.getElementById('liveStatus').textContent = text ? `（${text}）` : '';
+}
+
+function subscribeEntries(){
+  if(entriesUnsub) return; // 已經訂閱過，不要重複訂閱
+  entriesUnsub = fbDb.collection('entries').orderBy('createdAt','desc').limit(1000)
+    .onSnapshot(snap=>{
+      liveEntries = snap.docs
+        .map(d=>({id:d.id, ...d.data()}))
+        .filter(e=>!e.deleted);
+      rebuildLiveDerived();
+      showLiveStatus(liveEntries.length ? `線上即時登記 ${liveEntries.length} 筆` : '');
+      render();
+      if(currentUser){ renderLiveEntryTable(); renderAccountBalances(); }
+    }, err=>{
+      console.error('entries 訂閱失敗', err);
+      showLiveStatus('連線 Firebase 失敗，顯示的是歷史資料');
+    });
+}
+
+/* ---- 歷史資料：存放在 Firestore「seed」集合（需登入才能讀），分成 config / income_xxx / bank_xxx 幾份文件 ---- */
+async function loadSeed(){
+  const snap = await fbDb.collection('seed').get();
+  const docs = {};
+  snap.forEach(d=>{ docs[d.id] = d.data(); });
+  if(!docs.config){
+    SEED_MONTHS = []; INCOME_RECORDS = []; BANK_RECORDS = [];
+    return false;
+  }
+  const cfg = JSON.parse(docs.config.json);
+  OPENINGS = cfg.OPENINGS || {};
+  OPENINGS_CASH = cfg.OPENINGS_CASH || {};
+  OPENINGS_BANK = cfg.OPENINGS_BANK || {};
+  OPENING_BALANCE = cfg.OPENING_BALANCE || { year:0, cash:0, bank:0, total:0 };
+  SEED_MONTHS = cfg.SEED_MONTHS || [];
+  const collect = prefix => Object.keys(docs).filter(k=>k.indexOf(prefix)===0).sort()
+    .reduce((arr,k)=>arr.concat(JSON.parse(docs[k].json)), []);
+  INCOME_RECORDS = collect('income_');
+  BANK_RECORDS = collect('bank_');
+  SEED_YM = new Set(SEED_MONTHS.map(m=>`${m.year}-${m.month}`));
+  return true;
+}
+
+async function unlockApp(){
+  let hasSeed = false;
+  try{ hasSeed = await loadSeed(); }
+  catch(e){ console.error('讀取歷史資料失敗', e); showLiveStatus('讀取歷史資料失敗，請確認網路與權限'); }
+  dataReady = true;
+  loadData();
+  const rows = computeRows();
+  if(rows.length) populateYearPicker(rows);
+  populateAutocompleteLists();
+  document.body.classList.remove('locked');
+  subscribeEntries();
+  loadCustomSuggestions();
+  render();
+  if(!hasSeed) showLiveStatus('歷史資料尚未匯入，請到頁面最下方「管理工具」匯入');
+  checkAdmin();
+}
+
+async function initLiveSystem(){
+  if(typeof firebase === 'undefined' || firebaseConfig.apiKey.indexOf('PASTE_YOUR') === 0){
+    document.getElementById('noDbMsg').textContent = 'Firebase 尚未設定：請依說明建立 Firebase 專案，並把設定值填入 HTML 檔案最上方的 firebaseConfig。';
+    document.getElementById('noDbMsg').style.display = '';
+    document.getElementById('loginBox').style.display = 'none';
+    return;
+  }
+  firebase.initializeApp(firebaseConfig);
+  fbAuth = firebase.auth();
+  fbDb = firebase.firestore();
+
+  // 沒登入：只顯示登入框。登入後才讀取歷史資料與即時登記。
+  fbAuth.onAuthStateChanged(async user=>{
+    if(user){
+      currentUser = {uid: user.uid, name: user.displayName || '會計人員'};
+      showEntryBox();
+      await unlockApp();
+    } else {
+      currentUser = null;
+      document.body.classList.add('locked');
+      document.getElementById('entryBox').style.display = 'none';
+      document.getElementById('loginBox').style.display = '';
+    }
+  });
+}
+
+function showEntryBox(){
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('entryBox').style.display = '';
+  document.getElementById('currentUserName').textContent = currentUser.name;
+  const d = document.getElementById('entryDate');
+  if(!d.value) d.value = new Date().toISOString().slice(0,10);
+  populateEntryCategorySelect();
+  renderLiveEntryTable();
+  renderAccountBalances();
+}
+
+function renderAccountBalances(){
+  const cashEl = document.getElementById('refCashBalance');
+  const bankEl = document.getElementById('refBankBalance');
+  if(!cashEl || !bankEl) return;
+  const rows = computeRows();
+  const lastCash = [...rows].reverse().find(r=>r.cumCash!==null);
+  const lastBank = [...rows].reverse().find(r=>r.cumBank!==null);
+  cashEl.textContent = lastCash ? money(lastCash.cumCash) : '—';
+  bankEl.textContent = lastBank ? money(lastBank.cumBank) : '—';
+  renderBalancePreview();
+}
+
+function renderBalancePreview(){
+  const wrap = document.getElementById('refPreviewWrap');
+  const out = document.getElementById('refPreviewBalance');
+  if(!wrap || !out) return;
+  const account = document.getElementById('entryAccount').value;
+  const direction = document.getElementById('entryDirection').value;
+  const amount = Number(document.getElementById('entryAmount').value);
+  if(!amount || amount <= 0){
+    wrap.style.display = 'none';
+    return;
+  }
+  const rows = computeRows();
+  const lastCash = [...rows].reverse().find(r=>r.cumCash!==null);
+  const lastBank = [...rows].reverse().find(r=>r.cumBank!==null);
+  const current = account==='cash' ? (lastCash ? lastCash.cumCash : 0) : (lastBank ? lastBank.cumBank : 0);
+  const next = direction==='in' ? current + amount : current - amount;
+  const label = account==='cash' ? '現金' : '銀行';
+  wrap.style.display = '';
+  wrap.querySelector('.balance-ref-label').textContent = `登記這筆後，${label}餘額將變為`;
+  out.textContent = money(next);
+}
+
+async function handleLogin(){
+  const msg = document.getElementById('loginMsg');
+  const username = (document.getElementById('loginUsername').value||'').trim();
+  const password = document.getElementById('loginPassword').value||'';
+  if(!username || !password){ msg.textContent = '請輸入姓名與密碼'; return; }
+  msg.textContent = '登入中...';
+  try{
+    const email = await usernameToEmail(username);
+    const cred = await fbAuth.signInWithEmailAndPassword(email, password);
+    // 由管理者在後台建立的帳號沒有顯示名稱：第一次登入時，用輸入的姓名補上
+    if(!cred.user.displayName){
+      try{
+        await cred.user.updateProfile({ displayName: username });
+        await fbDb.collection('accountants').doc(cred.user.uid).set({ name: username, createdAt: new Date().toISOString() });
+        currentUser = { uid: cred.user.uid, name: username };
+        document.getElementById('currentUserName').textContent = username;
+      }catch(e2){ console.error('補上顯示名稱失敗', e2); }
+    }
+    msg.textContent = '';
+    // 畫面切換與資料載入由 onAuthStateChanged 處理
+  }catch(e){
+    if(e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials') msg.textContent = '姓名或密碼錯誤；如果是新人員，請洽管理者建立帳號';
+    else if(e.code === 'auth/too-many-requests') msg.textContent = '嘗試次數過多，請稍後再試';
+    else msg.textContent = '登入失敗，請稍後再試';
+    console.error(e);
+  }
+}
+
+function handleLogout(){
+  // 登出後直接重新整理頁面，確保畫面與記憶體中的資料全部清除
+  fbAuth.signOut().finally(()=>{ location.reload(); });
+}
+
+/* ---- 管理工具：產生帳號 Email／匯入歷史資料 ---- */
+async function handleGenEmail(){
+  const name = (document.getElementById('newAcctName').value||'').trim();
+  const out = document.getElementById('genEmailOut');
+  if(!name){ out.textContent = '請先輸入姓名'; return; }
+  out.innerHTML = '登入 Email：<code>' + (await usernameToEmail(name)) + '</code>';
+}
+
+async function handleImportSeed(){
+  const msg = document.getElementById('importMsg');
+  const f = document.getElementById('seedFile').files[0];
+  if(!f){ msg.textContent = '請先選擇 finance-seed-data.json 檔案'; return; }
+  if(!isAdminUser){ msg.textContent = '匯入歷史資料限管理者操作'; return; }
+  if(!confirm('確定要匯入歷史資料嗎？這會覆蓋資料庫中既有的歷史資料。')) return;
+  try{
+    msg.textContent = '讀取檔案中...';
+    const d = JSON.parse(await f.text());
+    if(!d.SEED_MONTHS || !d.INCOME_RECORDS || !d.BANK_RECORDS) throw new Error('檔案格式不正確');
+    const CH = 1500;  // 每份文件最多 1500 筆，避免超過 Firestore 單一文件 1MB 限制
+    const writes = [];
+    writes.push(['config', { json: JSON.stringify({ OPENINGS:d.OPENINGS, OPENINGS_CASH:d.OPENINGS_CASH, OPENINGS_BANK:d.OPENINGS_BANK, OPENING_BALANCE:d.OPENING_BALANCE, SEED_MONTHS:d.SEED_MONTHS }), importedAt:new Date().toISOString(), importedBy:currentUser?currentUser.name:'' }]);
+    const pad = n => String(n).padStart(3,'0');
+    for(let i=0, k=0; i<d.INCOME_RECORDS.length; i+=CH, k++) writes.push(['income_'+pad(k), { json: JSON.stringify(d.INCOME_RECORDS.slice(i,i+CH)), n: d.INCOME_RECORDS.slice(i,i+CH).length }]);
+    for(let i=0, k=0; i<d.BANK_RECORDS.length; i+=CH, k++) writes.push(['bank_'+pad(k), { json: JSON.stringify(d.BANK_RECORDS.slice(i,i+CH)), n: d.BANK_RECORDS.slice(i,i+CH).length }]);
+    // 先清掉舊的歷史資料文件，避免分段數量不同造成殘留
+    const old = await fbDb.collection('seed').get();
+    for(const doc of old.docs){ await doc.ref.delete(); }
+    for(let i=0;i<writes.length;i++){
+      msg.textContent = `寫入中 ${i+1} / ${writes.length} ...`;
+      await fbDb.collection('seed').doc(writes[i][0]).set(writes[i][1]);
+    }
+    msg.textContent = '寫入完成，重新讀取驗證中...';
+    await loadSeed();
+    if(INCOME_RECORDS.length !== d.INCOME_RECORDS.length || BANK_RECORDS.length !== d.BANK_RECORDS.length || SEED_MONTHS.length !== d.SEED_MONTHS.length){
+      throw new Error(`驗證失敗：讀回 收入${INCOME_RECORDS.length}／銀行${BANK_RECORDS.length}／月份${SEED_MONTHS.length} 筆，與檔案不符`);
+    }
+    loadData();
+    const rows = computeRows();
+    populateYearPicker(rows);
+    populateAutocompleteLists();
+    render();
+    showLiveStatus('');
+    msg.textContent = `匯入成功並驗證通過：月份 ${SEED_MONTHS.length} 筆、現金收入 ${INCOME_RECORDS.length} 筆、銀行明細 ${BANK_RECORDS.length} 筆。`;
+    addAuditLogQuiet('seedImport', 'seed', `匯入歷史資料：月份 ${SEED_MONTHS.length} 筆、現金收入 ${INCOME_RECORDS.length} 筆、銀行明細 ${BANK_RECORDS.length} 筆（檔案 ${f.name}）`);
+  }catch(e){
+    console.error(e);
+    msg.textContent = '匯入失敗：' + (e.message || e);
+  }
+}
+
+function populateEntryCategorySelect(){
+  const sel = document.getElementById('entryCategory');
+  sel.innerHTML = Object.keys(CAT_LABELS).map(k=>`<option value="${k}">${CAT_LABELS[k]}</option>`).join('');
+}
+
+function rankedUnique(values, max){
+  const counts = {};
+  values.forEach(v=>{
+    const s = (v||'').trim();
+    if(!s) return;
+    counts[s] = (counts[s]||0) + 1;
+  });
+  return Object.keys(counts)
+    .sort((a,b)=> counts[b]-counts[a])
+    .slice(0, max);
+}
+
+function fillDatalist(id, values){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.innerHTML = values.map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');
+}
+
+function mergeWithCustom(customList, rankedList){
+  // 管理員手動加入的詞排在最前面，不重複
+  const seen = new Set();
+  const merged = [];
+  [...customList, ...rankedList].forEach(v=>{
+    if(!v || seen.has(v)) return;
+    seen.add(v);
+    merged.push(v);
+  });
+  return merged;
+}
+
+function populateAutocompleteLists(){
+  const income = getIncomeRecordsAll();
+  const bank = getBankRecordsAll();
+
+  // 姓名：現金收入 + 銀行明細 都算進去，常捐款／常匯款的人優先排前面
+  const names = rankedUnique([
+    ...income.map(r=>r[2]),
+    ...bank.map(r=>r[2]),
+  ], 300);
+
+  // 活動名稱：現金收入裡的活動名稱
+  const activities = rankedUnique(income.map(r=>r[3]), 150);
+
+  // 收入項目／摘要
+  const itemsIn = rankedUnique(income.map(r=>r[4]), 150);
+
+  // 支出項目／摘要：目前只有「網頁即時登記」的現金支出才有逐筆摘要文字，
+  // 歷史資料是整月分類小計，沒有個別項目文字可用
+  const itemsOut = rankedUnique([
+    ...bank.filter(r=>r[5]==='out').map(r=>r[3]),
+    ...LIVE_CASH_EXPENSE.map(r=>r.item),
+  ], 150);
+
+  fillDatalist('nameList', mergeWithCustom(customSuggestions.names, names));
+  fillDatalist('activityList', mergeWithCustom(customSuggestions.activities, activities));
+  fillDatalist('itemInList', mergeWithCustom(customSuggestions.itemsIn, itemsIn));
+  fillDatalist('itemOutList', mergeWithCustom(customSuggestions.itemsOut, itemsOut));
+}
+
+/* ---------------- 管理員自訂建議清單（姓名／活動名稱／項目摘要） ---------------- */
+
+const customSuggestions = { names:[], activities:[], itemsIn:[], itemsOut:[] };
+const SUGGEST_LABELS = { names:'姓名', activities:'活動名稱', itemsIn:'收入項目／摘要', itemsOut:'支出項目／摘要' };
+
+async function loadCustomSuggestions(){
+  if(!fbDb) return;
+  try{
+    const snap = await fbDb.collection('suggestions').get();
+    snap.forEach(doc=>{
+      if(customSuggestions.hasOwnProperty(doc.id)){
+        customSuggestions[doc.id] = doc.data().list || [];
+      }
+    });
+    renderSuggestPills();
+    populateAutocompleteLists();
+  }catch(e){
+    console.error('讀取建議清單失敗', e);
+  }
+}
+
+function renderSuggestPills(){
+  Object.keys(customSuggestions).forEach(key=>{
+    const el = document.getElementById('suggestPills_'+key);
+    if(!el) return;
+    el.innerHTML = customSuggestions[key].map(v=>`
+      <span class="pill">${v}<span class="x" data-list="${key}" data-val="${v.replace(/"/g,'&quot;')}">✕</span></span>
+    `).join('') || `<span class="muted">尚未新增</span>`;
+    el.querySelectorAll('.x').forEach(x=>{
+      x.addEventListener('click', ()=> removeSuggestion(x.dataset.list, x.dataset.val));
+    });
+  });
+}
+
+async function addSuggestion(listKey, value){
+  value = (value||'').trim();
+  if(!value) return;
+  if(customSuggestions[listKey].includes(value)) return;
+  customSuggestions[listKey] = [value, ...customSuggestions[listKey]];
+  renderSuggestPills();
+  populateAutocompleteLists();
+  try{
+    await fbDb.collection('suggestions').doc(listKey).set({ list: customSuggestions[listKey] });
+    addAuditLogQuiet('suggestAdd', 'suggestions', `建議清單「${SUGGEST_LABELS[listKey]}」新增：${value}`);
+  }catch(e){
+    alert('儲存失敗，請確認網路連線後再試一次');
+    console.error(e);
+  }
+}
+
+async function removeSuggestion(listKey, value){
+  customSuggestions[listKey] = customSuggestions[listKey].filter(v=>v!==value);
+  renderSuggestPills();
+  populateAutocompleteLists();
+  try{
+    await fbDb.collection('suggestions').doc(listKey).set({ list: customSuggestions[listKey] });
+    addAuditLogQuiet('suggestRemove', 'suggestions', `建議清單「${SUGGEST_LABELS[listKey]}」刪除：${value}`);
+  }catch(e){
+    alert('儲存失敗，請確認網路連線後再試一次');
+    console.error(e);
+  }
+}
+
+function exportSuggestExcel(){
+  if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
+  const header = Object.keys(customSuggestions).map(k=>SUGGEST_LABELS[k]);
+  const maxLen = Math.max(...Object.keys(customSuggestions).map(k=>customSuggestions[k].length), 0);
+  const rows = [];
+  for(let i=0;i<maxLen;i++){
+    rows.push(Object.keys(customSuggestions).map(k=>customSuggestions[k][i]||''));
+  }
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = header.map(()=>({wch:20}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '建議清單');
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `古亭院財務儀表板_建議清單_${today}.xlsx`);
+}
+
+function toggleEntryDirectionFields(){
+  const dir = document.getElementById('entryDirection').value;
+  const acc = document.getElementById('entryAccount').value;
+  const isIn = dir==='in';
+  document.getElementById('entryItemInWrap').style.display = isIn ? '' : 'none';
+  document.getElementById('entryItemOutWrap').style.display = isIn ? 'none' : '';
+  document.getElementById('entryExpenseFields').style.display = (!isIn && acc==='cash') ? '' : 'none';
+  document.getElementById('entryName').placeholder = isIn ? '捐款人／匯款人（可從建議清單選）' : '收款人／支付對象（可從建議清單選）';
+  document.getElementById('entryNameLabel').textContent = isIn ? '姓名（捐款人）' : '姓名（收款人／對象）';
+}
+
+function clearEntryForm(){
+  document.getElementById('entryAmount').value = '';
+  document.getElementById('entryName').value = '';
+  document.getElementById('entryActivity').value = '';
+  document.getElementById('entryItemIn').value = '';
+  document.getElementById('entryItemOut').value = '';
+  document.getElementById('entryNote').value = '';
+  editingEntryId = null;
+  document.getElementById('submitEntryBtn').textContent = '新增登記';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+  renderBalancePreview();
+}
+
+async function handleSubmitEntry(){
+  const msg = document.getElementById('entryMsg');
+  if(!currentUser){ msg.textContent = '請先登入'; return; }
+  const dateStr = document.getElementById('entryDate').value;
+  if(!dateStr){ msg.textContent = '請選擇日期'; return; }
+  const account = document.getElementById('entryAccount').value;
+  const direction = document.getElementById('entryDirection').value;
+  const amount = Number(document.getElementById('entryAmount').value);
+  if(!amount || amount <= 0){ msg.textContent = '請輸入正確的金額'; return; }
+  const {year, month} = gregorianToROC(dateStr);
+
+  const entry = {
+    date: dateStr, year, month, account, direction, amount,
+    note: document.getElementById('entryNote').value||'',
+    enteredBy: currentUser.name,
+    updatedAt: new Date().toISOString(),
+  };
+  entry.name = document.getElementById('entryName').value.trim();
+  entry.activity = document.getElementById('entryActivity').value.trim();
+  entry.item = (direction === 'in'
+    ? document.getElementById('entryItemIn').value
+    : document.getElementById('entryItemOut').value).trim();
+  entry.category = (direction === 'out' && account === 'cash')
+    ? document.getElementById('entryCategory').value : '';
+
+  msg.textContent = editingEntryId ? '更新中...' : '新增中...';
+  try{
+    if(editingEntryId){
+      const before = await getEntryFromServer(editingEntryId);
+      await saveEntryWithLog(editingEntryId, before, Object.assign({}, before, entry), 'update');
+    } else {
+      entry.createdAt = entry.updatedAt;
+      entry.deleted = false;
+      await saveEntryWithLog(null, null, entry, 'create');
+    }
+    msg.textContent = '已儲存';
+    clearEntryForm();
+    // 畫面會透過 onSnapshot 即時更新，不用手動重新抓一次
+    setTimeout(()=>{ msg.textContent=''; }, 2500);
+  }catch(e){
+    msg.textContent = '儲存失敗，請稍後再試' + (e && e.code === 'permission-denied' ? '（權限不足：請重新整理頁面後再試）' : '');
+    console.error(e);
+  }
+}
+
+function startEditEntry(id){
+  const e = liveEntries.find(x=>x.id===id);
+  if(!e) return;
+  editingEntryId = id;
+  document.getElementById('entryDate').value = e.date;
+  document.getElementById('entryAccount').value = e.account;
+  document.getElementById('entryDirection').value = e.direction;
+  document.getElementById('entryAmount').value = e.amount;
+  document.getElementById('entryNote').value = e.note||'';
+  toggleEntryDirectionFields();
+  document.getElementById('entryName').value = e.name||'';
+  document.getElementById('entryActivity').value = e.activity||'';
+  if(e.direction==='in'){
+    document.getElementById('entryItemIn').value = e.item||'';
+  } else {
+    document.getElementById('entryItemOut').value = e.item||'';
+    if(e.account==='cash') document.getElementById('entryCategory').value = e.category||'misc';
+  }
+  document.getElementById('submitEntryBtn').textContent = '更新這筆登記';
+  document.getElementById('cancelEditBtn').style.display = '';
+  window.scrollTo({top: document.getElementById('entrySection').offsetTop - 10, behavior:'smooth'});
+}
+
+async function deleteEntry(id){
+  if(!confirm('確定要刪除這筆登記嗎？')) return;
+  try{
+    const before = await getEntryFromServer(id);
+    const now = new Date().toISOString();
+    await saveEntryWithLog(id, before, Object.assign({}, before, {
+      deleted: true, deletedAt: now, deletedBy: currentUser.name, updatedAt: now
+    }), 'delete');
+    // 畫面會透過 onSnapshot 即時更新
+  }catch(e){
+    alert('刪除失敗，請稍後再試');
+    console.error(e);
+  }
+}
+
+function renderLiveEntryTable(){
+  const body = document.getElementById('liveEntryBody');
+  if(!body) return;
+  const rows = liveEntries.slice(0, 100); // 最近100筆（已依登記時間新到舊排序）
+  body.innerHTML = rows.map(e=>{
+    const catLabel = (e.direction==='out' && e.account==='cash') ? (CAT_LABELS[e.category]||'未分類') : '';
+    const nameOrCat = e.name
+      ? (catLabel ? `${e.name}（${catLabel}）` : e.name)
+      : (catLabel || (e.direction==='in' ? '（未填）' : ''));
+    return `
+    <tr>
+      <td>${e.date}</td>
+      <td>${e.account==='cash'?'現金':'銀行'}</td>
+      <td>${e.direction==='in'?'收入':'支出'}</td>
+      <td>${nameOrCat}</td>
+      <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}</td>
+      <td>${money(e.amount)}</td>
+      <td class="muted">${e.enteredBy||''}</td>
+      <td>
+        <button class="row-edit" onclick="startEditEntry('${e.id}')">編輯</button>
+        <button class="row-del" onclick="deleteEntry('${e.id}')">刪除</button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8" class="muted">尚無線上登記資料</td></tr>`;
+}
+
+/* ================= 操作紀錄（v1.11.0）=================
+   auditLogs 集合：只能新增、不能修改刪除（資料庫規則保護），只有管理者能讀。
+   收支登記（entries）的新增／修改／刪除，一定和一筆紀錄在同一批次寫入；
+   規則會核對紀錄的「修改前／修改後」與實際資料一致，沒有紀錄的寫入會被拒絕。 */
+
+const AUDIT_ACTIONS = {
+  create:'新增登記', update:'修改登記', delete:'刪除登記',
+  seedImport:'匯入歷史資料', suggestAdd:'新增建議詞', suggestRemove:'刪除建議詞',
+  adminSetup:'設定第一位管理者', adminAdd:'新增管理者', adminRemove:'移除管理者'
+};
+const AUDIT_FIELDS = [
+  ['date','日期'], ['account','帳別'], ['direction','收支'], ['amount','金額'],
+  ['name','姓名'], ['activity','活動名稱'], ['item','項目'], ['category','分類'], ['note','備註']
+];
+const AUDIT_PAGE = 200;
+let isAdminUser = false;
+let auditLogs = [];
+let auditLastDoc = null;
+let auditUiBound = false;
+
+function escHtml(v){
+  return String(v===null||v===undefined?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function newAuditLog(action, target, entryId, before, after, summary){
+  const ref = fbDb.collection('auditLogs').doc();
+  const data = {
+    at: firebase.firestore.FieldValue.serverTimestamp(),
+    uid: currentUser.uid, name: currentUser.name || '',
+    action, target, entryId: entryId || '',
+    before: before || null, after: after || null, summary: summary || ''
+  };
+  return {ref, data};
+}
+
+// 非收支登記的操作（建議清單、匯入）：另外補一筆紀錄，失敗只寫在主控台，不影響原本操作
+function addAuditLogQuiet(action, target, summary){
+  try{
+    const log = newAuditLog(action, target, '', null, null, summary);
+    log.ref.set(log.data).catch(e=>console.error('操作紀錄寫入失敗', e));
+  }catch(e){ console.error('操作紀錄寫入失敗', e); }
+}
+
+async function getEntryFromServer(id){
+  const snap = await fbDb.collection('entries').doc(id).get({source:'server'});
+  if(!snap.exists) throw new Error('找不到這筆登記，可能已被刪除');
+  return snap.data();
+}
+
+function entryFieldText(field, v){
+  if(v===undefined || v===null || v==='') return '（空白）';
+  if(field==='account') return v==='cash' ? '現金' : '銀行';
+  if(field==='direction') return v==='in' ? '收入' : '支出';
+  if(field==='amount') return money(v);
+  if(field==='category') return CAT_LABELS[v] || v;
+  return String(v);
+}
+
+function entrySummary(e){
+  if(!e) return '';
+  const who = e.name ? ` ${e.name}` : '';
+  const what = joinLabel(e.activity, e.item);
+  return `${e.date||''} ${e.account==='cash'?'現金':'銀行'}${e.direction==='in'?'收入':'支出'} ${money(e.amount)}${who}${what?' '+what:''}`;
+}
+
+function entryDiff(before, after){
+  if(!before || !after) return [];
+  return AUDIT_FIELDS.filter(([k])=> (before[k]===undefined?'':before[k]) !== (after[k]===undefined?'':after[k]))
+    .map(([k,label])=>({label, from:entryFieldText(k, before[k]), to:entryFieldText(k, after[k])}));
+}
+
+// 收支登記與操作紀錄一起寫入（同一批次，要嘛都成功、要嘛都失敗）
+async function saveEntryWithLog(entryId, before, after, action){
+  const entryRef = entryId ? fbDb.collection('entries').doc(entryId) : fbDb.collection('entries').doc();
+  const log = newAuditLog(action, 'entries', entryRef.id, before, null, entrySummary(after));
+  after.lastLogId = log.ref.id;
+  log.data.after = after;
+  const batch = fbDb.batch();
+  batch.set(log.ref, log.data);
+  batch.set(entryRef, after);
+  await batch.commit();
+}
+
+/* ---- 管理者 ---- */
+async function checkAdmin(){
+  if(!currentUser) return;
+  try{
+    const me = await fbDb.collection('admins').doc(currentUser.uid).get();
+    isAdminUser = me.exists;
+    if(isAdminUser){
+      document.getElementById('adminSetupBox').style.display = 'none';
+      document.getElementById('auditSection').style.display = '';
+      bindAuditUi();
+      loadAuditLogs(true);
+      loadAdminList();
+    } else {
+      const s = await fbDb.collection('meta').doc('adminSetup').get();
+      if(!s.exists){
+        document.getElementById('adminSetupBox').style.display = '';
+        bindAuditUi();
+      }
+    }
+  }catch(e){ console.error('讀取管理者資料失敗（資料庫規則可能尚未更新）', e); }
+}
+
+async function handleAdminSetup(){
+  const msg = document.getElementById('adminSetupMsg');
+  if(!confirm(`確定要把「${currentUser.name}」設為第一位管理者嗎？設定後無法再用這個按鈕更改。`)) return;
+  msg.textContent = '設定中...';
+  try{
+    const log = newAuditLog('adminSetup', 'admins', currentUser.uid, null, null, `${currentUser.name} 設為第一位管理者`);
+    const batch = fbDb.batch();
+    batch.set(fbDb.collection('admins').doc(currentUser.uid), { name: currentUser.name, addedBy: currentUser.name, addedAt: new Date().toISOString() });
+    batch.set(fbDb.collection('meta').doc('adminSetup'), { uid: currentUser.uid, name: currentUser.name, at: new Date().toISOString() });
+    batch.set(log.ref, log.data);
+    await batch.commit();
+    msg.textContent = '';
+    await checkAdmin();
+  }catch(e){
+    console.error(e);
+    msg.textContent = '設定失敗：可能已經有人設定過管理者，或資料庫規則尚未更新。請重新整理頁面。';
+  }
+}
+
+async function loadAdminList(){
+  const pills = document.getElementById('adminPills');
+  const pick = document.getElementById('adminAddPick');
+  try{
+    const [adm, acc] = await Promise.all([fbDb.collection('admins').get(), fbDb.collection('accountants').get()]);
+    const adminIds = new Set(adm.docs.map(d=>d.id));
+    pills.innerHTML = adm.docs.map(d=>{
+      const n = escHtml(d.data().name || d.id);
+      const x = d.id === currentUser.uid ? '' : `<span class="x" data-uid="${escHtml(d.id)}" data-name="${n}" title="移除管理者">✕</span>`;
+      return `<span class="pill">${n}${d.id===currentUser.uid?'（我）':''}${x}</span>`;
+    }).join('') || '<span class="muted">尚無管理者</span>';
+    pills.querySelectorAll('.x').forEach(x=> x.addEventListener('click', ()=> removeAdmin(x.dataset.uid, x.dataset.name)));
+    pick.innerHTML = '<option value="">選擇會計人員…</option>' + acc.docs
+      .filter(d=>!adminIds.has(d.id))
+      .map(d=>`<option value="${escHtml(d.id)}">${escHtml(d.data().name || d.id)}</option>`).join('');
+  }catch(e){
+    console.error(e);
+    document.getElementById('adminMsg').textContent = '讀取管理者名單失敗';
+  }
+}
+
+async function addAdmin(){
+  const pick = document.getElementById('adminAddPick');
+  const uid = pick.value;
+  const msg = document.getElementById('adminMsg');
+  if(!uid){ msg.textContent = '請先選擇會計人員'; return; }
+  const name = pick.options[pick.selectedIndex].textContent;
+  if(!confirm(`確定要把「${name}」設為管理者嗎？管理者可以查看操作紀錄、新增或移除其他管理者。`)) return;
+  try{
+    const log = newAuditLog('adminAdd', 'admins', uid, null, null, `新增管理者：${name}`);
+    const batch = fbDb.batch();
+    batch.set(fbDb.collection('admins').doc(uid), { name, addedBy: currentUser.name, addedAt: new Date().toISOString() });
+    batch.set(log.ref, log.data);
+    await batch.commit();
+    msg.textContent = `已將「${name}」設為管理者`;
+    loadAdminList(); loadAuditLogs(true);
+  }catch(e){ console.error(e); msg.textContent = '設定失敗，請稍後再試'; }
+}
+
+async function removeAdmin(uid, name){
+  const msg = document.getElementById('adminMsg');
+  if(!confirm(`確定要移除管理者「${name}」嗎？`)) return;
+  try{
+    const log = newAuditLog('adminRemove', 'admins', uid, null, null, `移除管理者：${name}`);
+    const batch = fbDb.batch();
+    batch.delete(fbDb.collection('admins').doc(uid));
+    batch.set(log.ref, log.data);
+    await batch.commit();
+    msg.textContent = `已移除管理者「${name}」`;
+    loadAdminList(); loadAuditLogs(true);
+  }catch(e){ console.error(e); msg.textContent = '移除失敗，請稍後再試'; }
+}
+
+/* ---- 查看操作紀錄 ---- */
+function bindAuditUi(){
+  if(auditUiBound) return;
+  auditUiBound = true;
+  document.getElementById('adminSetupBtn').addEventListener('click', handleAdminSetup);
+  document.getElementById('auditReloadBtn').addEventListener('click', ()=>loadAuditLogs(true));
+  document.getElementById('auditMoreBtn').addEventListener('click', ()=>loadAuditLogs(false));
+  document.getElementById('auditExportBtn').addEventListener('click', exportAuditExcel);
+  document.getElementById('auditUserPick').addEventListener('change', renderAuditLogs);
+  document.getElementById('auditActionPick').addEventListener('change', renderAuditLogs);
+  document.getElementById('auditSearch').addEventListener('input', renderAuditLogs);
+  document.getElementById('adminAddBtn').addEventListener('click', addAdmin);
+  document.getElementById('auditActionPick').innerHTML = '<option value="">全部動作</option>' +
+    Object.keys(AUDIT_ACTIONS).map(k=>`<option value="${k}">${AUDIT_ACTIONS[k]}</option>`).join('');
+}
+
+async function loadAuditLogs(reset){
+  const msg = document.getElementById('auditMsg');
+  if(reset){ auditLogs = []; auditLastDoc = null; }
+  msg.textContent = '讀取中...';
+  try{
+    let q = fbDb.collection('auditLogs').orderBy('at','desc').limit(AUDIT_PAGE);
+    if(auditLastDoc) q = q.startAfter(auditLastDoc);
+    const snap = await q.get();
+    snap.docs.forEach(d=> auditLogs.push({id:d.id, ...d.data()}));
+    if(snap.docs.length) auditLastDoc = snap.docs[snap.docs.length-1];
+    document.getElementById('auditMoreBtn').style.display = snap.docs.length < AUDIT_PAGE ? 'none' : '';
+    const users = Array.from(new Set(auditLogs.map(l=>l.name||'').filter(Boolean))).sort();
+    const up = document.getElementById('auditUserPick');
+    const prev = up.value;
+    up.innerHTML = '<option value="">全部人員</option>' + users.map(u=>`<option value="${escHtml(u)}">${escHtml(u)}</option>`).join('');
+    if(users.includes(prev)) up.value = prev;
+    renderAuditLogs();
+  }catch(e){
+    console.error(e);
+    msg.textContent = '讀取操作紀錄失敗（只有管理者可以查看）';
+  }
+}
+
+function auditTimeText(l){
+  return l.at && l.at.toDate ? l.at.toDate().toLocaleString('zh-TW', {hour12:false}) : '（寫入中）';
+}
+
+function auditRowData(l){
+  const diff = l.action==='update' ? entryDiff(l.before, l.after) : [];
+  return {
+    time: auditTimeText(l), name: l.name || '', actionLabel: AUDIT_ACTIONS[l.action] || l.action,
+    content: l.summary || '',
+    changes: l.action==='update' ? (diff.length ? diff.map(d=>`${d.label}：${d.from} → ${d.to}`).join('；') : '（內容沒有變動）')
+           : l.action==='delete' ? '已刪除（原資料保留在紀錄中）' : '',
+    diff
+  };
+}
+
+function filteredAuditLogs(){
+  const u = document.getElementById('auditUserPick').value;
+  const a = document.getElementById('auditActionPick').value;
+  const kw = (document.getElementById('auditSearch').value||'').trim();
+  return auditLogs.filter(l=>{
+    if(u && l.name !== u) return false;
+    if(a && l.action !== a) return false;
+    if(kw){
+      const r = auditRowData(l);
+      if(![r.name, r.actionLabel, r.content, r.changes].join(' ').includes(kw)) return false;
+    }
+    return true;
+  });
+}
+
+function renderAuditLogs(){
+  const body = document.getElementById('auditBody');
+  const list = filteredAuditLogs();
+  body.innerHTML = list.map(l=>{
+    const r = auditRowData(l);
+    const changes = l.action==='update'
+      ? (r.diff.length ? r.diff.map(d=>`<div>${escHtml(d.label)}：${escHtml(d.from)} → <b>${escHtml(d.to)}</b></div>`).join('') : '（內容沒有變動）')
+      : escHtml(r.changes);
+    return `<tr>
+      <td class="audit-time">${escHtml(r.time)}</td>
+      <td>${escHtml(r.name)}</td>
+      <td><span class="audit-act ${escHtml(l.action)}">${escHtml(r.actionLabel)}</span></td>
+      <td>${escHtml(r.content)}</td>
+      <td class="audit-diff">${changes}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted">沒有符合的紀錄</td></tr>';
+  document.getElementById('auditMsg').textContent = `顯示 ${list.length} 筆（已讀取 ${auditLogs.length} 筆，由新到舊）`;
+}
+
+function exportAuditExcel(){
+  if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
+  const rows = filteredAuditLogs().map(l=>{ const r = auditRowData(l); return [r.time, r.name, r.actionLabel, r.content, r.changes]; });
+  const ws = XLSX.utils.aoa_to_sheet([['時間','人員','動作','內容','變更'], ...rows]);
+  ws['!cols'] = [{wch:20},{wch:10},{wch:12},{wch:50},{wch:60}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '操作紀錄');
+  XLSX.writeFile(wb, `古亭院財務記帳_操作紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ================= 既有儀表板渲染 ================= */
+
+/* ---------------- 收支明細查詢：匯出 Excel（可選 年度／月份／全部） ---------------- */
+
+let exportYearsKey = '';
+function populateExportPickers(){
+  const yearSel = document.getElementById('exportYearPick');
+  const monthSel = document.getElementById('exportMonthPick');
+  if(!yearSel || !monthSel) return;
+  const years = Array.from(new Set(computeRows().map(r=>r.year))).sort();
+  const key = years.join(',');
+  if(key !== exportYearsKey){
+    const prev = yearSel.value;
+    yearSel.innerHTML = `<option value="ALL">全部年度</option>` +
+      years.map(y=>`<option value="${y}">民國 ${y} 年</option>`).join('');
+    if(prev && (prev === 'ALL' || years.includes(Number(prev)))) yearSel.value = prev;
+    exportYearsKey = key;
+  }
+  if(!monthSel.innerHTML){
+    monthSel.innerHTML = `<option value="ALL">全部月份</option>` +
+      MONTH_NAMES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');
+  }
+}
+
+function exportInScope(y, m){
+  const ey = document.getElementById('exportYearPick').value;
+  const em = document.getElementById('exportMonthPick').value;
+  if(ey && ey !== 'ALL' && y !== Number(ey)) return false;
+  if(em && em !== 'ALL' && m !== Number(em)) return false;
+  return true;
+}
+
+function exportDetailExcel(){
+  const msg = document.getElementById('exportMsg');
+  if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
+  const byYM = (a,b)=> (a[0]-b[0]) || (a[1]-b[1]);
+
+  // 1. 現金收入明細
+  const incomeRows = getIncomeRecordsAll().filter(r=>exportInScope(r[0], r[1])).sort(byYM)
+    .map(r=>[r[0], r[1], r[2]||'', r[3]||'', r[4]||'', r[5]]);
+
+  // 2. 銀行存款明細
+  const bankRows = getBankRecordsAll().filter(r=>exportInScope(r[0], r[1])).sort(byYM)
+    .map(r=>[r[0], r[1], r[2]||'', r[3]||'', r[5]==='in' ? r[4] : '', r[5]==='out' ? r[4] : '']);
+
+  // 3. 現金支出（依分類，月度小計）
+  const catKeys = Object.keys(CAT_LABELS);
+  const expenseRows = computeRows()
+    .filter(r=>exportInScope(r.year, r.month) && r.categories && Object.keys(r.categories).length)
+    .map(r=>{
+      const cells = catKeys.map(k=>r.categories[k]||0);
+      return [r.year, r.month, ...cells, cells.reduce((s,v)=>s+v,0), r.cashOut, r.note||''];
+    });
+
+  // 4. 現金＋銀行 合併明細
+  const mergedRows = getMergedRecords().filter(r=>exportInScope(r.year, r.month))
+    .map(r=>[r.year, r.month, r.source, r.name||'', r.item||'', r.type==='in' ? r.amount : '', r.type==='out' ? r.amount : ''])
+    .sort(byYM);
+
+  // 5. 網頁登記明細（含完整日期，供備份核對）
+  const liveRows = liveEntries.filter(e=>exportInScope(e.year, e.month))
+    .slice().sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map(e=>[e.date, e.account==='cash'?'現金':'銀行', e.direction==='in'?'收入':'支出',
+             e.name||'', e.activity||'', e.category ? (CAT_LABELS[e.category]||e.category) : '',
+             e.item||'', e.amount, e.note||'', e.enteredBy||'', e.createdAt||'']);
+
+  const total = incomeRows.length + bankRows.length + expenseRows.length + mergedRows.length + liveRows.length;
+  if(total === 0){ msg.textContent = '這個範圍沒有資料可以匯出'; setTimeout(()=>{ msg.textContent=''; }, 3000); return; }
+
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, header, rows, widths)=>{
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws['!cols'] = widths.map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  addSheet('現金收入明細', ['年','月','姓名','活動名稱','項目／摘要','金額'], incomeRows, [7,6,16,24,34,12]);
+  addSheet('銀行存款明細', ['年','月','姓名','項目／摘要','存入','支出'], bankRows, [7,6,16,36,12,12]);
+  addSheet('現金支出分類', ['年','月', ...catKeys.map(k=>CAT_LABELS[k]), '分類合計','現金支出總額','備註'], expenseRows,
+           [7,6, ...catKeys.map(()=>14), 12,14,36]);
+  addSheet('合併明細', ['年','月','來源','姓名','項目／摘要','收入','支出'], mergedRows, [7,6,8,16,36,12,12]);
+  addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','登記人','登記時間'], liveRows,
+           [12,8,8,16,20,14,30,12,20,12,24]);
+
+  const ey = document.getElementById('exportYearPick').value;
+  const em = document.getElementById('exportMonthPick').value;
+  let scope = '全部資料';
+  if(ey && ey !== 'ALL' && em && em !== 'ALL') scope = `${ey}年${em}月`;
+  else if(ey && ey !== 'ALL') scope = `${ey}年`;
+  else if(em && em !== 'ALL') scope = `各年度${em}月`;
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `古亭院財務儀表板_收支明細_${scope}_${today}.xlsx`);
+  msg.textContent = `已匯出（${scope}，共 ${total} 筆）`;
+  setTimeout(()=>{ msg.textContent=''; }, 4000);
+}
+
+function render(){
+  if(!dataReady) return;
+  const rows = computeRows();
+  const rawValue = document.getElementById('yearPick').value;
+  const yearRows = rawValue === 'ALL' ? rows : rows.filter(r=>r.year===Number(rawValue));
+  renderSummary(yearRows);
+  renderTrendChart(yearRows);
+  renderPieChart(yearRows);
+  renderBalanceChart(yearRows);
+  renderTable(yearRows);
+  renderIncomePane(yearRows);
+  renderExpensePane(yearRows);
+  renderBankPane(yearRows);
+  renderMergedPane(yearRows);
+  populateExportPickers();
+}
+
+function populateMonthFilter(){
+  const sel = document.getElementById('monthFilter');
+  sel.innerHTML = `<option value="ALL">全部月份</option>` +
+    MONTH_NAMES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');
+  sel.onchange = render;
+}
+
+function init(){
+  populateMonthFilter();
+  document.getElementById('tabIncomeBtn').addEventListener('click', showIncomeTab);
+  document.getElementById('tabExpenseBtn').addEventListener('click', showExpenseTab);
+  document.getElementById('tabBankBtn').addEventListener('click', showBankTab);
+  document.getElementById('tabMergedBtn').addEventListener('click', showMergedTab);
+  document.getElementById('incomeSearch').addEventListener('input', render);
+  document.getElementById('expenseSearch').addEventListener('input', render);
+  document.getElementById('bankSearch').addEventListener('input', render);
+  document.getElementById('mergedSearch').addEventListener('input', render);
+
+  document.getElementById('loginBtn').addEventListener('click', handleLogin);
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+  document.getElementById('genEmailBtn').addEventListener('click', handleGenEmail);
+  document.getElementById('importSeedBtn').addEventListener('click', handleImportSeed);
+  document.getElementById('entryDirection').addEventListener('change', ()=>{ toggleEntryDirectionFields(); renderBalancePreview(); });
+  document.getElementById('entryAccount').addEventListener('change', ()=>{ toggleEntryDirectionFields(); renderBalancePreview(); });
+  document.getElementById('entryAmount').addEventListener('input', renderBalancePreview);
+  document.getElementById('submitEntryBtn').addEventListener('click', handleSubmitEntry);
+  document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
+  document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
+  document.getElementById('exportDetailBtn').addEventListener('click', exportDetailExcel);
+  document.getElementById('exportSuggestBtn').addEventListener('click', exportSuggestExcel);
+  document.getElementById('toggleSuggestEditorBtn').addEventListener('click', ()=>{
+    const el = document.getElementById('suggestEditor');
+    const btn = document.getElementById('toggleSuggestEditorBtn');
+    const show = el.style.display === 'none';
+    el.style.display = show ? '' : 'none';
+    btn.textContent = show ? '管理登記建議清單 ▴' : '管理登記建議清單 ▾';
+  });
+  ['names','activities','itemsIn','itemsOut'].forEach(key=>{
+    const input = document.getElementById('suggestInput_'+key);
+    const btn = document.querySelector(`#suggestEditor button[data-list="${key}"]`);
+    const submit = ()=>{ addSuggestion(key, input.value); input.value=''; };
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+  });
+  document.getElementById('balanceModePick').addEventListener('change', (e)=>{
+    balanceChartMode = e.target.value;
+    const titles = {all:'累計結餘走勢（現金＋銀行）', cash:'累計結餘走勢（僅現金）', bank:'累計結餘走勢（僅銀行）'};
+    document.getElementById('balanceChartTitle').textContent = titles[balanceChartMode];
+    render();
+  });
+  toggleEntryDirectionFields();
+  showMergedTab(); // 預設開啟「現金＋銀行 合併查詢」
+  renderChangelog();
+  document.getElementById('toggleChangelogBtn').addEventListener('click', ()=>{
+    const el = document.getElementById('changelogPanel');
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  });
+
+  initLiveSystem().catch(e=>console.error('initLiveSystem failed', e));
+}
+
+init();
+</script>
+</body>
+</html>
