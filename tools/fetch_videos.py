@@ -79,6 +79,18 @@ def fetch_with_ytdlp(cid):
     return videos
 
 
+def upload_date(vid):
+    """用 yt-dlp 查單部影片的上傳日期；查不到回傳空字串，下次再試"""
+    try:
+        r = subprocess.run(["yt-dlp", "--skip-download", "--print", "%(upload_date)s",
+                            "https://www.youtube.com/watch?v=" + vid],
+                           capture_output=True, text=True, timeout=60)
+        d = r.stdout.strip()
+    except Exception:
+        return ""
+    return "%s-%s-%s" % (d[:4], d[4:6], d[6:8]) if re.fullmatch(r"\d{8}", d) else ""
+
+
 def fetch_latest(cid):
     """依序試頻道 RSS、頻道「上傳的影片」清單 RSS；都失敗回傳 None"""
     urls = [FEED + cid, FEED.replace("channel_id", "playlist_id") + "UU" + cid[2:]]
@@ -124,6 +136,9 @@ def main():
     for v in latest:  # 抓不到日期時沿用原本的日期
         if not v["date"] and v["id"] in old:
             v["date"] = old[v["id"]]["date"]
+    missing = [v for v in latest if not v["date"]][:10]  # 每次最多補 10 部，之後就沿用
+    for v in missing:
+        v["date"] = upload_date(v["id"])
     if full is None:  # RSS 只有最新 15 部：較舊的影片沿用原本清單
         ids = {v["id"] for v in latest}
         latest += [v for v in old.values() if v["id"] not in ids]
