@@ -1,0 +1,41 @@
+# 每小時抓一次古亭院 YouTube 頻道的影片標題，更新網站影片清單
+name: 更新影片清單
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  push:
+    branches: [main]
+    paths: ["data/albums.js", "tools/fetch_videos.py", ".github/workflows/videos.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: videos
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python tools/fetch_videos.py
+      - name: 存回影片清單
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/channel_videos.js
+          if git diff --cached --quiet; then echo "影片清單沒有變動"; exit 0; fi
+          git commit -m "自動更新影片清單"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # 請 GitHub Pages 重新發布網站
+          curl -sS -X POST -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages/builds" || true

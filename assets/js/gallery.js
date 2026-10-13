@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var albums = KT.albums();
   var videos = window.VIDEOS || [];
   var playlist = playlistId(window.VIDEO_PLAYLIST);
+  var channelVideos = window.CHANNEL_VIDEOS || [];
+  var embedOpts = 'loading="lazy" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen';
   // 有真實影片或播放清單後，範例影片自動隱藏
   if (playlist || videos.some(function (v) { return !v.sample; })) {
     videos = videos.filter(function (v) { return !v.sample; });
@@ -38,12 +40,28 @@ document.addEventListener("DOMContentLoaded", function () {
         "<p>" + esc(a.date.replace(/-/g, "/")) + "・" + a.photos.length + " 張照片</p></div></a>";
     }).join("") : '<p class="empty">相簿整理中，敬請期待。</p>';
 
-    document.getElementById("video-playlist").innerHTML = playlist
+    var playlistEl = document.getElementById("video-playlist");
+    playlistEl.innerHTML = playlist
       ? '<div class="video-wrap"><iframe src="https://www.youtube-nocookie.com/embed/videoseries?list=' + playlist +
-        '" title="古亭院影片" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>' +
+        '" title="古亭院影片" ' + embedOpts + '></iframe></div>' +
+        (channelVideos.length ? '<ul class="video-list">' + channelVideos.map(function (v) {
+          return '<li><button type="button" data-id="' + esc(v.id) + '">' +
+            '<img src="https://i.ytimg.com/vi/' + esc(v.id) + '/mqdefault.jpg" alt="" loading="lazy">' +
+            '<span><strong>' + esc(v.title) + '</strong><small>' + esc((v.date || "").replace(/-/g, "/")) + '</small></span>' +
+            '</button></li>';
+        }).join("") + "</ul>" : "") +
         '<p class="playlist-link"><a href="https://www.youtube.com/playlist?list=' + playlist +
         '" target="_blank" rel="noopener">到 YouTube 看全部影片 →</a></p>'
       : "";
+    // 點影片標題：上方播放器改播那部影片，播完接著播清單裡的下一部
+    playlistEl.querySelectorAll(".video-list button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        playlistEl.querySelector("iframe").src = "https://www.youtube-nocookie.com/embed/" + b.dataset.id +
+          "?autoplay=1&list=" + playlist;
+        playlistEl.querySelectorAll(".video-list button").forEach(function (o) { o.classList.toggle("active", o === b); });
+        playlistEl.querySelector(".video-wrap").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
 
     document.getElementById("video-grid").innerHTML = videos.length ? videos.map(function (v) {
       var id = youtubeId(v.youtube), media;
