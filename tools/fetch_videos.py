@@ -1,12 +1,13 @@
 """抓古亭院 YouTube 頻道的影片標題，產生網站影片清單 data/channel_videos.js。
 
 GitHub 每小時自動執行（.github/workflows/videos.yml）：
-  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，從 YouTube 公開的 RSS 取得最新 15 部影片，
-  和原本清單合併（較舊的影片保留），依上傳日期由新到舊排列。
+  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，用 yt-dlp 讀頻道「影片」分頁的全部影片；
+  yt-dlp 失敗時改讀 YouTube 的 RSS（最新 15 部，較舊的影片沿用原本清單）。
 
-在自己電腦執行：python3 tools/fetch_videos.py
+在自己電腦執行：pip install yt-dlp，再執行 python3 tools/fetch_videos.py
 """
 import json
+import subprocess
 import os
 import re
 import sys
@@ -51,6 +52,30 @@ def parse_feed(xml):
     return videos
 
 
+def fetch_with_ytdlp(cid):
+    """用 yt-dlp 讀頻道「影片」分頁（全部影片，新到舊）；沒有安裝或失敗回傳 None"""
+    url = "https://www.youtube.com/channel/%s/videos" % cid
+    try:
+        out = subprocess.run(
+            ["yt-dlp", "--flat-playlist", "-J", "--extractor-args", "youtubetab:approximate_date", url],
+            capture_output=True, text=True, timeout=120, check=True).stdout
+        entries = json.loads(out).get("entries") or []
+    except Exception as e:
+        print("yt-dlp 讀取失敗（%s）" % e)
+        return None
+    videos = []
+    for e in entries:
+        if not e.get("id"):
+            continue
+        d = e.get("upload_date") or ""
+        if not d and e.get("timestamp"):
+            d = datetime.fromtimestamp(e["timestamp"], timezone(timedelta(hours=8))).strftime("%Y%m%d")
+        videos.append({"id": e["id"], "title": (e.get("title") or "").strip(),
+                       "date": "%s-%s-%s" % (d[:4], d[4:6], d[6:8]) if len(d) == 8 else ""})
+    print("yt-dlp 讀取成功：%d 部" % len(videos))
+    return videos
+
+
 def fetch_latest(cid):
     """依序試頻道 RSS、頻道「上傳的影片」清單 RSS；都失敗回傳 None"""
     urls = [FEED + cid, FEED.replace("channel_id", "playlist_id") + "UU" + cid[2:]]
@@ -87,14 +112,20 @@ def main():
     if not cid:
         print("data/albums.js 的 VIDEO_PLAYLIST 不是頻道網址，略過")
         return 0
-    latest = fetch_latest(cid)
+    full = fetch_with_ytdlp(cid)
+    latest = full if full is not None else fetch_latest(cid)
     if latest is None:
         print("::warning::暫時抓不到 YouTube 影片清單，網站維持原本的清單，下個小時再試")
         return 0
-    # RSS 只有最新 15 部：較舊的影片沿用原本清單
-    ids = {v["id"] for v in latest}
-    videos = latest + [v for v in load_existing() if v["id"] not in ids]
-    videos.sort(key=lambda v: v["date"], reverse=True)
+    old = {v["id"]: v for v in load_existing()}
+    for v in latest:  # 抓不到日期時沿用原本的日期
+        if not v["date"] and v["id"] in old:
+            v["date"] = old[v["id"]]["date"]
+    if full is None:  # RSS 只有最新 15 部：較舊的影片沿用原本清單
+        ids = {v["id"] for v in latest}
+        latest += [v for v in old.values() if v["id"] not in ids]
+        latest.sort(key=lambda v: v["date"], reverse=True)
+    videos = latest
     write(videos)
     print("影片 %d 部" % len(videos))
     return 0
