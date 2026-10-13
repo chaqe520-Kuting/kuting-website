@@ -24,7 +24,17 @@ document.addEventListener("DOMContentLoaded", function () {
     ? upcoming.map(function (e) { return KT.eventHTML(e); }).join("")
     : '<li class="empty">三個月內暫無法會，請參閱完整行事曆。</li>';
 
-  document.getElementById("intro-text").innerHTML = (SITE.intro || []).map(function (p) {
+  // 本院簡介：昇龍觀世音菩薩信念，十句分左右兩欄
+  var creed = SITE.creed || [];
+  var half = Math.ceil(creed.length / 2);
+  var creedHTML = creed.length ? '<div class="creed">' +
+    (SITE.creedTitle ? "<h3>" + esc(SITE.creedTitle) + "</h3>" : "") +
+    '<div class="creed-cols">' + [creed.slice(0, half), creed.slice(half)].map(function (col, c) {
+      return '<ol start="' + (c * half + 1) + '">' + col.map(function (line) {
+        return "<li>" + esc(line) + "</li>";
+      }).join("") + "</ol>";
+    }).join("") + "</div></div>" : "";
+  document.getElementById("intro-text").innerHTML = creedHTML + (SITE.intro || []).map(function (p) {
     return "<p>" + esc(p) + "</p>";
   }).join("");
 

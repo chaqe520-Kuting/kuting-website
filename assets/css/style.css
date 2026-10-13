@@ -708,3 +708,31 @@ h1, h2, h3, h4,
   .zhaobi .group { gap: 6px; }
   .zhaobi .ch { width: 40px; height: 40px; font-size: 1.35rem; }
 }
+
+/* ===== 本院簡介：昇龍觀世音菩薩信念 ===== */
+.creed {
+  background: #fdf6e3;
+  border: 1px solid #e0c98f;
+  outline: 3px double #c9a046;
+  outline-offset: -8px;
+  padding: 26px 22px 18px;
+  text-align: center;
+}
+.creed h3 {
+  margin: 0 0 14px;
+  font-family: var(--font-kai, var(--font-serif));
+  color: var(--primary);
+  font-size: clamp(1.25rem, 4.2vw, 1.6rem);
+  letter-spacing: 0.12em;
+}
+.creed-cols { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 48px; }
+.creed ol {
+  margin: 0; padding: 0 0 0 2.2em; text-align: left;
+  font-family: var(--font-kai, var(--font-serif));
+  font-size: clamp(1.15rem, 3.8vw, 1.4rem);
+  line-height: 2;
+  letter-spacing: 0.15em;
+  color: #2a2118;
+}
+.creed li::marker { color: #8a5a2b; font-size: 0.85em; }
+@media (max-width: 480px) { .creed-cols { gap: 0; } }
