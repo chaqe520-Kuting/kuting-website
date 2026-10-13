@@ -4,7 +4,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("hero-lotus").innerHTML = KT.LOTUS_SVG;
   document.getElementById("hero-name").textContent = SITE.name || "古亭院";
-  document.getElementById("hero-slogan").textContent = SITE.slogan || "";
+  // 標語仿白馬寺照壁：每個字放在黃底上的白色圓框裡
+  var slogan = document.getElementById("hero-slogan");
+  slogan.className = "zhaobi";
+  slogan.setAttribute("aria-label", SITE.slogan || "");
+  slogan.innerHTML = String(SITE.slogan || "").split(/[・·、\s]+/).filter(Boolean).map(function (g) {
+    return '<span class="group" aria-hidden="true">' + Array.from(g).map(function (c) {
+      return '<span class="ch">' + esc(c) + "</span>";
+    }).join("") + "</span>";
+  }).join("");
 
   // 近期法會：今天起三個月內的法會
   var from = KT.today();
