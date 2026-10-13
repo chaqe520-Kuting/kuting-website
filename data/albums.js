@@ -53,12 +53,13 @@ window.ALBUMS = [
 ];
 
 /*
- * YouTube 播放清單
- *   把古亭院的影片都加進同一個 YouTube 播放清單，再把播放清單的網址貼在下面引號裡，
- *   例如 "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx"
- *   之後在 YouTube 新增到播放清單的影片，網站會自動顯示，不用再改這裡。
+ * YouTube 影片
+ *   貼「頻道網址」：網站自動播放頻道裡的全部影片，上傳時不用再加播放清單。
+ *     例如 "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx"
+ *   也可以貼「播放清單網址」：只播放清單裡的影片。
+ *     例如 "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx"
  */
-window.VIDEO_PLAYLIST = "https://www.youtube.com/playlist?list=PLBS8vMNMpxMo";
+window.VIDEO_PLAYLIST = "https://www.youtube.com/channel/UCZP_tOAPNNszszPnDQM8oqQ";
 
 /*
  * 個別影片清單（有播放清單的話可以不填）

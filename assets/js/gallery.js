@@ -24,6 +24,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!url) return "";
     var m = /[?&]list=([\w-]+)/.exec(url);
     if (m) return m[1];
+    // 頻道網址（/channel/UC…）：播放頻道的全部影片（YouTube 的「上傳的影片」清單是 UU 開頭）
+    m = /(?:channel\/)?UC([\w-]{22})\b/.exec(url);
+    if (m) return "UU" + m[1];
     return /^[\w-]{10,}$/.test(url) ? url : "";
   }
 
