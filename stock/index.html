@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8f1d1d">
+<title>古亭院 庫房管理平台</title>
+<meta name="description" content="古亭院 庫房管理平台：庫房物料進出登記、庫存查詢、盤點與叫貨提醒">
+<meta name="application-name" content="庫房管理">
+<meta name="apple-mobile-web-app-title" content="庫房管理">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta property="og:title" content="古亭院 庫房管理平台">
+<meta property="og:description" content="庫房物料進出登記、庫存查詢、盤點與叫貨提醒">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%238f1d1d'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f5ecd6' font-family='sans-serif' font-weight='700'%3E%E5%BA%AB%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%238f1d1d'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='%23f5ecd6' font-family='sans-serif' font-weight='700'%3E%E5%BA%AB%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --red:#8f1d1d; --red2:#b3261e; --gold:#c9a24b; --gold-l:#f5ecd6;
+  --bg:#faf6ee; --card:#fff; --ink:#2b2420; --mute:#7a6e64; --line:#e8dfcf;
+  --ok:#2e7d4f; --warn:#c77700; --bad:#c62828; --in:#2e7d4f; --out:#b3261e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:16px}
+button,input,select,textarea{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;background:var(--red);color:#fff;padding:12px 16px calc(12px);padding-top:calc(12px + env(safe-area-inset-top));display:flex;align-items:center;gap:10px;border-bottom:3px solid var(--gold)}
+header h1{margin:0;font-size:18px;letter-spacing:2px;flex:1}
+header .who{font-size:12px;opacity:.85}
+.demo{background:#fff3cd;color:#6b4e00;font-size:13px;padding:6px 16px;text-align:center}
+main{padding:14px 14px 96px;max-width:720px;margin:0 auto}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:8px 0 10px;font-size:12px;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button .i{font-size:21px;line-height:1}
+nav button.on{color:var(--red);font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px}
+.card h2 .sp{flex:1}
+.big3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.big3 button{border:0;border-radius:14px;padding:18px 4px;font-size:17px;font-weight:700;color:#fff;display:flex;flex-direction:column;align-items:center;gap:6px}
+.big3 .i{font-size:28px}
+.b-in{background:var(--in)} .b-out{background:var(--out)} .b-st{background:#6d4c2f}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 14px;font-size:15px}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#fff;font-weight:700}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.block{width:100%;padding:13px;font-size:16px}
+.btn:disabled{opacity:.45}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1;min-width:0}
+.row input{min-width:0;flex:1}
+.mute{color:var(--mute);font-size:13px}
+.tag{display:inline-block;font-size:12px;border-radius:999px;padding:2px 8px;background:var(--gold-l);color:#7a5a12;white-space:nowrap}
+.tag.bad{background:#fde7e7;color:var(--bad)} .tag.ok{background:#e5f3ea;color:var(--ok)} .tag.warn{background:#fff1d6;color:var(--warn)}
+.tag.in{background:#e5f3ea;color:var(--in)} .tag.out{background:#fde7e7;color:var(--out)} .tag.mv{background:#e6eefb;color:#2856a3} .tag.adj{background:#efe7f7;color:#6a3d9a}
+.list .it{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.list .it:last-child{border-bottom:0}
+.list .it.click{cursor:pointer}
+.qty{font-weight:700;white-space:nowrap;text-align:right}
+.qty small{font-weight:400;color:var(--mute)}
+input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;font-size:16px}
+textarea{min-height:60px}
+label.f{display:block;font-size:13px;color:var(--mute);margin:12px 0 5px}
+.search{position:sticky;top:62px;z-index:3;background:var(--bg);padding-bottom:8px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}
+.chips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:14px;white-space:nowrap}
+.chips button.on{background:var(--red);border-color:var(--red);color:#fff}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:22px}
+.stepper input{text-align:center;font-size:20px;font-weight:700;height:44px;padding:4px}
+.stepper .u{width:30px;color:var(--mute);font-size:14px}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+.sheet .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sheet .hd h3{margin:0;font-size:18px;flex:1}
+.x{border:0;background:none;font-size:26px;line-height:1;color:var(--mute);padding:4px 8px}
+.pick{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:6px}
+.pick div{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.pick div:last-child{border-bottom:0}
+.sel{border:2px solid var(--gold);background:var(--gold-l);border-radius:12px;padding:10px 12px;margin-top:6px;display:flex;align-items:center;gap:8px}
+.locs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.locs button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;text-align:left;font-size:15px}
+.locs button.on{border:2px solid var(--red);background:#fff5f3}
+.locs button small{display:block;color:var(--mute);font-size:12px}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#2b2420;color:#fff;padding:10px 18px;border-radius:999px;z-index:40;font-size:15px;max-width:90vw}
+.st-row{border-bottom:1px solid var(--line);padding:10px 0}
+.st-row:last-child{border-bottom:0}
+.st-in{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;margin-top:6px}
+.st-in input{text-align:center;font-weight:700}
+.st-row.diff{background:#fff8e6;margin:0 -14px;padding:10px 14px}
+.st-row.done .nm::before{content:"✓ ";color:var(--ok)}
+.empty{text-align:center;color:var(--mute);padding:24px 0}
+.login{max-width:380px;margin:40px auto}
+.kv{display:grid;grid-template-columns:90px 1fr;gap:6px 10px;font-size:15px}
+.kv div:nth-child(odd){color:var(--mute)}
+.prog{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ok)}
+.top{position:sticky;top:58px;z-index:3;background:var(--bg);padding:2px 0 4px}
+.top input{font-size:17px}
+.banner{display:flex;align-items:center;gap:8px;background:#fde7e7;border:1px solid #f3c2c2;color:var(--bad);border-radius:12px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
+.it.low{box-shadow:inset 4px 0 0 var(--bad);padding-left:10px}
+.it.low .qty{color:var(--bad)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:12px;font-size:17px;font-weight:700;color:var(--mute)}
+.seg button.on{background:var(--red);color:#fff}
+.seg button.on.in{background:var(--in)} .seg button.on.out{background:var(--out)}
+.seg button:disabled{opacity:.35}
+.st-hd{background:#6d4c2f}
+.tip{background:var(--gold-l);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.6;margin-bottom:8px}
+.st-in{grid-template-columns:1fr 1fr}
+.st-in label{display:flex;align-items:center;gap:6px}
+.st-in label span{color:var(--mute);font-size:14px;min-width:20px}
+.st-btn{margin-top:4px;border-color:#6d4c2f;color:#6d4c2f;font-weight:700}
+a{color:var(--red)}
+.it.void{opacity:.5}
+.it.void b,.it.void .qty{text-decoration:line-through}
+.no{display:inline-block;min-width:22px;font-size:12px;color:var(--mute);font-weight:400;margin-right:4px}
+.dt{font-size:12px;margin-top:2px}
+.info{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.info span{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:13px;color:var(--mute)}
+.info b{color:var(--ink);font-weight:600}
+.st-in input::placeholder{color:#cfc5b8;font-weight:400}
+</style>
+</head>
+<body>
+<!-- Netlify 縮圖辨識標籤：平常隱藏，只有 Netlify 截圖程式（無頭瀏覽器）才顯示；網址加 ?label=1 可預覽 -->
+<div id="netlifyThumbLabel" style="display:none;background:#795548;padding:clamp(6px,1.6vw,22px) 0;">
+<svg viewBox="-60 -40 4582 1104" role="img" aria-label="庫房管理" style="height:clamp(34px,8vw,120px);width:auto;display:block;margin:0 auto;"><path fill="#fff" stroke="#fff" stroke-width="28" stroke-linejoin="round" d="M605 1002Q567 998 529 1002Q533 932 533 863V833H301Q251 833 201 836Q204 809 201 782Q251 784 301 784H533V700H301Q313 546 301 391H533V321H326Q276 321 226 324Q229 297 226 269Q276 272 326 272H532Q531 232 529 193Q567 197 605 193Q603 232 602 272H835Q885 272 935 269Q932 297 935 324Q885 321 835 321H601V391H842Q830 545 842 700H601V784H867Q917 784 967 782Q964 809 967 836Q917 833 867 833H601V863Q601 932 605 1002ZM114 618V115L520 114L461 71L505 10L609 85L588 114L882 113Q932 113 981 110Q979 137 982 164Q932 162 882 162L183 164V618Q185 850 99 989Q66 963 24 968Q79 895 96.5 812.0Q114 729 114 618ZM601 526H773L774 441H601ZM533 526V441H369V526ZM601 575V650H773V575ZM533 575H369V650H533ZM1948 902V686H1676Q1652 794 1572.0 879.0Q1492 964 1387 1002Q1373 959 1331 940Q1449 913 1531.5 819.5Q1614 726 1614 608V535H1529Q1475 535 1421 538Q1424 509 1421 480Q1475 482 1529 482H1717L1636 384L1681 348H1409V586Q1409 855 1244 991Q1219 955 1176 947Q1338 844 1338 586V135H1675L1597 70L1647 11L1752 99L1722 135H2053V348H1707L1795 454L1761 482H2020Q2074 482 2128 480Q2125 509 2128 538Q2074 535 2020 535H1684L1683 633H2019V916Q2019 949 1989 975Q1945 1011 1837 1010Q1848 961 1814 924Q1845 928 1891.0 928.5Q1937 929 1942.5 924.0Q1948 919 1948 902ZM1409 295H1983V188H1409Q1409 241 1409 295ZM2619 493H3070V685H2620V761Q2651 762 2682 762H3106V990H3041V948H2622Q2623 977 2624 1007Q2588 1003 2552 1007Q2555 940 2555 874L2554 492L2619 491ZM2438 529H2372V374H2795L2707 305L2751 248L2860 334L2829 374H3249V529H3184V418H2438ZM3041 908V802L2620 803L2621 908ZM3004 533H2620Q2620 585 2620 641H3004ZM3132 337Q3057 263 2973 198L2990 179H2920Q2883 254 2830 307Q2810 284 2776 275Q2860 194 2882 61Q2914 68 2951 69Q2947 106 2935 141H3175Q3216 141 3257 139Q3255 160 3257 181Q3216 179 3175 179H3057L3102 217Q3144 254 3183 292ZM2490 77Q2522 86 2559 89Q2553 119 2542 148H2713Q2754 148 2795 146Q2793 167 2795 188Q2754 186 2713 186H2639L2698 257L2642 297L2565 204L2591 186H2524Q2493 242 2447.0 280.5Q2401 319 2357 342Q2345 312 2318 295Q2455 230 2490 77ZM4425 920Q4422 946 4425 972Q4377 970 4328 970H3822Q3773 970 3725 972Q3728 946 3725 920Q3773 922 3822 922H4055V729H3919Q3871 729 3822 731Q3825 705 3822 679Q3871 681 3919 681H4055V533H3896Q3896 554 3897 575Q3860 571 3823 575Q3826 506 3826 437V64H4360V588H4292V533H4123V681H4263Q4311 681 4359 679Q4357 705 4359 731Q4311 729 4263 729H4123V922H4328Q4377 922 4425 920ZM4123 489H4292V317H4123ZM4055 489V317H3894L3895 489ZM4123 273H4292V111H4123ZM4055 273V111H3894V273ZM3439 788Q3506 779 3569 760V465L3455 467Q3458 442 3455 416L3569 418V164H3521Q3482 164 3443 167Q3445 141 3443 116Q3482 118 3521 118H3665Q3704 118 3743 116Q3741 141 3743 167Q3704 164 3665 164H3625V418L3727 416Q3725 442 3727 467L3625 465V741Q3676 723 3743 696L3746 738Q3615 792 3560.5 818.0Q3506 844 3462 867Q3458 820 3439 788Z"/></svg>
+</div>
+<script>(function(){try{var u=navigator.userAgent||"";if(navigator.webdriver||/headless|puppeteer|playwright|phantom|screenshot|netlify/i.test(u)||/[?&]label=1/.test(location.search)){document.getElementById("netlifyThumbLabel").style.display="block";}}catch(e){}})();</script>
+<div id="app"><header style="justify-content:center;padding-top:22px;padding-bottom:22px"><h1 style="font-size:30px;flex:none;text-align:center">古亭院 庫房管理平台</h1></header></div>
+<div id="sheet"></div>
+
+<!-- Firebase（雲端模式才會用到） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Excel 匯出 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+/* =====================================================================
+   設定：建立 Firebase 專案後，把 firebaseConfig 貼到下面（取代 null）。
+   保持 null = 「示範模式」，資料只存在這支手機／這台電腦的瀏覽器裡。
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAE91BUKlQG48olt7xpNWB4jpf0M5dmvhU",
+  authDomain: "kuting-warehouse.firebaseapp.com",
+  projectId: "kuting-warehouse",
+  storageBucket: "kuting-warehouse.firebasestorage.app",
+  messagingSenderId: "650316125427",
+  appId: "1:650316125427:web:a12de7dd023b7951e59386"
+};
+/* 例：
+const FIREBASE_CONFIG = {
+  apiKey: "AIza...",
+  authDomain: "kuting-warehouse.firebaseapp.com",
+  projectId: "kuting-warehouse",
+  storageBucket: "kuting-warehouse.appspot.com",
+  messagingSenderId: "...",
+  appId: "..."
+};
+*/
+
+/* ---------------- 期初資料（來自 115.10.02 盤點表） ---------------- */
+const SEED_LOCATIONS = ['上倉庫','下倉庫','洗衣機旁','衣物區'];
+// [項次, 品名, 分類, 主單位, 散裝單位, 規格, 位置, 安全庫存, 主數量, 散數量, 原登記下上倉庫]
+const SEED_ITEMS = [
+ [1,'蓮花紙(長方)','金紙','箱','包','10包，500張/包','下倉庫',50,113,40,1],
+ [2,'元寶紙(雙面)','金紙','箱','包','10包，300張/包','下倉庫',20,43,2,1],
+ [3,'長壽金','金紙','箱','包','','下倉庫',2,0,1,1],
+ [4,'地藏王菩薩金','金紙','箱','包','','下倉庫',1,0,3,1],
+ [5,'四季平安金','金紙','箱','包','','下倉庫',10,36,2,1],
+ [6,'大壽金','金紙','捆','條','6條','下倉庫',null,93,21,1],
+ [7,'二五金','金紙','捆','條','30條','下倉庫',null,102,19,1],
+ [8,'補運錢','金紙','箱','條','4條','下倉庫',null,0,5,1],
+ [9,'天庫(紅邊.紅白中)','金紙','捆','條','8條','下倉庫',null,5,6.5,1],
+ [10,'地庫(紅邊.白中)','金紙','捆','條','8條','下倉庫',null,5,6.5,1],
+ [11,'水庫(紅邊.藍白中)','金紙','捆','條','8條','下倉庫',null,5,6.5,1],
+ [12,'天錢(紅邊.黃中)','金紙','捆','條','32條','下倉庫',null,3,0.5,1],
+ [13,'地錢(紅邊.白中)','金紙','捆','條','32條','下倉庫',null,3,2.5,1],
+ [14,'水錢(綠邊.白中)','金紙','捆','條','32條','下倉庫',null,3,5,1],
+ [15,'庫錢','金紙','捆','散','500萬','下倉庫',null,0,17,1],
+ [16,'九品彩色福衣','法會用品','箱','包','100包，9套/包','下倉庫',null,0,4,1],
+ [17,'法船','法會用品','個','','','洗衣機旁',null,345,0,0],
+ [18,'果凍燈','燈具','箱','盞','12盞','上倉庫',5,14,0,0],
+ [19,'龍柱燈','燈具','箱','盒','6盒，2盞/盒','上倉庫',null,2,6,0],
+ [20,'九色蓮花燈(紅)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,17,0],
+ [21,'九色蓮花燈(橘)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,23,0],
+ [22,'九色蓮花燈(黃)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,11,0],
+ [23,'九色蓮花燈(綠)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,28,0],
+ [24,'九色蓮花燈(藍)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,21,0],
+ [25,'九色蓮花燈(粉)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,20,0],
+ [26,'九色蓮花燈(紫)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,20,0],
+ [27,'九色蓮花燈(黑)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,32,0],
+ [28,'九色蓮花燈(白)','燈具','箱','盒','12盒，2盞/盒','洗衣機旁',null,0,15,0],
+ [29,'九色蓮花燈(九色)','燈具','組','','9盞','洗衣機旁',null,3,0,0],
+ [30,'3號A九彩蓮花','法會用品','箱','包','10包','下倉庫',null,7,1,0],
+ [31,'台灣貢香 2尺','香','箱','','10斤','上倉庫',null,4,0,0],
+ [32,'老山沉 尺6','香','箱','','10斤','上倉庫',null,2,0,0],
+ [33,'老山沉 尺3','香','箱','','10斤','上倉庫',null,1,0,0],
+ [34,'太極金','金紙','捆','份','40份×20束=800份','上倉庫',null,0,0,0],
+];
+(function(){ // 志工服
+  let n=35;
+  for(const k of ['長袖','短袖','長褲']) for(const sz of ['S','M','L','XL'])
+    SEED_ITEMS.push([n++,`志工服 ${k} ${sz}`,'志工服','件','','','衣物區',null,0,0,0]);
+})();
+
+const CATS = ['金紙','燈具','香','法會用品','志工服','其他'];
+const PURPOSE_IN  = ['採購進貨','信眾捐贈','退回入庫','其他'];
+const PURPOSE_OUT = ['法會','聖誕千秋','日常使用','志工領用','損耗報廢','其他'];
+const TYPE_NAME = {in:'補進',out:'領出',move:'移位',adjust:'盤點更正',init:'期初'};
+const TYPE_CLS  = {in:'in',out:'out',move:'mv',adjust:'adj',init:''};
+
+/* ---------------- 工具 ---------------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const fmt = n => { n = Math.round(num(n)*100)/100; return String(n); };
+const pad = n => String(n).padStart(2,'0');
+const roc = (ms, withTime) => { const d=new Date(ms); let s=`${d.getFullYear()-1911}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`; if(withTime) s+=` ${pad(d.getHours())}:${pad(d.getMinutes())}`; return s; };
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+
+function total(it){ let m=0,s=0; for(const v of Object.values(it.stock||{})){ m+=num(v.m); s+=num(v.s);} return {m:Math.round(m*100)/100,s:Math.round(s*100)/100}; }
+function qtyText(it, q){ q=q||total(it); let t=`${fmt(q.m)} ${it.unitMain||''}`; if(it.unitSub) t+=` ＋ ${fmt(q.s)} ${it.unitSub}`; return t; }
+function isLow(it){ return it.active!==false && it.safety!=null && it.safety!=='' && total(it).m < num(it.safety); }
+function itemLocs(it){ return Object.entries(it.stock||{}).filter(([l,v])=>num(v.m)||num(v.s)).map(([l])=>l); }
+function activeItems(){ return Object.values(S.items).filter(i=>i.active!==false).sort((a,b)=>num(a.no)-num(b.no)); }
+function seedDocs(){
+  const now = Date.now(), items=[], txns=[];
+  for(const r of SEED_ITEMS){
+    const [no,name,cat,unitMain,unitSub,spec,loc,safety,m,s,split]=r;
+    const id='i'+String(no).padStart(3,'0');
+    items.push({id,no,name,cat,unitMain,unitSub,spec,defaultLoc:loc,safety,note:'',supplier:'',active:true,
+      splitPending:!!split, stock:{[loc]:{m,s}}, updatedAt:now});
+    txns.push({id:'t'+id,ts:now,type:'init',itemId:id,itemName:name,loc,m,s,purpose:'',note:'期初庫存（115.10.02 盤點）',by:'系統匯入'});
+  }
+  return {items,txns};
+}
+
+/* ---------------- 狀態 ---------------- */
+const S = { items:{}, locations:[], txns:[], stocktakes:[], user:null, ready:false,
+  view:'home', q:'', cat:'全部', detail:null, stId:null, stLoc:null, recFrom:null, recTo:null, recType:'全部', recRows:null };
+
+/* ---------------- 資料層：示範模式 ---------------- */
+const DemoStore = {
+  key:'kuting-warehouse-demo-v1', mem:null,
+  load(){ try{ const t=localStorage.getItem(this.key); if(t) return JSON.parse(t);}catch(e){} return null; },
+  persist(){ try{ localStorage.setItem(this.key, JSON.stringify(this.mem)); }catch(e){} },
+  async start(){
+    this.mem = this.load();
+    if(!this.mem){ const {items,txns}=seedDocs(); this.mem={items:Object.fromEntries(items.map(i=>[i.id,i])),txns,locations:SEED_LOCATIONS.slice(),stocktakes:[]}; this.persist(); }
+    S.needSetup=await DemoAuth.needSetup();
+    try{ const u=JSON.parse(sessionStorage.getItem('kwh-demo-session')||'null'); if(u) S.user=u; }catch(e){}
+    this.emit();
+  },
+  emit(){ S.items=JSON.parse(JSON.stringify(this.mem.items)); S.locations=this.mem.locations.slice();
+    S.txns=this.mem.txns.slice().sort((a,b)=>b.ts-a.ts).slice(0,300);
+    S.stocktakes=JSON.parse(JSON.stringify(this.mem.stocktakes)).sort((a,b)=>b.createdAt-a.createdAt);
+    S.ready=true; refresh(); },
+  async apply(ops, txns, itemPatches){
+    const items=JSON.parse(JSON.stringify(this.mem.items));
+    applyOps(items, ops);
+    for(const [id,p] of Object.entries(itemPatches||{})) Object.assign(items[id],p);
+    this.mem.items=items; for(const t of txns){ const k=this.mem.txns.findIndex(x=>x.id===t.id); if(k>=0) this.mem.txns[k]=t; else this.mem.txns.push(t); } this.persist(); this.emit();
+  },
+  async saveItem(it){ this.mem.items[it.id]=it; this.persist(); this.emit(); },
+  async saveLocations(l){ this.mem.locations=l; this.persist(); this.emit(); },
+  async saveStocktake(st){ const a=this.mem.stocktakes; const i=a.findIndex(x=>x.id===st.id); if(i>=0)a[i]=st; else a.push(st); this.persist(); this.emit(); },
+  async deleteStocktake(id){ this.mem.stocktakes=this.mem.stocktakes.filter(x=>x.id!==id); this.persist(); this.emit(); },
+  async queryTxns(from,to){ return this.mem.txns.filter(t=>t.ts>=from&&t.ts<=to).sort((a,b)=>b.ts-a.ts); },
+  async seed(){}, async resetDemo(){ try{localStorage.removeItem(this.key);}catch(e){} this.mem=null; await this.start(); }
+};
+
+/* 共用：把數量變動套到 items（檢查不可為負） */
+function applyOps(items, ops){
+  for(const o of ops){
+    const it=items[o.itemId]; if(!it) throw new Error('找不到品項');
+    it.stock=it.stock||{};
+    const cur=it.stock[o.loc]||{m:0,s:0};
+    const m=Math.round((num(cur.m)+num(o.dm))*100)/100, s=Math.round((num(cur.s)+num(o.ds))*100)/100;
+    if(m<0||s<0) throw new Error(`「${it.name}」在「${o.loc}」的數量不足`);
+    if(m===0&&s===0&&o.loc!==it.defaultLoc) delete it.stock[o.loc]; else it.stock[o.loc]={m,s};
+    it.updatedAt=Date.now();
+  }
+}
+
+/* ---------------- 資料層：Firebase 雲端模式 ---------------- */
+const CloudStore = {
+  db:null,
+  async start(){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    this.db=firebase.firestore();
+    firebase.auth().onAuthStateChanged(async u=>{
+      if(S.settingUp) return;
+      if(!u){ S.user=null; this.unsub.forEach(f=>f()); this.unsub=[]; S.needSetup=await Auth.needSetup(); S.ready=true; render(); return; }
+      try{
+        const d=await this.db.collection('users').doc(u.uid).get();
+        if(!d.exists||d.data().active===false){ await firebase.auth().signOut(); S.loginErr='此帳號尚未啟用或已停用，請洽管理者'; render(); return; }
+        S.user={uid:u.uid,...d.data()}; S.view='stock';
+        this.listen();
+      }catch(e){ await firebase.auth().signOut(); S.loginErr='登入失敗：'+e.message; }
+    });
+  },
+  unsub:[],
+  listen(){
+    const db=this.db; const U=this.unsub;
+    U.push(db.collection('items').onSnapshot(q=>{ S.items={}; q.forEach(d=>S.items[d.id]={id:d.id,...d.data()}); S.ready=true; refresh(); }, err));
+    U.push(db.collection('meta').doc('config').onSnapshot(d=>{ S.locations=(d.exists&&d.data().locations)||SEED_LOCATIONS.slice(); refresh(); }, err));
+    U.push(db.collection('txns').orderBy('ts','desc').limit(300).onSnapshot(q=>{ S.txns=q.docs.map(d=>({id:d.id,...d.data()})); refresh(); }, err));
+    U.push(db.collection('stocktakes').orderBy('createdAt','desc').limit(30).onSnapshot(q=>{ S.stocktakes=q.docs.map(d=>({id:d.id,...d.data()})); refresh(); }, err));
+    function err(e){ console.error(e); toast('讀取資料失敗：'+e.message); }
+  },
+  async apply(ops, txns, itemPatches){
+    const db=this.db;
+    const ids=[...new Set([...ops.map(o=>o.itemId),...Object.keys(itemPatches||{})])];
+    await db.runTransaction(async t=>{
+      const refs=ids.map(id=>db.collection('items').doc(id));
+      const snaps=await Promise.all(refs.map(r=>t.get(r)));
+      const items={}; snaps.forEach(s=>{ items[s.id]={id:s.id,...s.data()}; });
+      applyOps(items, ops);
+      for(const [id,p] of Object.entries(itemPatches||{})) Object.assign(items[id],p);
+      ids.forEach((id,k)=>{ const {id:_,...data}=items[id]; t.set(refs[k],data); });
+      txns.forEach(x=>{ const {id,...data}=x; t.set(db.collection('txns').doc(id),data); });
+    });
+  },
+  async saveItem(it){ const {id,...d}=it; await this.db.collection('items').doc(id).set(d); },
+  async saveLocations(l){ await this.db.collection('meta').doc('config').set({locations:l},{merge:true}); },
+  async saveStocktake(st){ const {id,...d}=st; await this.db.collection('stocktakes').doc(id).set(d); },
+  async deleteStocktake(id){ await this.db.collection('stocktakes').doc(id).delete(); },
+  async queryTxns(from,to){ const q=await this.db.collection('txns').where('ts','>=',from).where('ts','<=',to).orderBy('ts','desc').get(); return q.docs.map(d=>({id:d.id,...d.data()})); },
+  async seed(){
+    const {items,txns}=seedDocs(); const b=this.db.batch();
+    items.forEach(({id,...d})=>b.set(this.db.collection('items').doc(id),d));
+    txns.forEach(({id,...d})=>b.set(this.db.collection('txns').doc(id),d));
+    b.set(this.db.collection('meta').doc('config'),{locations:SEED_LOCATIONS});
+    await b.commit();
+  }
+};
+
+const CLOUD = !!FIREBASE_CONFIG;
+const Store = CLOUD ? CloudStore : DemoStore;
+
+/* ---------------- 帳號：中文姓名＋個人密碼 ---------------- */
+// 姓名會自動轉成系統內部帳號（使用者看不到、也不需要 Email）
+// 比照財務儀表板：姓名做 SHA-256 轉成固定的內部帳號，使用者只要輸入「姓名＋自設密碼」
+async function nameKey(name){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(name.trim().toLowerCase()));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')+'@gutingyuan-warehouse.local';
+}
+const DemoAuth = {
+  k:'kwh-demo-users',
+  all(){ try{ return JSON.parse(localStorage.getItem(this.k)||'[]'); }catch(e){ return this._m||[]; } },
+  save(a){ this._m=a; try{ localStorage.setItem(this.k,JSON.stringify(a)); }catch(e){} },
+  async needSetup(){ return !this.all().length; },
+  async register(name,pw){ const a=this.all(); if(a.some(x=>x.name===name)) throw new Error('這個帳號已經註冊過了，請直接登入'); a.push({uid:uid(),name,pw,admin:!a.length,active:true}); this.save(a); return this.login(name,pw); },
+  async login(name,pw){ const f=this.all().find(x=>x.name===name); if(!f) throw new Error('找不到這個帳號，請確認姓名或先註冊'); if(f.pw!==pw) throw new Error('密碼錯誤'); const u=f; if(!u.active) throw new Error('此帳號已停用，請洽管理者');
+    S.user={uid:u.uid,name:u.name,admin:u.admin,active:true}; S.view='stock'; try{ sessionStorage.setItem('kwh-demo-session',JSON.stringify(S.user)); }catch(e){} render(); },
+  async logout(){ S.user=null; try{ sessionStorage.removeItem('kwh-demo-session'); }catch(e){} S.needSetup=await this.needSetup(); render(); },
+  async listUsers(){ return this.all().map(({pw,...u})=>u); },
+  async addUser(name,pw,admin){ const a=this.all(); if(a.some(x=>x.name===name)) throw new Error('已有同名帳號'); a.push({uid:uid(),name,pw,admin,active:true}); this.save(a); },
+  async setUser(uidv,patch){ const a=this.all(); Object.assign(a.find(x=>x.uid===uidv),patch); this.save(a); },
+  async changePw(oldPw,newPw){ const a=this.all(); const u=a.find(x=>x.uid===S.user.uid); if(u.pw!==oldPw) throw new Error('目前密碼不正確'); u.pw=newPw; this.save(a); }
+};
+const CloudAuth = {
+  async needSetup(){ try{ const d=await CloudStore.db.collection('meta').doc('setup').get(); return !d.exists; }catch(e){ return false; } },
+  async register(name,pw){
+    S.settingUp=true;
+    try{
+      const first=await this.needSetup();
+      const cred=await firebase.auth().createUserWithEmailAndPassword(await nameKey(name),pw);
+      await cred.user.updateProfile({displayName:name});
+      const db=CloudStore.db, b=db.batch();
+      b.set(db.collection('users').doc(cred.user.uid),{name,admin:first,active:first,createdAt:Date.now()});
+      if(first) b.set(db.collection('meta').doc('setup'),{done:true,at:Date.now()});
+      await b.commit();
+      if(!first){
+        // v1.1：一般帳號註冊後為「待啟用」，需管理者到「設定 → 帳號管理」按「啟用」
+        await firebase.auth().signOut(); S.settingUp=false; S.user=null;
+        S.loginErr='已註冊「'+name+'」，請等管理者啟用後再登入'; render(); return;
+      }
+      S.user={uid:cred.user.uid,name,admin:first,active:true}; S.view='stock'; S.settingUp=false;
+      CloudStore.listen(); render();
+    }catch(e){
+      S.settingUp=false;
+      if(e.code==='auth/email-already-in-use') throw new Error('這個帳號已經註冊過了，請直接登入');
+      if(e.code==='auth/weak-password') throw new Error('密碼太簡單，請至少8個字元');
+      throw new Error('註冊失敗，請稍後再試');
+    }
+  },
+  async login(name,pw){
+    try{ await firebase.auth().signInWithEmailAndPassword(await nameKey(name),pw); }
+    catch(e){
+      if(e.code==='auth/user-not-found') throw new Error('找不到這個帳號，請確認姓名或先註冊');
+      if(e.code==='auth/wrong-password') throw new Error('密碼錯誤');
+      if(e.code==='auth/invalid-credential'||e.code==='auth/invalid-login-credentials') throw new Error('姓名或密碼錯誤，或尚未註冊');
+      throw new Error('登入失敗，請稍後再試');
+    }
+  },
+  async logout(){ await firebase.auth().signOut(); },
+  async listUsers(){ const q=await CloudStore.db.collection('users').get(); return q.docs.map(d=>({uid:d.id,...d.data()})); },
+  async addUser(name,pw,admin){
+    // 用第二個連線建立帳號，管理者本身不會被登出
+    const sec=firebase.initializeApp(FIREBASE_CONFIG,'sec'+Date.now());
+    try{
+      const cred=await sec.auth().createUserWithEmailAndPassword(await nameKey(name),pw);
+      await cred.user.updateProfile({displayName:name});
+      await CloudStore.db.collection('users').doc(cred.user.uid).set({name,admin,active:true,createdAt:Date.now()});
+      await sec.auth().signOut();
+    }catch(e){ throw new Error(e.code==='auth/email-already-in-use'?'已有同名帳號':(e.code==='auth/weak-password'?'密碼至少要 8 個字元':e.message)); }
+    finally{ sec.delete(); }
+  },
+  async setUser(uidv,patch){ await CloudStore.db.collection('users').doc(uidv).update(patch); },
+  async changePw(oldPw,newPw){
+    const u=firebase.auth().currentUser;
+    try{ await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email,oldPw)); }catch(e){ throw new Error('目前密碼不正確'); }
+    await u.updatePassword(newPw);
+  }
+};
+const Auth = CLOUD ? CloudAuth : DemoAuth;
+
+const APP_VERSION='v1.4', APP_DATE='2026-10-12';
+const CHANGELOG=[
+  {v:'v1.4',d:'2026-10-12',items:['盤點可匯入 Excel 盤點表：選檔後先列出和帳面不同的品項，確認後更新庫存（記成盤點更正，盤點紀錄可下載）','支援本平台「盤點用表格」、庫存總表、盤點清單，以及舊的「倉管物料-盤點登記」表（自動取最右邊有填的盤點日期）','盤點畫面新增「下載盤點用表格」，到現場填實盤數量後再匯入']},
+  {v:'v1.3',d:'2026-10-07',items:['Netlify 專案列表縮圖改為顯示「庫房管理」色帶（與其他平台一致），載入中畫面也顯示平台名稱']},
+  {v:'v1.2',d:'2026-10-07',items:['頁面標題與首頁加上平台名稱，Netlify 專案列表的縮圖也看得出是哪個平台','密碼規則：新建帳號、修改密碼一律至少 8 碼（舊的短密碼仍可登入，下次修改時需改成 8 碼以上）']},
+  {v:'v1.1',d:'2026-10-07',items:['資安加強：自行註冊的帳號改為「待啟用」，需管理者在「設定 → 帳號管理」按「啟用」才能登入','管理者在帳號管理直接新增的帳號仍會立即啟用','頁尾新增版本號與改動清單']},
+  {v:'v1.0',d:'2026-10-06',items:['初版上線：庫存、領出／補進、紀錄、盤點、叫貨清單']}
+];
+function verFooter(){
+  return `<details style="text-align:center;margin:18px 0 8px;font-size:12px;color:var(--mute,#888)"><summary style="cursor:pointer">古亭院 庫房管理 ${APP_VERSION}（${APP_DATE}）・版本紀錄</summary>
+    <div style="text-align:left;max-width:520px;margin:8px auto">${CHANGELOG.map(c=>`<p style="margin:8px 0 2px"><b>${c.v}</b> ${c.d}</p><ul style="margin:0;padding-left:20px">${c.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</div></details>`;
+}
+
+function loginView(){
+  return `<header style="justify-content:center;padding-top:22px;padding-bottom:22px"><h1 style="font-size:30px;flex:none;text-align:center">古亭院 庫房管理平台</h1></header>
+  ${CLOUD?'':'<div class="demo">示範模式</div>'}
+  <div class="login card">
+    <h2>登入</h2>
+    <p class="mute" style="margin-top:0">登記庫房進出，需要先登入保管人帳號。第一次使用請輸入姓名、自設密碼後按「註冊新帳號」，再請管理者啟用。</p>
+    <label class="f">姓名／帳號</label><input id="ln" type="text" autocomplete="username" placeholder="例如：陳師姑">
+    <label class="f">密碼</label><input id="lp" type="password" autocomplete="current-password" placeholder="自設密碼" onkeydown="if(event.key==='Enter')doLogin()">
+    <div style="height:14px"></div>
+    <div class="row"><button class="btn pri grow" onclick="doLogin()">登入</button><button class="btn grow" onclick="doRegister()">註冊新帳號</button></div>
+    <p class="mute" id="lerr" style="color:var(--bad)">${esc(S.loginErr||'')}</p>
+  </div>${verFooter()}`;
+}
+async function doLogin(){
+  const n=$('#ln').value.trim(), p=$('#lp').value;
+  if(!n||!p) return $('#lerr').textContent='請輸入姓名與密碼';
+  S.loginErr=''; $('#lerr').textContent='登入中...';
+  try{ await Auth.login(n,p); }catch(e){ $('#lerr').textContent=e.message; }
+}
+async function doRegister(){
+  const n=$('#ln').value.trim(), p=$('#lp').value;
+  if(!n||!p) return $('#lerr').textContent='請輸入姓名與密碼';
+  if(p.length<8) return $('#lerr').textContent='註冊密碼至少需要 8 個字元';
+  $('#lerr').textContent='註冊中...';
+  try{ await Auth.register(n,p); }catch(e){ $('#lerr').textContent=e.message; }
+}
+
+/* ---- 設定頁：帳號 ---- */
+function accountCard(){
+  return `<div class="card"><h2>帳號<span class="sp"></span><span class="mute">${esc(S.user.name)}${S.user.admin?'（管理者）':''}</span></h2>
+    <div class="row"><button class="btn grow" onclick="openPw()">修改我的密碼</button>${S.user.admin?'<button class="btn grow" onclick="openUsers()">帳號管理</button>':''}</div>
+    <div style="height:8px"></div><button class="btn block" onclick="Auth.logout()">登出</button></div>`;
+}
+function openPw(){
+  sheet(`<div class="hd"><h3>修改我的密碼</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <label class="f">目前密碼</label><input id="p0" type="password">
+    <label class="f">新密碼（至少 8 個字元）</label><input id="p1" type="password">
+    <label class="f">再輸入一次新密碼</label><input id="p2" type="password">
+    <div style="height:14px"></div><button class="btn pri block" onclick="savePw()">儲存</button><p class="mute" id="perr" style="color:var(--bad)"></p>`);
+}
+async function savePw(){
+  const a=$('#p0').value,b=$('#p1').value,c=$('#p2').value;
+  if(b.length<8) return $('#perr').textContent='新密碼至少要 8 個字元';
+  if(b!==c) return $('#perr').textContent='兩次新密碼不一樣';
+  try{ await Auth.changePw(a,b); closeSheet(); toast('密碼已更新'); }catch(e){ $('#perr').textContent=e.message; }
+}
+async function openUsers(){
+  const us=await Auth.listUsers();
+  sheet(`<div class="hd"><h3>帳號管理</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <div class="card" style="padding:4px 14px"><div class="list">${us.map(u=>`<div class="it" style="${u.active===false?'opacity:.5':''}"><div class="grow"><b>${esc(u.name)}</b> ${u.admin?'<span class="tag">管理者</span>':'<span class="tag ok">保管人</span>'}${u.active===false?' <span class="tag bad">未啟用／已停用</span>':''}</div>
+      ${u.uid===S.user.uid?'<span class="mute">（自己）</span>':`<button class="btn sm" onclick="toggleUser('${u.uid}',${u.active===false})">${u.active===false?'啟用':'停用'}</button>`}</div>`).join('')}</div></div>
+    <h3 style="font-size:16px;margin:16px 0 0">新增帳號</h3>
+    <label class="f">姓名</label><input id="nu" type="text" placeholder="例如：庫房保管人的中文姓名">
+    <label class="f">初始密碼（至少 8 個字元，請告訴本人，登入後可自行修改）</label><input id="np" type="text">
+    <label class="f"><input type="checkbox" id="na"> 設為管理者（可管理帳號）</label>
+    <div style="height:12px"></div><button class="btn pri block" onclick="addUser()">新增</button><p class="mute" id="uerr" style="color:var(--bad)"></p>
+    <p class="mute">忘記密碼：請先把舊帳號「停用」，再用原姓名加註區別（例如「王小明2」）重新註冊或建立。</p>`);
+}
+async function addUser(){
+  const n=$('#nu').value.trim(), p=$('#np').value.trim();
+  if(!n) return $('#uerr').textContent='請輸入姓名';
+  if(p.length<8) return $('#uerr').textContent='密碼至少要 8 個字元';
+  $('#uerr').textContent='建立中…';
+  try{ await Auth.addUser(n,p,$('#na').checked); toast(`已建立「${n}」的帳號`); openUsers(); }catch(e){ $('#uerr').textContent=e.message; }
+}
+async function toggleUser(u,on){ await Auth.setUser(u,{active:on}); openUsers(); }
+
+/* ---------------- 叫貨清單 ---------------- */
+function orderText(){
+  const low=activeItems().filter(isLow);
+  let s=`【古亭院庫房 叫貨提醒】${roc(Date.now())}\n`;
+  low.forEach((i,k)=>{ const t=total(i); const need=Math.max(0,num(i.safety)-t.m);
+    s+=`${k+1}. ${i.name}：現有 ${qtyText(i)}，庫存下限 ${fmt(i.safety)} ${i.unitMain}，至少需補 ${fmt(need)} ${i.unitMain}${i.supplier?`（${i.supplier}）`:''}\n`; });
+  return s;
+}
+function openOrderList(){
+  const txt=orderText();
+  sheet(`<div class="hd"><h3>叫貨清單</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <p class="mute">可複製後貼到 LINE 傳給負責採購的人。</p>
+    <textarea id="otxt" style="min-height:220px">${esc(txt)}</textarea>
+    <div style="height:10px"></div>
+    <button class="btn pri block" onclick="copyText($('#otxt').value)">複製</button>`);
+}
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); toast('已複製'); }
+  catch(e){ const a=$('#otxt'); if(a){a.select(); document.execCommand('copy'); toast('已複製');} }
+}
+
+
+/* ---------------- 底部視窗 ---------------- */
+function sheet(html){ $('#sheet').innerHTML=`<div class="sheet-bg" onclick="if(event.target===this)closeSheet()"><div class="sheet">${html}</div></div>`; }
+function closeSheet(){ $('#sheet').innerHTML=''; }
+
+
+async function locAdd(){ const v=$('#newloc').value.trim(); if(!v) return; if(S.locations.includes(v)) return toast('已有此位置'); await Store.saveLocations([...S.locations,v]); }
+async function locDel(k){
+  const l=S.locations[k];
+  if(Object.values(S.items).some(i=>{const v=(i.stock||{})[l]; return v&&(num(v.m)||num(v.s));})) return alert(`「${l}」還有庫存，請先把物品移到其他位置。`);
+  if(Object.values(S.items).some(i=>i.defaultLoc===l)) return alert(`有品項的預設位置是「${l}」，請先修改。`);
+  if(!confirm(`刪除位置「${l}」？`)) return;
+  await Store.saveLocations(S.locations.filter(x=>x!==l));
+}
+function openItemEdit(id){
+  const it=id?S.items[id]:{id:'i'+uid(),no:Math.max(0,...Object.values(S.items).map(i=>num(i.no)))+1,name:'',cat:'金紙',unitMain:'箱',unitSub:'',spec:'',defaultLoc:S.locations[0],safety:null,note:'',supplier:'',active:true,stock:{}};
+  const f=(k,l,ph='')=>`<label class="f">${l}</label><input type="text" id="e_${k}" value="${esc(it[k]??'')}" placeholder="${ph}">`;
+  sheet(`<div class="hd"><h3>${id?'編輯品項':'新增品項'}</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <label class="f">項次</label><input type="number" id="e_no" value="${esc(it.no)}">
+    ${f('name','品名 *')}
+    <label class="f">分類</label><select id="e_cat">${CATS.map(c=>`<option ${it.cat===c?'selected':''}>${c}</option>`).join('')}</select>
+    <div class="row"><div class="grow">${f('unitMain','外裝 *','箱／捆／件')}</div><div class="grow">${f('unitSub','散裝單位','包／條／盞，沒有可空白')}</div></div>
+    ${f('spec','內箱數量','例如：10包，500張/包')}
+    <label class="f">存放地點</label><select id="e_defaultLoc">${S.locations.map(l=>`<option ${it.defaultLoc===l?'selected':''}>${esc(l)}</option>`).join('')}</select>
+    <label class="f">庫存下限（以外裝計，低於此數提醒叫貨；空白＝不提醒）</label><input type="number" inputmode="decimal" id="e_safety" value="${it.safety??''}">
+    ${f('supplier','叫貨對象','廠商名稱／電話')}
+    ${f('note','備註')}
+    <label class="f"><input type="checkbox" id="e_active" ${it.active!==false?'checked':''}> 使用中（取消勾選＝停用，不再顯示）</label>
+    <div style="height:14px"></div>
+    <button class="btn pri block" onclick="saveItemEdit('${it.id}',${id?'true':'false'})">儲存</button>
+    ${id?'':'<p class="mute">新增後，在庫存清單點此品項→「補進」登記數量。</p>'}`);
+  window._editBase=it;
+}
+async function saveItemEdit(id,exists){
+  const base=JSON.parse(JSON.stringify(window._editBase));
+  const g=k=>$('#e_'+k).value.trim();
+  if(!g('name')||!g('unitMain')) return toast('請填寫品名與外裝');
+  const sf=g('safety');
+  Object.assign(base,{no:num(g('no'))||base.no,name:g('name'),cat:g('cat'),unitMain:g('unitMain'),unitSub:g('unitSub'),spec:g('spec'),defaultLoc:g('defaultLoc'),
+    safety:sf===''?null:num(sf),supplier:g('supplier'),note:g('note'),active:$('#e_active').checked,updatedAt:Date.now()});
+  try{ await Store.saveItem(base); closeSheet(); toast('已儲存'); }catch(e){ alert('儲存失敗：'+e.message); }
+}
+
+/* ---------------- Excel 匯出 ---------------- */
+function saveXlsx(sheets, filename){
+  if(typeof XLSX==='undefined') return alert('Excel 元件尚未載入，請確認網路連線');
+  const wb=XLSX.utils.book_new();
+  for(const [name,aoa,cols] of sheets){ const ws=XLSX.utils.aoa_to_sheet(aoa); if(cols) ws['!cols']=cols.map(w=>({wch:w})); XLSX.utils.book_append_sheet(wb,ws,name); }
+  XLSX.writeFile(wb, filename);
+}
+const rocFile=()=>{ const d=new Date(); return `${d.getFullYear()-1911}${pad(d.getMonth()+1)}${pad(d.getDate())}`; };
+function exportStock(){
+  const aoa=[[`古亭院 倉管物料庫存總表　${roc(Date.now())}`],[],['項次','品名','外裝','內箱數量','存放地點','庫存下限','庫存(外裝)','庫存(散裝)','散裝單位','最近進貨','最近出貨','狀態']];
+  activeItems().forEach(i=>{
+    const locs=Object.entries(i.stock||{}).filter(([l,v])=>num(v.m)||num(v.s)||l===i.defaultLoc);
+    (locs.length?locs:[[i.defaultLoc,{m:0,s:0}]]).forEach(([l,v],k)=>aoa.push([k?'':i.no,k?'':i.name,i.unitMain,i.spec,l,k?'':(i.safety??''),num(v.m),i.unitSub?num(v.s):'',i.unitSub,k?'':(i.lastInAt?roc(i.lastInAt):''),k?'':(i.lastOutAt?roc(i.lastOutAt):''),k?'':(isLow(i)?'需叫貨':'')]));
+  });
+  saveXlsx([['庫存總表',aoa,[6,22,6,18,10,9,10,10,8,11,11,8]]], `古亭院庫存總表-${rocFile()}.xlsx`);
+}
+function exportStocktake(id){
+  const st=S.stocktakes.find(x=>x.id===id); if(!st) return;
+  const rows=Object.values(st.result||{}).sort((a,b)=>num(S.items[a.itemId]?.no)-num(S.items[b.itemId]?.no)||a.loc.localeCompare(b.loc));
+  const aoa=[[`古亭院 倉管物料盤點清單　盤點日期 ${roc(st.finishedAt)}　盤點人 ${st.by||''}`],[],['項次','品名','外裝','散裝單位','內箱數量','存放地點','庫存下限','帳面(外裝)','帳面(散裝)','實盤(外裝)','實盤(散裝)','差異(外裝)','差異(散裝)']];
+  rows.forEach(r=>{ const i=S.items[r.itemId]||{}; aoa.push([i.no??'',r.name,i.unitMain||'',i.unitSub||'',i.spec||'',r.loc,i.safety??'',r.bm,i.unitSub?r.bs:'',r.am,i.unitSub?r.as:'',r.dm||'',i.unitSub?(r.ds||''):'']); });
+  saveXlsx([['盤點表',aoa,[6,22,6,8,18,10,9,10,10,10,10,10,10]]], `古亭院倉管物料盤點-${(()=>{const d=new Date(st.finishedAt);return `${d.getFullYear()-1911}${pad(d.getMonth()+1)}${pad(d.getDate())}`})()}.xlsx`);
+}
+async function exportRecords(){
+  if(!S.recRows) await loadRecords();
+  const rows=filterRec(S.recRows||[]);
+  const aoa=[[`古亭院 庫房進出紀錄　${S.recFrom} ~ ${S.recTo}`],[],['日期時間','類別','品名','位置','移到','數量(外裝)','外裝','數量(散裝)','散裝','來源/用途','備註','經手人']];
+  rows.slice().reverse().forEach(t=>{ const i=S.items[t.itemId]||{}; aoa.push([roc(t.ts,1),TYPE_NAME[t.type],t.itemName,t.loc,t.toLoc||'',t.m,i.unitMain||'',i.unitSub?t.s:'',i.unitSub||'',t.purpose||'',t.note||'',t.by||'']); });
+  saveXlsx([['進出紀錄',aoa,[16,9,22,10,10,10,6,10,6,10,24,10]]], `古亭院庫房進出紀錄-${rocFile()}.xlsx`);
+}
+
+/* =====================================================================
+   簡易版畫面：庫存（領出／補進）、盤點、紀錄、設定
+   ===================================================================== */
+Object.assign(S,{ view:'stock', q:'', loc:'全部', lowOnly:false, stMode:false, stLoc:null, recTab:'txn', recMonth:null, recRows:null, recQ:'' });
+
+function refresh(){
+  if(!S.ready) return;
+  if(S.stMode) return;                       // 盤點中不重畫，避免輸入被清掉
+  if(S.view==='stock' && $('#slist')){ renderList(); renderBanner(); return; }
+  render();
+}
+function go(v){ S.view=v; S.stMode=false; render(); window.scrollTo(0,0); }
+
+function render(){
+  const app=$('#app');
+  if(!S.ready){ app.innerHTML='<header style="justify-content:center;padding-top:22px;padding-bottom:22px"><h1 style="font-size:30px;flex:none;text-align:center">古亭院 庫房管理平台</h1></header><div class="empty">載入中…</div>'; return; }
+  if(!S.user){ app.innerHTML=loginView(); return; }
+  if(S.stMode){ app.innerHTML=stView(); return; }
+  const tabs=[['stock','📦','庫存'],['records','🧾','紀錄'],['admin','⚙️','設定']];
+  app.innerHTML=`
+    <header><h1>古亭院 庫房管理</h1><span class="who">${esc(S.user?.name||'')}</span></header>
+    ${CLOUD?'':'<div class="demo">示範模式（資料只存在這個瀏覽器）</div>'}
+    <main>${({stock:stockView,records:recordsView,admin:adminView})[S.view]()}</main>
+    <nav>${tabs.map(([k,i,t])=>`<button class="${S.view===k?'on':''}" onclick="go('${k}')"><span class="i">${i}</span>${t}</button>`).join('')}</nav>`;
+  if(S.view==='stock'){ renderList(); renderBanner(); }
+}
+
+/* ---------------- 庫存主畫面 ---------------- */
+function stockView(){
+  if(!activeItems().length) return `<div class="card"><h2>尚無品項資料</h2><p class="mute">第一次使用，請先匯入 115.10.02 盤點表的期初庫存。</p><button class="btn pri block" onclick="doSeed()">匯入期初庫存</button></div>`;
+  return `
+  <div class="top">
+    <input type="text" id="q" placeholder="🔍 搜尋品名" value="${esc(S.q)}" oninput="S.q=this.value;renderList()">
+    <div class="chips">${['全部',...S.locations].map(l=>`<button class="${S.loc===l?'on':''}" onclick="S.loc='${esc(l)}';render()">${esc(l)}</button>`).join('')}</div>
+  </div>
+  <div id="banner"></div>
+  <div class="list card" id="slist" style="padding:0 14px"></div>
+  <button class="btn block st-btn" onclick="startSt()">📋 開始盤點</button>
+  <button class="btn block st-btn" onclick="impPick()">📥 匯入 Excel 盤點表</button>`;
+}
+async function doSeed(){ if(!confirm('確定要匯入期初庫存嗎？')) return; try{ await Store.seed(); toast('已匯入'); }catch(e){ alert('匯入失敗：'+e.message); } }
+
+function renderBanner(){
+  const el=$('#banner'); if(!el) return;
+  const low=activeItems().filter(isLow);
+  el.innerHTML=low.length?`<div class="banner" onclick="S.lowOnly=!S.lowOnly;renderList();renderBanner()">
+      <span class="grow">🔔 <b>${low.length} 項需要叫貨</b>　<span style="font-size:13px">${S.lowOnly?'（點此顯示全部）':'（點此只看這些）'}</span></span>
+      <button class="btn sm" onclick="event.stopPropagation();openOrderList()">叫貨清單</button></div>`:'';
+}
+function locLine(i){
+  const e=Object.entries(i.stock||{}).filter(([,v])=>num(v.m)||num(v.s));
+  return e.length?e.map(([l])=>l).join('、'):(i.defaultLoc||'');
+}
+function renderList(){
+  const el=$('#slist'); if(!el) return;
+  const q=S.q.trim().toLowerCase();
+  let rows=activeItems();
+  if(S.lowOnly) rows=rows.filter(isLow);
+  if(S.loc!=='全部') rows=rows.filter(i=>{const v=(i.stock||{})[S.loc]; return (v&&(num(v.m)||num(v.s)))||i.defaultLoc===S.loc;});
+  if(q) rows=rows.filter(i=>i.name.toLowerCase().includes(q));
+  el.innerHTML=rows.length?rows.map(i=>{
+    const q2=S.loc==='全部'?total(i):((i.stock||{})[S.loc]||{m:0,s:0});
+    return `<div class="it click ${isLow(i)?'low':''}" onclick="openMove('${i.id}')">
+      <div class="grow"><b><span class="no">${esc(i.no)}</span>${esc(i.name)}</b>${isLow(i)?' <span class="tag bad">需叫貨</span>':''}
+        <div class="mute">📍 ${esc(locLine(i))}｜外裝 ${esc(i.unitMain)}${i.spec?'｜內箱 '+esc(i.spec):''}${i.safety!=null&&i.safety!==''?'｜下限 '+fmt(i.safety)+esc(i.unitMain):''}</div>
+        ${i.lastInAt||i.lastOutAt?`<div class="mute dt">${i.lastInAt?'最近進貨 '+roc(i.lastInAt):''}${i.lastInAt&&i.lastOutAt?'　':''}${i.lastOutAt?'最近出貨 '+roc(i.lastOutAt):''}</div>`:''}</div>
+      <div class="qty">${fmt(q2.m)} <small>${esc(i.unitMain)}</small>${i.unitSub&&num(q2.s)?`<br><small>＋${fmt(q2.s)} ${esc(i.unitSub)}</small>`:''}</div></div>`;}).join('')
+    :'<div class="empty">沒有符合的品項</div>';
+}
+
+/* ---------------- 領出／補進（點品項就跳出） ---------------- */
+let M=null;
+function openMove(id){
+  const it=S.items[id]; const has=itemLocs(it);
+  M={id,type:'out',m:0,s:0,note:'',loc:null,chgLoc:false,date:isoToday()};
+  if(!has.length) M.type='in';
+  setLoc(); drawMove();
+}
+function setLoc(){
+  const it=S.items[M.id], has=itemLocs(it);
+  if(M.type==='out') M.loc=(S.loc!=='全部'&&has.includes(S.loc))?S.loc:(has.includes(it.defaultLoc)?it.defaultLoc:has[0]);
+  else M.loc=(S.loc!=='全部')?S.loc:(it.defaultLoc||S.locations[0]);
+}
+function drawMove(){
+  const it=S.items[M.id], has=itemLocs(it);
+  const locOpts=M.type==='out'?has:S.locations;
+  const now=Object.entries(it.stock||{}).filter(([,v])=>num(v.m)||num(v.s));
+  let h=`<div class="hd"><h3>${esc(it.name)}</h3><button class="x" onclick="closeSheet()">×</button></div>
+  <div class="info"><span>項次 <b>${esc(it.no)}</b></span><span>外裝 <b>${esc(it.unitMain)}</b></span>${it.spec?`<span>內箱數量 <b>${esc(it.spec)}</b></span>`:''}<span>存放地點 <b>${esc(locLine(it))}</b></span><span>庫存下限 <b>${it.safety!=null&&it.safety!==''?fmt(it.safety)+' '+esc(it.unitMain):'未設定'}</b></span></div>
+  <div class="mute" style="margin-bottom:12px">現有：${now.length?now.map(([l,v])=>`${esc(l)} <b style="color:var(--ink)">${esc(qtyText(it,v))}</b>`).join('　'):'0'}</div>
+  <div class="seg">
+    <button class="${M.type==='out'?'on out':''}" ${has.length?'':'disabled'} onclick="M.type='out';setLoc();drawMove()">📤 領出</button>
+    <button class="${M.type==='in'?'on in':''}" onclick="M.type='in';setLoc();drawMove()">📥 補進</button>
+  </div>`;
+  if(locOpts.length>1){
+    h+= M.chgLoc
+      ? `<div class="chips" style="flex-wrap:wrap;margin-top:12px">${locOpts.map(l=>`<button class="${M.loc===l?'on':''}" onclick="M.loc='${esc(l)}';M.chgLoc=false;drawMove()">${esc(l)}</button>`).join('')}</div>`
+      : `<div class="mute" style="margin-top:12px">${M.type==='out'?'從':'放到'}：<b style="color:var(--ink)">${esc(M.loc)}</b>　<a href="#" onclick="M.chgLoc=true;drawMove();return false">更改位置</a></div>`;
+  }
+  h+=`<label class="f">${M.type==='out'?'領出':'補進'}日期</label><input type="date" value="${M.date}" max="${isoToday()}" onchange="M.date=this.value||isoToday()">
+  <div style="height:12px"></div>${stepper('m',it.unitMain)}${it.unitSub?`<div style="height:8px"></div>${stepper('s',it.unitSub)}`:''}
+  <input type="text" style="margin-top:12px" placeholder="備註（選填，例如：中元法會）" value="${esc(M.note)}" oninput="M.note=this.value">
+  <div style="height:14px"></div>
+  <button class="btn block" style="color:#fff;font-weight:700;border:0;background:var(--${M.type==='out'?'out':'in'})" onclick="submitMove()">確定${M.type==='out'?'領出':'補進'}</button>`;
+  const hist=S.txns.filter(t=>t.itemId===it.id&&!t.void&&(t.type==='in'||t.type==='out')).slice(0,5);
+  if(hist.length) h+=`<div class="mute" style="margin-top:16px">最近進出</div><div class="list">${hist.map(t=>`<div class="it" style="padding:6px 0"><span class="tag ${TYPE_CLS[t.type]}">${TYPE_NAME[t.type]}</span><span class="grow">${roc(t.ts)}　${esc(t.loc)}${t.note?'｜'+esc(t.note):''}</span><span class="qty">${t.type==='out'?'−':'＋'}${fmt(t.m)} ${esc(it.unitMain)}${it.unitSub&&num(t.s)?` ${fmt(t.s)} ${esc(it.unitSub)}`:''}</span></div>`).join('')}</div>`;
+  sheet(h);
+}
+function isoToday(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function dateTs(iso){ if(iso===isoToday()) return Date.now(); const n=new Date(); const d=new Date(iso+'T00:00:00'); d.setHours(n.getHours(),n.getMinutes(),n.getSeconds()); return d.getTime(); }
+function stepper(k,u){
+  return `<div class="stepper"><button onclick="bump('${k}',-1)">−</button><input type="number" inputmode="decimal" step="any" min="0" id="st_${k}" value="${M[k]}" oninput="M.${k}=num(this.value)"><button onclick="bump('${k}',1)">＋</button><span class="u">${esc(u)}</span></div>`;
+}
+function bump(k,d){ M[k]=Math.max(0,num(M[k])+d); $('#st_'+k).value=fmt(M[k]); }
+async function submitMove(){
+  const it=S.items[M.id], m=num(M.m), s=num(M.s);
+  if(m<=0&&s<=0) return toast('請輸入數量');
+  const sign=M.type==='out'?-1:1;
+  const ts=dateTs(M.date);
+  const txn={id:uid(),ts,type:M.type,itemId:it.id,itemName:it.name,loc:M.loc,m,s,purpose:'',note:M.note.trim(),by:S.user?.name||''};
+  try{
+    const k=M.type==='out'?'lastOutAt':'lastInAt';
+    await Store.apply([{itemId:it.id,loc:M.loc,dm:sign*m,ds:sign*s}],[txn],{[it.id]:{[k]:Math.max(num(it[k]),ts)}});
+    closeSheet(); toast(`✅ ${it.name} ${M.type==='out'?'領出':'補進'} ${fmt(m)} ${it.unitMain}${s?` ${fmt(s)} ${it.unitSub}`:''}`);
+    const after=S.items[it.id]; if(M.type==='out'&&after&&isLow(after)) setTimeout(()=>toast(`🔔 ${it.name} 已低於庫存下限，請叫貨`),2300);
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------------- 盤點（只填不一樣的） ---------------- */
+const ST_KEY='kuting-warehouse-st-draft';
+let STD={};   // { 'itemId|位置': {m:'',s:''} }
+function stLoad(){ try{ STD=JSON.parse(localStorage.getItem(ST_KEY)||'{}'); }catch(e){ STD={}; } }
+function stSave(){ try{ localStorage.setItem(ST_KEY,JSON.stringify(STD)); }catch(e){} }
+function startSt(){ stLoad(); S.stMode=true; S.stLoc=S.loc!=='全部'?S.loc:S.locations[0]; render(); window.scrollTo(0,0); }
+function stItems(loc){
+  return activeItems().filter(i=>{ const v=(i.stock||{})[loc];
+    return (v&&(num(v.m)||num(v.s))) || i.defaultLoc===loc || (i.splitPending&&(loc==='上倉庫'||loc==='下倉庫')) || Object.keys(STD).includes(i.id+'|'+loc); });
+}
+function stView(){
+  const loc=S.stLoc, rows=stItems(loc);
+  const changed=Object.keys(STD).length;
+  return `<header class="st-hd"><h1>📋 盤點中</h1><button class="btn sm" style="color:var(--ink)" onclick="stExit()">離開</button></header>
+  <main>
+    <div class="tip">逐項核對，<b>數量正確就不用填</b>；只有和帳面不一樣的，才填上實際數量。<br>填好的數字會自動保存，可分次盤點。</div>
+    <div class="row" style="margin-bottom:8px"><button class="btn sm grow" onclick="impPick()">📥 匯入 Excel 盤點表</button><button class="btn sm grow" onclick="stTemplate()">📄 下載盤點用表格</button></div>
+    <div class="chips">${S.locations.map(l=>`<button class="${l===loc?'on':''}" onclick="S.stLoc='${esc(l)}';render()">${esc(l)}</button>`).join('')}</div>
+    <div class="card" style="padding:4px 14px">
+      ${rows.map(i=>{ const key=i.id+'|'+loc, b=(i.stock||{})[loc]||{m:0,s:0}, a=STD[key];
+        return `<div class="st-row ${a?'diff':''}"><div class="row"><div class="grow"><b>${esc(i.name)}</b><div class="mute">帳面 ${esc(qtyText(i,b))}</div></div></div>
+        <div class="st-in" style="${i.unitSub?'':'grid-template-columns:1fr'}">
+          <label><input type="number" inputmode="decimal" step="any" min="0" placeholder="${fmt(b.m)}" value="${a?esc(a.m):''}" oninput="stSet('${key}','m',this.value,this)"><span>${esc(i.unitMain)}</span></label>
+          ${i.unitSub?`<label><input type="number" inputmode="decimal" step="any" min="0" placeholder="${fmt(b.s)}" value="${a?esc(a.s):''}" oninput="stSet('${key}','s',this.value,this)"><span>${esc(i.unitSub)}</span></label>`:''}
+        </div></div>`;}).join('')||'<div class="empty">此位置沒有品項</div>'}
+      <div style="padding:10px 0"><a href="#" onclick="stAdd();return false">＋ 這裡還有其他品項</a></div>
+    </div>
+    <button class="btn pri block" onclick="stFinish()">完成盤點（${changed} 項有差異）</button>
+    <div style="height:30px"></div>
+  </main>`;
+}
+function stSet(key,k,v,el){
+  const a=STD[key]||{m:'',s:''}; a[k]=v;
+  if(a.m===''&&a.s==='') delete STD[key]; else STD[key]=a;
+  stSave(); el.closest('.st-row').classList.toggle('diff',!!STD[key]);
+  const b=document.querySelector('main > .btn.pri'); if(b) b.textContent=`完成盤點（${Object.keys(STD).length} 項有差異）`;
+}
+function stAdd(){
+  sheet(`<div class="hd"><h3>加入品項到「${esc(S.stLoc)}」</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <input type="text" placeholder="搜尋品名" oninput="stPick(this.value)"><div class="pick" id="stp"></div>`); stPick('');
+}
+function stPick(q){
+  const cur=new Set(stItems(S.stLoc).map(i=>i.id));
+  $('#stp').innerHTML=activeItems().filter(i=>!cur.has(i.id)&&i.name.includes(q.trim())).map(i=>`<div onclick="STD['${i.id}|'+S.stLoc]={m:'',s:''};stSave();closeSheet();render()">${esc(i.name)}</div>`).join('')||'<div class="mute">沒有可加入的品項</div>';
+}
+function stExit(){ S.stMode=false; S.stSrc=null; render(); toast(Object.keys(STD).length?'已保存，下次可繼續盤點':'已離開盤點'); }
+async function stFinish(){
+  const now=Date.now(), by=S.user?.name||''; const ops=[], txns=[], result={}, patches={};
+  // 每個位置的每個品項都記錄（空白＝與帳面相同），差異的才調整
+  for(const loc of S.locations) for(const i of stItems(loc)){
+    const key=i.id+'|'+loc, b=(i.stock||{})[loc]||{m:0,s:0}, a=STD[key];
+    const am=a&&a.m!==''?num(a.m):num(b.m), as=a&&a.s!==''?num(a.s):num(b.s);
+    const dm=Math.round((am-num(b.m))*100)/100, ds=Math.round((as-num(b.s))*100)/100;
+    if(!(am||as||num(b.m)||num(b.s))&&!a) continue;
+    result[key]={itemId:i.id,name:i.name,loc,bm:num(b.m),bs:num(b.s),am,as,dm,ds};
+    if(dm||ds){ ops.push({itemId:i.id,loc,dm,ds}); txns.push({id:uid(),ts:now,type:'adjust',itemId:i.id,itemName:i.name,loc,m:dm,s:ds,purpose:'盤點',note:`${S.stSrc?'Excel 匯入 ':''}帳面 ${fmt(b.m)}/${fmt(b.s)} → 實盤 ${fmt(am)}/${fmt(as)}`,by}); }
+    if(i.splitPending) patches[i.id]={splitPending:false};
+  }
+  if(!confirm(`共有 ${txns.length} 項數量與帳面不同，將自動更正庫存。\n其餘品項視為數量正確。\n\n確定完成盤點？`)) return;
+  try{
+    await Store.apply(ops,txns,patches);
+    const st={id:uid(),createdAt:now,finishedAt:now,status:'done',by,result,...(S.stSrc?{source:S.stSrc}:{})};
+    await Store.saveStocktake(st);
+    STD={}; stSave(); S.stMode=false; S.stSrc=null; S.view='records'; S.recTab='st'; render();
+    toast('盤點完成'); if(confirm('盤點完成！要下載這次的盤點表（Excel）嗎？')) exportStocktake(st.id);
+  }catch(e){ alert('完成失敗：'+e.message); }
+}
+
+/* ---------------- v1.4：匯入 Excel 盤點表 ---------------- */
+// 支援：本平台「盤點用表格」(實盤欄)、庫存總表(庫存欄)、盤點清單(實盤欄)、舊「倉管物料-盤點登記」(取最右邊有填的盤點日期)
+// 空白格＝沒點到，維持帳面；存放地點對不到單一位置（例如「上下倉庫」）時以合計比對，差額放在庫存最多的位置
+let IMP=null;
+const impNorm=v=>String(v??'').normalize('NFKC').replace(/\s+/g,'').replace(/双/g,'雙').replace(/[．・·]/g,'.').toLowerCase();
+function impVal(v){ if(v==null) return null; if(typeof v==='number') return isFinite(v)?v:null; const t=String(v).normalize('NFKC').replace(/[,\s]/g,''); if(t===''||t==='-') return null; const n=parseFloat(t); return isFinite(n)&&/^-?[\d.]+/.test(t)?n:null; }
+function stTemplate(){
+  const aoa=[[`古亭院 倉管物料盤點用表格　${roc(Date.now())}　（實盤欄空白＝數量與帳面相同）`],[],['項次','品名','存放地點','外裝','散裝單位','帳面(外裝)','帳面(散裝)','實盤(外裝)','實盤(散裝)','備註']];
+  activeItems().forEach(i=>{
+    const locs=Object.entries(i.stock||{}).filter(([l,v])=>num(v.m)||num(v.s)||l===i.defaultLoc);
+    (locs.length?locs:[[i.defaultLoc,{m:0,s:0}]]).forEach(([l,v])=>aoa.push([i.no,i.name,l,i.unitMain,i.unitSub||'',num(v.m),i.unitSub?num(v.s):'','','','']));
+  });
+  saveXlsx([['盤點用表格',aoa,[6,22,10,6,8,10,10,10,10,16]]], `古亭院盤點用表格-${rocFile()}.xlsx`);
+}
+function impPick(){
+  if(typeof XLSX==='undefined') return alert('Excel 元件尚未載入，請確認網路連線');
+  const f=document.createElement('input'); f.type='file'; f.accept='.xlsx,.xls,.csv';
+  f.onchange=async()=>{ const file=f.files[0]; if(!file) return;
+    try{ const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      IMP={file:file.name,wb,sheet:wb.SheetNames.length-1}; impAnalyze(); impShow();
+    }catch(e){ alert('讀不到這個檔案：'+e.message); } };
+  f.click();
+}
+// 找表頭與數量欄
+function impParse(aoa){
+  const cell=(r,c)=>(aoa[r]||[])[c];
+  let hr=-1;
+  for(let r=0;r<Math.min(aoa.length,20)&&hr<0;r++) if((aoa[r]||[]).some(v=>impNorm(v)==='品名')) hr=r;
+  if(hr<0) throw new Error('找不到「品名」欄，請確認是盤點表');
+  const width=Math.max(...aoa.slice(hr,hr+40).map(r=>(r||[]).length));
+  const nameC=aoa[hr].findIndex(v=>impNorm(v)==='品名');
+  let ds=hr+1; while(ds<aoa.length && ds<hr+6 && !(impVal(cell(ds,0))!=null || (cell(ds,nameC)!=null&&String(cell(ds,nameC)).trim()!==''))) ds++;
+  const H=[]; for(let c=0;c<width;c++){ let t=''; for(let r=hr;r<ds;r++){ const v=cell(r,c); if(v!=null&&typeof v!=='number') t+=String(v); } H[c]=impNorm(t); }
+  const find=f=>H.findIndex(f);
+  const noC=find(h=>h==='項次'), locC=find(h=>h.includes('存放')||h.includes('地點')||h==='位置');
+  const rows=aoa.slice(ds);
+  const hasData=c=>c>=0&&rows.some(r=>impVal((r||[])[c])!=null);
+  let mC=-1,sC=-1,label='';
+  mC=find(h=>h.includes('實盤')&&!h.includes('散')); sC=find(h=>h.includes('實盤')&&h.includes('散'));
+  if(mC>=0) label='「實盤」欄';
+  else{
+    mC=find(h=>h.includes('庫存')&&h.includes('外裝')); sC=find(h=>h.includes('庫存')&&h.includes('散裝')&&!h.includes('單位'));
+    if(mC>=0) label='「庫存」欄';
+  }
+  if(mC<0){
+    const pairs=[]; H.forEach((h,c)=>{ if(h.includes('盤點日期')) pairs.push(c); });
+    for(let k=pairs.length-1;k>=0;k--){ const c=pairs[k]; if(hasData(c)||hasData(c+1)){ mC=c; sC=c+1; const d=(H[c].match(/\d{2,3}\.\d{1,2}\.\d{1,2}/)||[])[0]; label=`盤點日期 ${d||'（最右邊有填的那一欄）'}`; break; } }
+  }
+  if(mC<0){ mC=find(h=>/數量|實際|盤點/.test(h)&&!h.includes('單位')&&!h.includes('內箱')); if(mC>=0){ sC=H.findIndex((h,c)=>c>mC&&h.includes('散')&&!h.includes('單位')); label=`「${aoa[hr][mC]??'數量'}」欄`; } }
+  if(mC<0) throw new Error('找不到數量欄（需要「實盤」、「庫存(外裝)」或「盤點日期」欄）');
+  const out=[]; let prev=null;
+  rows.forEach((r,k)=>{ r=r||[];
+    let name=r[nameC]!=null?String(r[nameC]).trim():'';
+    const m=impVal(r[mC]), s=sC>=0?impVal(r[sC]):null, loc=locC>=0&&r[locC]!=null?String(r[locC]).trim():'';
+    if(!name){ if(prev&&(m!=null||s!=null)&&loc) name=prev; else return; }
+    prev=name; out.push({row:ds+k+1,no:noC>=0?r[noC]:'',name,loc,m,s});
+  });
+  return {rows:out,label};
+}
+function impAnalyze(){
+  const ws=IMP.wb.Sheets[IMP.wb.SheetNames[IMP.sheet]];
+  IMP.err=null; IMP.changes=[]; IMP.unmatched=[]; IMP.blank=0; IMP.warn=[]; IMP.matched=0;
+  let p; try{ p=impParse(XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true})); }catch(e){ IMP.err=e.message; return; }
+  IMP.label=p.label;
+  const byName={}; Object.values(S.items).forEach(i=>{ if(i.active!==false) byName[impNorm(i.name)]=i; });
+  const locBy={}; S.locations.forEach(l=>locBy[impNorm(l)]=l);
+  const per={};   // itemId -> {exact:{loc:{m,s}}, tot:{m,s}}
+  const add=(a,v)=>v==null?a:(a==null?v:a+v);
+  for(const r of p.rows){
+    const it=byName[impNorm(r.name)];
+    if(it&&!it.unitSub) r.s=null;   // 沒有散裝單位的品項只看外裝
+    if(r.m==null&&r.s==null){ IMP.blank++; continue; }
+    if(!it){ IMP.unmatched.push(r); continue; }
+    const e=per[it.id]||(per[it.id]={exact:{},tot:null}); const L=locBy[impNorm(r.loc)];
+    if(L){ const x=e.exact[L]||(e.exact[L]={m:null,s:null}); x.m=add(x.m,r.m); x.s=add(x.s,r.s); }
+    else { const x=e.tot||(e.tot={m:null,s:null,loc:r.loc}); x.m=add(x.m,r.m); x.s=add(x.s,r.s); }
+  }
+  for(const [id,e] of Object.entries(per)){
+    const it=S.items[id]; IMP.matched++;
+    const book=l=>(it.stock||{})[l]||{m:0,s:0};
+    const target={};   // loc -> {m,s}
+    if(Object.keys(e.exact).length){
+      if(e.tot) IMP.warn.push(`${it.name}：同時有分位置與合計的列，只採用分位置的數量`);
+      for(const [l,x] of Object.entries(e.exact)){ const b=book(l); target[l]={m:x.m??num(b.m),s:x.s??num(b.s),how:''}; }
+      for(const [l,v] of Object.entries(it.stock||{})) if(!e.exact[l]&&(num(v.m)||num(v.s))) IMP.warn.push(`${it.name}：「${l}」還有 ${qtyText(it,v)}，盤點表沒列這個位置，維持不變`);
+    }else{
+      // 合計：差額放在庫存最多的位置（不夠扣再往下一個位置扣）
+      const how=e.tot.loc?`「${e.tot.loc}」以合計比對`:'沒有位置，以合計比對';
+      for(const k of ['m','s']){
+        const nv=e.tot[k]; if(nv==null) continue;
+        const ent=Object.entries(it.stock||{}).map(([l,v])=>[l,num(v[k])]).filter(([,v])=>v).sort((a,b)=>b[1]-a[1]);
+        let d=Math.round((nv-ent.reduce((a,[,v])=>a+v,0))*100)/100; if(!d) continue;
+        if(!ent.length) ent.push([it.defaultLoc||S.locations[0],0]);
+        if(d>0){ const l=ent[0][0]; (target[l]||(target[l]={m:num(book(l).m),s:num(book(l).s),how}))[k]=ent[0][1]+d; }
+        else for(const [l,v] of ent){ if(!d) break; const take=Math.min(v,-d); d=Math.round((d+take)*100)/100; (target[l]||(target[l]={m:num(book(l).m),s:num(book(l).s),how}))[k]=v-take; }
+      }
+    }
+    for(const [l,t] of Object.entries(target)){ const b=book(l);
+      if(Math.round((t.m-num(b.m))*100)||Math.round((t.s-num(b.s))*100)) IMP.changes.push({it,loc:l,bm:num(b.m),bs:num(b.s),am:t.m,as:t.s,how:t.how}); }
+  }
+  IMP.changes.sort((a,b)=>num(a.it.no)-num(b.it.no));
+}
+function impShow(){
+  const names=IMP.wb.SheetNames, c=IMP.changes||[];
+  const q=(it,m,s)=>qtyText(it,{m,s});
+  sheet(`<div class="hd"><h3>匯入盤點表</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <p class="mute" style="margin:0 0 6px">📄 ${esc(IMP.file)}</p>
+    ${names.length>1?`<label class="f">工作表</label><select onchange="IMP.sheet=+this.value;impAnalyze();impShow()">${names.map((n,k)=>`<option value="${k}" ${k===IMP.sheet?'selected':''}>${esc(n)}</option>`).join('')}</select>`:''}
+    ${IMP.err?`<div class="tip" style="background:#fde7e7;color:var(--bad)">${esc(IMP.err)}</div>`:`
+    <div class="tip">數量取自：<b>${esc(IMP.label)}</b><br>對到 ${IMP.matched} 項品項，其中 <b>${c.length} 筆和帳面不同</b>${IMP.blank?`；${IMP.blank} 列沒填數量（維持帳面）`:''}。<br>空白格＝沒點到，維持帳面數量。</div>
+    ${IMP.unmatched.length?`<div class="tip" style="background:#fde7e7"><b>${IMP.unmatched.length} 列找不到品項，不會匯入：</b><br>${IMP.unmatched.map(r=>`第 ${r.row} 列 ${esc(r.name)}`).join('、')}<br><span class="mute">品名要和平台上的一樣，可到「設定 → 品項」新增或改名後再匯入。</span></div>`:''}
+    ${IMP.warn.length?`<div class="tip">${IMP.warn.map(esc).join('<br>')}</div>`:''}
+    <div class="card" style="padding:4px 14px;margin:8px 0;max-height:46vh;overflow:auto">${c.length?`<div class="list">${c.map(x=>`<div class="it"><div class="grow"><b>${esc(x.it.name)}</b> <span class="mute">${esc(x.loc)}</span>
+      <div class="mute">帳面 ${esc(q(x.it,x.bm,x.bs))} → <b style="color:var(--red)">${esc(q(x.it,x.am,x.as))}</b>${x.how?`<br><small>${esc(x.how)}</small>`:''}</div></div></div>`).join('')}</div>`:'<div class="empty">數量都和帳面相同，不需要更新</div>'}</div>
+    ${c.length?`<button class="btn pri block" onclick="impApply(true)">更新庫存（${c.length} 筆）</button>
+    <button class="btn block" style="margin-top:8px" onclick="impApply(false)">先帶到盤點畫面核對</button>`:''}`}`);
+}
+function impApply(now){
+  stLoad();
+  if(Object.keys(STD).length&&!confirm(`目前有未完成的盤點（${Object.keys(STD).length} 項已填），匯入後會被這份盤點表取代，確定？`)) return;
+  STD={}; for(const x of IMP.changes) STD[x.it.id+'|'+x.loc]={m:String(x.am),s:x.it.unitSub?String(x.as):''};
+  stSave(); S.stSrc='Excel 匯入：'+IMP.file; S.stLoc=IMP.changes[0].loc; S.stMode=true; closeSheet(); render(); window.scrollTo(0,0);
+  if(now) stFinish();
+}
+
+/* ---------------- 紀錄 ---------------- */
+function recordsView(){
+  const d=new Date(); if(!S.recMonth) S.recMonth=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+  const seg=`<div class="seg" style="margin-bottom:12px"><button class="${S.recTab==='txn'?'on':''}" onclick="S.recTab='txn';render()">進出紀錄</button><button class="${S.recTab==='st'?'on':''}" onclick="S.recTab='st';render()">盤點紀錄</button></div>`;
+  if(S.recTab==='st'){
+    const done=S.stocktakes.filter(s=>s.status==='done');
+    return seg+`<div class="card" style="padding:4px 14px">${done.length?`<div class="list">${done.map(s=>{const r=Object.values(s.result||{}); const n=r.filter(x=>x.dm||x.ds).length;
+      return `<div class="it"><div class="grow"><b>${roc(s.finishedAt)} 盤點</b><div class="mute">${n} 項有差異｜${esc(s.by||'')}${s.source?'｜'+esc(s.source):''}</div></div><button class="btn sm" onclick="exportStocktake('${s.id}')">下載 Excel</button></div>`;}).join('')}</div>`:'<div class="empty">尚無盤點紀錄</div>'}</div>`;
+  }
+  const [y,m]=S.recMonth.split('-').map(Number);
+  S.recFrom=`${S.recMonth}-01`; S.recTo=`${S.recMonth}-${pad(new Date(y,m,0).getDate())}`;
+  if(!S.recRows||S.recRows._m!==S.recMonth){ loadRecords(); }
+  const rows=(S.recRows||[]).filter(t=>t.type!=='init'&&(!S.recQ||t.itemName.includes(S.recQ)));
+  return seg+`<div class="row" style="margin-bottom:10px"><input type="month" value="${S.recMonth}" onchange="S.recMonth=this.value;S.recRows=null;render()"><button class="btn" onclick="exportRecords()">下載 Excel</button></div>
+    <div class="mute" style="margin:-4px 0 8px">點「領出／補進」紀錄可以修改或作廢</div>
+    <input type="text" placeholder="🔍 依品名篩選" value="${esc(S.recQ)}" onchange="S.recQ=this.value;render()" style="margin-bottom:10px">
+    <div class="card" style="padding:4px 14px">${S.recRows?(rows.length?`<div class="list">${rows.map(recRow).join('')}</div>`:'<div class="empty">這個月沒有紀錄</div>'):'<div class="empty">載入中…</div>'}</div>`;
+}
+function recRow(t){
+  const it=S.items[t.itemId]||{}; const sg=t.type==='out'?'−':'＋';
+  const v=(x)=>t.type==='adjust'?(x>0?'＋':'')+fmt(x):sg+fmt(x);
+  const name={in:'補進',out:'領出',adjust:'盤點更正',move:'移位'}[t.type]||t.type;
+  const can=(t.type==='in'||t.type==='out')&&!t.void;
+  return `<div class="it ${can?'click':''} ${t.void?'void':''}" ${can?`onclick="openEdit('${t.id}')"`:''}><span class="tag ${t.void?'':TYPE_CLS[t.type]}">${t.void?'已作廢':name}</span><div class="grow"><b>${esc(t.itemName)}</b>${t.edited&&!t.void?' <span class="tag warn">已更正</span>':''}<div class="mute">${roc(t.ts,1)}｜${esc(t.loc)}${t.note?'｜'+esc(t.note):''}｜${esc(t.by||'')}</div>${t.edited?`<div class="mute dt">更正：${esc(t.edited.by||'')} ${roc(t.edited.at,1)}，原為 ${esc(t.edited.was)}</div>`:''}</div>
+    ${can?'<span class="mute" style="font-size:18px">✏️</span>':''}<div class="qty">${v(t.m)} ${esc(it.unitMain||'')}${it.unitSub&&num(t.s)?`<br><small>${v(t.s)} ${esc(it.unitSub)}</small>`:''}</div></div>`;
+}
+/* ---- 修改／作廢進出紀錄 ---- */
+let E=null;
+function findTxn(id){ return (S.recRows||[]).find(t=>t.id===id)||S.txns.find(t=>t.id===id); }
+function txnDesc(t){ const it=S.items[t.itemId]||{}; const d=new Date(t.ts); return `${roc(t.ts)} ${t.loc} ${TYPE_NAME[t.type]} ${fmt(t.m)}${it.unitMain||''}${it.unitSub&&num(t.s)?' '+fmt(t.s)+it.unitSub:''}`; }
+function openEdit(id){
+  const t=findTxn(id); if(!t) return;
+  const d=new Date(t.ts);
+  E={id,date:`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,loc:t.loc,m:num(t.m),s:num(t.s),note:t.note||''};
+  drawEdit();
+}
+function drawEdit(){
+  const t=findTxn(E.id), it=S.items[t.itemId]||{unitMain:'',unitSub:''};
+  sheet(`<div class="hd"><h3>更正紀錄</h3><button class="x" onclick="closeSheet()">×</button></div>
+    <div class="sel" style="margin-bottom:6px"><span class="tag ${TYPE_CLS[t.type]}">${TYPE_NAME[t.type]}</span><div class="grow"><b>${esc(t.itemName)}</b><div class="mute">原紀錄：${esc(txnDesc(t))}</div></div></div>
+    <label class="f">日期</label><input type="date" value="${E.date}" max="${isoToday()}" onchange="E.date=this.value||E.date">
+    <label class="f">位置</label><div class="chips" style="flex-wrap:wrap">${S.locations.map(l=>`<button class="${E.loc===l?'on':''}" onclick="E.loc='${esc(l)}';drawEdit()">${esc(l)}</button>`).join('')}</div>
+    <label class="f">數量</label>
+    <div class="stepper"><button onclick="ebump('m',-1)">−</button><input type="number" inputmode="decimal" step="any" min="0" id="ed_m" value="${E.m}" oninput="E.m=num(this.value)"><button onclick="ebump('m',1)">＋</button><span class="u">${esc(it.unitMain)}</span></div>
+    ${it.unitSub?`<div style="height:8px"></div><div class="stepper"><button onclick="ebump('s',-1)">−</button><input type="number" inputmode="decimal" step="any" min="0" id="ed_s" value="${E.s}" oninput="E.s=num(this.value)"><button onclick="ebump('s',1)">＋</button><span class="u">${esc(it.unitSub)}</span></div>`:''}
+    <label class="f">備註</label><input type="text" value="${esc(E.note)}" oninput="E.note=this.value">
+    <div style="height:16px"></div>
+    <button class="btn pri block" onclick="saveEdit()">儲存更正</button>
+    <div style="height:10px"></div>
+    <button class="btn block" style="color:var(--bad);border-color:#f3c2c2" onclick="voidTxn()">🗑 作廢這筆紀錄（登記錯誤、沒有發生）</button>
+    <p class="mute">更正或作廢後，庫存數量會自動跟著調整，並保留原紀錄備查。</p>`);
+}
+function ebump(k,d){ E[k]=Math.max(0,num(E[k])+d); $('#ed_'+k).value=fmt(E[k]); }
+async function saveEdit(){
+  const t=findTxn(E.id); const m=num(E.m), s=num(E.s);
+  if(m<=0&&s<=0) return toast('數量不可為 0；若要取消請按「作廢」');
+  const sign=t.type==='out'?-1:1;
+  const old=new Date(t.ts); const nd=new Date(E.date+'T00:00:00'); nd.setHours(old.getHours(),old.getMinutes(),old.getSeconds());
+  const nt={...t,ts:nd.getTime(),loc:E.loc,m,s,note:E.note.trim(),edited:{at:Date.now(),by:S.user?.name||'',was:txnDesc(t)}};
+  if(nt.ts===t.ts&&nt.loc===t.loc&&m===num(t.m)&&s===num(t.s)&&nt.note===(t.note||'')) return closeSheet();
+  const ops=[{itemId:t.itemId,loc:t.loc,dm:-sign*num(t.m),ds:-sign*num(t.s)},{itemId:t.itemId,loc:E.loc,dm:sign*m,ds:sign*s}];
+  try{ await Store.apply(ops,[nt]); closeSheet(); toast('已更正，庫存已自動調整'); S.recRows=null; render(); }
+  catch(e){ alert('無法更正：'+e.message); }
+}
+async function voidTxn(){
+  const t=findTxn(E.id);
+  if(!confirm(`確定作廢這筆紀錄？\n${txnDesc(t)}\n\n庫存會${t.type==='out'?'加回':'扣回'}這個數量。`)) return;
+  const sign=t.type==='out'?-1:1;
+  const nt={...t,void:true,edited:{at:Date.now(),by:S.user?.name||'',was:txnDesc(t)+'（作廢）'}};
+  try{ await Store.apply([{itemId:t.itemId,loc:t.loc,dm:-sign*num(t.m),ds:-sign*num(t.s)}],[nt]); closeSheet(); toast('已作廢，庫存已調整'); S.recRows=null; render(); }
+  catch(e){ alert('無法作廢：'+e.message); }
+}
+function filterRec(rows){ return rows.filter(t=>t.type!=='init'&&!t.void); }
+async function loadRecords(){
+  const mo=S.recMonth; const from=new Date(S.recFrom+'T00:00:00').getTime(), to=new Date(S.recTo+'T23:59:59').getTime();
+  try{ const r=await Store.queryTxns(from,to); r._m=mo; S.recRows=r; if(S.view==='records'&&!S.stMode) render(); }catch(e){ alert('查詢失敗：'+e.message); }
+}
+
+/* ---------------- 設定 ---------------- */
+function adminView(){
+  const items=Object.values(S.items).sort((a,b)=>num(a.no)-num(b.no));
+  const noSafe=items.filter(i=>i.active!==false&&(i.safety==null||i.safety==='')).length;
+  return `<div class="card"><h2>品項<span class="sp"></span><button class="btn pri sm" onclick="openItemEdit()">＋ 新增品項</button></h2>
+    ${noSafe?`<p class="mute" style="margin:0 0 6px">有 ${noSafe} 項未設定庫存下限（設定後低於此數量會提醒叫貨）</p>`:''}
+    <div class="list">${items.map(i=>`<div class="it click" onclick="openItemEdit('${i.id}')" style="${i.active===false?'opacity:.45':''}">
+      <div class="grow"><b>${esc(i.name)}</b><div class="mute">#${esc(i.no)}｜庫存下限：${i.safety!=null&&i.safety!==''?fmt(i.safety)+' '+esc(i.unitMain):'<span style="color:var(--warn)">未設定</span>'}${i.active===false?'｜已停用':''}</div></div><span class="mute">修改 ›</span></div>`).join('')}</div>
+  </div>
+  <div class="card"><h2>存放位置</h2>
+    <div class="list">${S.locations.map((l,k)=>`<div class="it"><div class="grow">${esc(l)}</div><button class="btn sm" onclick="locDel(${k})">刪除</button></div>`).join('')}</div>
+    <div class="row" style="margin-top:8px"><input type="text" id="newloc" placeholder="新增位置名稱"><button class="btn pri" onclick="locAdd()">新增</button></div>
+  </div>
+  <div class="card"><button class="btn block" onclick="exportStock()">下載目前庫存表（Excel）</button></div>
+  ${accountCard()}
+  ${verFooter()}
+  ${CLOUD?'':`<div class="card"><button class="btn block" onclick="if(confirm('清除示範資料並重新載入期初庫存？')){try{localStorage.removeItem(ST_KEY)}catch(e){};DemoStore.resetDemo()}">重設示範資料</button></div>`}`;
+}
+
+/* ---------------- 啟動 ---------------- */
+render();
+Store.start().catch(e=>{ $('#app').innerHTML=`<header style="justify-content:center;padding-top:22px;padding-bottom:22px"><h1 style="font-size:30px;flex:none;text-align:center">古亭院 庫房管理平台</h1></header><div class="card" style="margin:20px">啟動失敗：${esc(e.message)}</div>`; });
+
+</script>
+</body>
+</html>

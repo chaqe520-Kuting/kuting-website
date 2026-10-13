@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>古亭院志工名冊</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --accent: #9b2c1f;
+    --accent-soft: #fbefe9;
+    --gold: #b8860b;
+    --gold-soft: #f8f0dc;
+    --bg: #faf6ef;
+    --card: #ffffff;
+    --ink: #2b211a;
+    --muted: #6b5d50;
+    --border: #e4d9c8;
+    --ok: #2f6b3a; --ok-bg: #e8f3ea;
+    --wait: #8a5a00; --wait-bg: #fdf3d8;
+    --off: #7a6f66; --off-bg: #eee8e0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Noto Sans TC', system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  .serif { font-family: 'Noto Serif TC', serif; }
+  #thumbLabel { display: none; background: var(--accent); color: #fff; text-align: center; padding: 10px; font-size: 22px; letter-spacing: 6px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 36px 16px 64px; }
+  header.top { text-align: center; padding-bottom: 24px; }
+  header.top .ring { display: inline-block; border-top: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold); padding: 16px 36px; }
+  header.top h1 { margin: 0; font-size: 30px; letter-spacing: 6px; color: var(--accent); }
+  header.top p { margin: 6px 0 0; font-size: 13px; letter-spacing: 2px; color: var(--muted); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; }
+  .notice { background: var(--gold-soft); border: 1px solid #ead9ae; border-radius: 4px; padding: 10px 14px; font-size: 13px; line-height: 1.7; margin-bottom: 16px; }
+
+  /* 登入 */
+  .login { max-width: 460px; margin: 0 auto; padding: 22px 24px; border-top: 4px solid var(--accent); }
+  .login h2 { margin: 0 0 6px; color: var(--accent); font-size: 19px; }
+  .login p { margin: 0 0 14px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .field { margin-bottom: 12px; }
+  .field label.lbl { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=date], input[type=search], select, textarea { width: 100%; font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--ink); }
+  textarea { min-height: 60px; resize: vertical; }
+  .msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .msg.err { color: var(--accent); }
+
+  .connbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; margin-bottom: 14px; }
+  .conn { font-size: 12.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--border); background: #faf7f1; display: inline-flex; gap: 6px; align-items: center; }
+  .conn .dot { width: 8px; height: 8px; border-radius: 50%; background: #c7bcb0; }
+  .conn.ok .dot { background: #3f8f4f; }
+  .conn.bad { border-color: #ecd2c6; background: var(--accent-soft); color: var(--accent); cursor: pointer; }
+  .conn.bad .dot { background: var(--accent); }
+  .connbar .who { margin-left: auto; font-size: 13px; color: var(--muted); }
+
+  nav.tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 2px solid var(--accent); margin-bottom: 16px; }
+  nav.tabs button { font: inherit; font-size: 14px; border: 1px solid var(--border); border-bottom: none; background: #f3eee4; color: var(--muted); padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+  nav.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar input[type=search] { flex: 1 1 180px; min-width: 0; width: auto; }
+  .btn { font: inherit; font-size: 13.5px; padding: 7px 14px; border-radius: 4px; border: 1px solid var(--border); background: #fff; color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--gold); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.small { padding: 3px 9px; font-size: 12.5px; }
+  .btn.danger { color: var(--accent); }
+
+  .tablebox { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; }
+  th { background: #f6efe2; color: var(--accent); font-weight: 700; font-size: 13px; white-space: nowrap; }
+  th small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+  td.name { text-align: left; font-weight: 700; white-space: nowrap; }
+  td.note { text-align: left; color: var(--muted); font-size: 12.5px; min-width: 110px; }
+  .tag { display: inline-block; margin-left: 4px; font-size: 10.5px; font-weight: 500; padding: 0 5px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); border: 1px solid #ecd2c6; vertical-align: middle; }
+
+  .chip { display: inline-block; min-width: 58px; font-size: 12px; padding: 3px 8px; border-radius: 12px; border: 1px solid transparent; user-select: none; }
+  .chip.act { cursor: pointer; }
+  .chip.act:hover { box-shadow: 0 0 0 2px var(--gold-soft); }
+  .chip.none { color: #c7bcb0; border: 1px dashed #ddd2c4; }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: #c6e0cb; }
+  .chip.wait { color: var(--wait); background: var(--wait-bg); border-color: #efd9a4; }
+  .chip.off { color: var(--off); background: var(--off-bg); border-color: #d9d0c5; text-decoration: line-through; }
+  .chip.na { color: #b8ab9c; background: transparent; border: 1px solid transparent; font-size: 11px; }
+  .chip .d { display: block; font-size: 10px; opacity: .8; text-decoration: none; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 10px 2px 0; align-items: center; }
+
+  .guide { padding: 18px 20px; margin-bottom: 14px; }
+  .guide h3 { margin: 0 0 8px; color: var(--accent); font-size: 17px; }
+  .guide ol, .guide ul { margin: 6px 0 0; padding-left: 20px; line-height: 1.85; font-size: 14px; }
+  .guide b { color: var(--accent); }
+  .guide code { font-size: 12px; background: #f6efe2; padding: 2px 5px; border-radius: 3px; word-break: break-all; }
+
+  .log { padding: 6px 16px; }
+  .log div { padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .log div:last-child { border-bottom: none; }
+  .log time { color: var(--muted); font-size: 12px; margin-right: 8px; }
+
+  .modal-bg { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(43,33,26,.45); display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 20; }
+  .modal-bg.show { display: flex; }
+  .modal { background: #fff; border-radius: 6px; border-top: 4px solid var(--accent); width: 100%; max-width: 560px; padding: 20px 22px; }
+  .modal h2 { margin: 0 0 14px; color: var(--accent); font-size: 19px; }
+  .prow { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px dashed var(--border); font-size: 14px; flex-wrap: wrap; }
+  .prow label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 160px; cursor: pointer; }
+  .prow .st { font-size: 12px; color: var(--muted); }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+  .modal .actions .left { margin-right: auto; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+  .results { margin-top: 12px; font-size: 13px; line-height: 1.8; }
+  .results .e { color: var(--accent); }
+  .results .o { color: var(--ok); }
+
+  footer.bottom { margin-top: 40px; text-align: center; font-size: 12px; color: var(--muted); }
+  footer.bottom summary { cursor: pointer; }
+  footer.bottom ul { text-align: left; display: inline-block; margin: 8px 0 0; padding-left: 18px; line-height: 1.8; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 20px; font-size: 13.5px; display: none; z-index: 30; max-width: 90vw; text-align: center; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 600px) {
+    header.top h1 { font-size: 24px; letter-spacing: 4px; }
+    .connbar .who { margin-left: 0; width: 100%; }
+  }
+  @media print {
+    nav.tabs, .toolbar, .notice, .connbar, footer.bottom details, .noprint, .legend { display: none !important; }
+    body { background: #fff; }
+    .wrap { padding: 0; }
+    .chip { border: 1px solid #999 !important; }
+  }
+</style>
+</head>
+<body>
+<div id="thumbLabel" class="serif">志工名冊</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="ring">
+      <h1 class="serif">志工名冊・權限管理</h1>
+      <p>古亭院・昇龍觀世音菩薩</p>
+    </div>
+  </header>
+
+  <!-- 登入 -->
+  <section id="loginView" class="hidden">
+    <div class="card login">
+      <h2 class="serif">管理者登入</h2>
+      <p>請用各平台的<b>管理者</b>姓名與密碼登入。本頁會同時連到法會報名、信徒查詢、供品贊助、庫房管理四個平台；如果各平台密碼不同，登入後可以在上方個別補登。</p>
+      <div class="field"><label class="lbl">中文姓名</label><input type="text" id="lgName" autocomplete="username"></div>
+      <div class="field"><label class="lbl">密碼</label><input type="password" id="lgPw" autocomplete="current-password"></div>
+      <button class="btn primary" id="lgBtn" style="width:100%;">登入</button>
+      <div class="msg err" id="lgMsg"></div>
+      <div class="hint">關閉瀏覽器、或 30 分鐘沒有操作會自動登出。請勿在公用電腦使用。</div>
+    </div>
+  </section>
+
+  <!-- 主畫面 -->
+  <section id="mainView" class="hidden">
+    <div class="card connbar" id="connBar"></div>
+
+    <nav class="tabs">
+      <button data-tab="roster" class="on">名冊總表</button>
+      <button data-tab="guide">操作說明</button>
+      <button data-tab="log">異動紀錄</button>
+    </nav>
+
+    <section id="tab-roster">
+      <div class="notice">
+        <b>法會報名、信徒查詢、供品贊助、庫房管理</b>四欄是即時從平台讀回來的，在這裡開通、停用會直接改到平台帳號。<br>
+        <b>財務記帳</b>無法在網頁建立帳號，這欄只是記錄用，帳號仍要到 Firebase 後台建立（見「操作說明」）。本頁不記錄任何密碼。
+      </div>
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="搜尋姓名或備註">
+        <label style="font-size:13px;color:var(--muted);white-space:nowrap;"><input type="checkbox" id="showOff" checked> 顯示已停用人員</label>
+        <button class="btn" id="refreshBtn">重新讀取</button>
+        <button class="btn primary" id="addBtn">＋ 新增志工</button>
+      </div>
+      <div class="card tablebox">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span class="chip ok">已開通</span>可以登入
+        <span class="chip off">已停用</span>有帳號但不能登入
+        <span class="chip none">－</span>沒有帳號
+        <span class="chip wait">待建立</span>財務記帳尚未建帳號
+        ｜點格子可開通、停用或重新啟用
+      </div>
+      <div class="toolbar noprint" style="margin-top:16px;">
+        <button class="btn" id="exportCsv">匯出 Excel（CSV）</button>
+        <button class="btn" id="exportJson">下載備註備份</button>
+        <button class="btn" id="importBtn">匯入備份（可用 v1 的備份檔）</button>
+        <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+        <button class="btn" id="printBtn">列印</button>
+      </div>
+    </section>
+
+    <section id="tab-guide" class="hidden">
+      <div class="card guide">
+        <h3 class="serif">開通與停用</h3>
+        <ol>
+          <li><b>新增志工</b>：按「＋ 新增志工」，填中文姓名、勾選要開通的平台、填預設密碼（至少 8 碼），按「開通」。勾選的平台會立刻建好帳號並啟用。</li>
+          <li><b>加開某個平台</b>：在名冊總表點那個人在該平台的「－」格子。</li>
+          <li><b>停用</b>：點「已開通」格子，確認後該平台帳號立即停用，之前輸入的資料不會刪除。再點一次可以重新啟用。</li>
+          <li><b>預設密碼</b>：請當面或電話告訴志工，並請對方登入平台後自己改密碼。本頁不會留下密碼。</li>
+          <li><b>出現「已關閉網頁建立帳號」</b>：照畫面步驟先到 Firebase 後台建好帳號（Email 會顯示在畫面上，密碼填同一組預設密碼），再回名冊按「再試一次」，名冊會自動補上名單並開通。目前信徒查詢是這樣。</li>
+          <li><b>忘記密碼</b>：平台無法直接重設。請先停用舊帳號，再用加註的姓名（例如「葉懿青2」）重新開通。</li>
+          <li>自己的帳號不能在這裡停用，避免把自己鎖在外面。</li>
+        </ol>
+      </div>
+      <div class="card guide">
+        <h3 class="serif">財務記帳（需手動）</h3>
+        <ol>
+          <li>在下面輸入志工姓名，按「產生登入 Email」並複製。</li>
+          <li>Firebase 主控台 → <b>kuting-accounting115</b> → Authentication → 使用者 → 新增使用者：電子郵件貼上 Email，密碼自訂滿 8 碼 → 新增。</li>
+          <li>回到名冊，把那個人的財務記帳格子點成「已開通」。</li>
+          <li>停用：Firebase 主控台 → Authentication → 使用者 → 該帳號右邊選單 → 停用帳戶，再把格子點成「已停用」。</li>
+          <li>一般帳號可以查看、登記收支，但看不到操作紀錄；請不要把志工加為管理者。</li>
+        </ol>
+        <div class="toolbar" style="margin-top:10px;">
+          <input type="text" id="finName" placeholder="志工中文姓名" style="max-width:220px;">
+          <button class="btn" id="finGen">產生登入 Email</button>
+        </div>
+        <div id="finOut" class="hint"></div>
+      </div>
+      <div class="card guide">
+        <h3 class="serif">注意事項</h3>
+        <ul>
+          <li>名冊會用你的管理者身分登入四個平台，請只在自己的電腦使用，用完按右上「登出」。</li>
+          <li>備註與財務記帳欄存在這台電腦的瀏覽器裡，換電腦請用「下載備註備份」「匯入備份」。四個平台的帳號狀態則是即時讀取，不受影響。</li>
+          <li>如果某個平台顯示「未連線」，點它可以單獨用該平台的密碼登入。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tab-log" class="hidden">
+      <div class="toolbar"><span style="font-size:13px;color:var(--muted);">最近 300 筆在本頁做的操作（存在這台電腦）</span></div>
+      <div class="card log" id="logBox"></div>
+    </section>
+  </section>
+
+  <footer class="bottom">
+    古亭院・昇龍觀世音菩薩 ｜ 管理者：朱士仁
+    <details>
+      <summary>志工名冊 v2.1 ・ 2026-10-08（點此看更新紀錄）</summary>
+      <ul>
+        <li><b>v2.1（2026-10-08）</b>：信徒查詢已關閉網頁建立帳號（出現 auth/admin-restricted-operation），改成先在 Firebase 後台建帳號，名冊再用同一組預設密碼接上並開通，畫面會列出要貼的 Email 與步驟；姓名已有帳號時也改用這個方式接上。開通沒完成的平台保留勾選，可直接按「再試一次」。</li>
+        <li><b>v2.0（2026-10-07）</b>：線上連動版。管理者登入後同時連線法會報名、信徒查詢、供品贊助、庫房管理，名冊即時顯示各平台帳號狀態；新增志工可一次開通多個平台，點格子即可停用或重新啟用，直接改到平台帳號。財務記帳仍需到 Firebase 後台建帳號，本頁提供登入 Email 產生器並記錄狀態。可匯入 v1 備份；30 分鐘未操作自動登出。</li>
+        <li><b>v1.1（2026-10-07）</b>：財務記帳加入葉懿青、黃喬茵；修正財務記帳操作說明。</li>
+        <li><b>v1.0（2026-10-07）</b>：第一版本機名冊。</li>
+      </ul>
+    </details>
+  </footer>
+</div>
+
+<!-- 新增／開通視窗 -->
+<div class="modal-bg" id="addBg">
+  <div class="modal">
+    <h2 id="aTitle">新增志工</h2>
+    <div class="field">
+      <label class="lbl">中文姓名（就是志工登入用的姓名）</label>
+      <input type="text" id="aName" maxlength="20" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="lbl">要開通的平台</label>
+      <div id="aPlats"></div>
+    </div>
+    <div class="field" id="aPwBox">
+      <label class="lbl">預設密碼（至少 8 碼，各平台用同一組；不會被記錄）</label>
+      <input type="text" id="aPw" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="lbl">備註（負責事項等；請勿填密碼）</label>
+      <textarea id="aNote" maxlength="300"></textarea>
+    </div>
+    <div class="results" id="aResults"></div>
+    <div class="actions">
+      <button class="btn" id="aCancel">關閉</button>
+      <button class="btn primary" id="aSave">開通</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯備註／財務視窗 -->
+<div class="modal-bg" id="editBg">
+  <div class="modal">
+    <h2 id="eTitle">編輯</h2>
+    <div class="field">
+      <label class="lbl">財務記帳狀態（手動記錄）</label>
+      <div style="display:flex;gap:8px;">
+        <select id="eFin"><option value="none">沒有帳號</option><option value="wait">待建立</option><option value="ok">已開通</option><option value="off">已停用</option></select>
+        <input type="date" id="eFinDate" title="帳號建立日期">
+      </div>
+      <div class="hint" id="eFinEmail"></div>
+    </div>
+    <div class="field">
+      <label class="lbl">備註（請勿填密碼）</label>
+      <textarea id="eNote" maxlength="300"></textarea>
+    </div>
+    <div class="actions">
+      <button class="btn danger left" id="eRemove">刪除本頁備註</button>
+      <button class="btn" id="eCancel">取消</button>
+      <button class="btn primary" id="eSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 單一平台補登視窗 -->
+<div class="modal-bg" id="reBg">
+  <div class="modal">
+    <h2 id="reTitle">補登平台</h2>
+    <div class="field"><label class="lbl">中文姓名</label><input type="text" id="reName" autocomplete="username"></div>
+    <div class="field"><label class="lbl">這個平台的密碼</label><input type="password" id="rePw" autocomplete="current-password"></div>
+    <div class="msg err" id="reMsg"></div>
+    <div class="actions">
+      <button class="btn" id="reCancel">取消</button>
+      <button class="btn primary" id="reOk">登入</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var VERSION = 'v2.1';
+  var KEY = 'kuting_volunteer_roster_v2';
+  var V1KEY = 'kuting_volunteer_roster_v1';
+  var IDLE_MS = 30 * 60 * 1000;
+
+  /* ---- 四個連動平台：設定與各自的帳號規則（照各平台現行程式） ---- */
+  var PLATFORMS = [
+    { id:'fahui', name:'法會報名', project:'kuting-9d240', coll:'staff', domain:'@kuting-fahui-accounts.local', kind:'staff',
+      cfg:{ apiKey:"AIzaSyBhHRRu6WNq6bcDAPyfQtFgt1YLnFJJKoM", authDomain:"kuting-9d240.firebaseapp.com", projectId:"kuting-9d240", storageBucket:"kuting-9d240.firebasestorage.app", messagingSenderId:"929588060992", appId:"1:929588060992:web:0fcaa8c3bafba279d1d0a5" } },
+    { id:'lookup', name:'信徒查詢', project:'kuting-lookup', coll:'members', domain:'@kuting-lookup-accounts.local', kind:'members',
+      cfg:{ apiKey:"AIzaSyAVC3Cun5mF56SMww1X-o8wI3JG-_ZMJiI", authDomain:"kuting-lookup.firebaseapp.com", projectId:"kuting-lookup", storageBucket:"kuting-lookup.firebasestorage.app", messagingSenderId:"364311861094", appId:"1:364311861094:web:176f9eb4bffa76d7a49aa7" } },
+    { id:'offering', name:'供品贊助', project:'kuting1027', coll:'staff', domain:'@kuting-gongpin-accounts.local', kind:'staff',
+      cfg:{ apiKey:"AIzaSyAtCbwm5KdaB-JGylrrhVjZluCvT2-MhQk", authDomain:"kuting1027.firebaseapp.com", projectId:"kuting1027", storageBucket:"kuting1027.firebasestorage.app", messagingSenderId:"437567114703", appId:"1:437567114703:web:92de0a9bfba4dddda996ba" } },
+    { id:'warehouse', name:'庫房管理', project:'kuting-warehouse', coll:'users', domain:'@gutingyuan-warehouse.local', kind:'users',
+      cfg:{ apiKey:"AIzaSyAE91BUKlQG48olt7xpNWB4jpf0M5dmvhU", authDomain:"kuting-warehouse.firebaseapp.com", projectId:"kuting-warehouse", storageBucket:"kuting-warehouse.firebasestorage.app", messagingSenderId:"650316125427", appId:"1:650316125427:web:a12de7dd023b7951e59386" } }
+  ];
+  var FIN = { id:'finance', name:'財務記帳', project:'kuting-accounting115', domain:'@gutingyuan-accounts.local' };
+  var FSTATUS = { none:'－', wait:'待建立', ok:'已開通', off:'已停用' };
+  var FCYCLE = ['none','wait','ok','off'];
+
+  /* 測試用：網址加 ?emu=1 時連本機 Firebase 模擬器 */
+  var EMU = /[?&]emu=1/.test(location.search);
+
+  /* ---- 小工具 ---- */
+  function pad(n){ return (n<10?'0':'')+n; }
+  function today(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function nowStr(){ var d=new Date(); return today()+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+  function rocToday(){ var d=new Date(); return (d.getFullYear()-1911)+pad(d.getMonth()+1)+pad(d.getDate()); }
+  function toRoc(iso){ if(!iso) return ''; var p=iso.split('-'); return p.length===3 ? (parseInt(p[0],10)-1911)+'.'+p[1]+'.'+p[2] : iso; }
+  function msToIso(ms){ if(!ms || ms < 1e12) return ''; var d=new Date(ms); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function cleanName(s){ return String(s||'').replace(/\s+/g,''); }
+  async function sha256Hex(text){
+    var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  }
+  async function nameToEmail(name, domain){ return (await sha256Hex(name.trim().toLowerCase())) + domain; }
+  var toastTimer;
+  function toast(m, ms){ var t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.style.display='none';}, ms||2800); }
+  function $(id){ return document.getElementById(id); }
+  function errText(e){
+    var c = e && e.code || '';
+    if (c==='auth/invalid-credential' || c==='auth/invalid-login-credentials' || c==='auth/wrong-password' || c==='auth/user-not-found') return '姓名或密碼錯誤';
+    if (c==='auth/too-many-requests') return '嘗試次數過多，請稍後再試';
+    if (c==='auth/network-request-failed') return '網路連線失敗';
+    if (c==='auth/user-disabled') return '這個帳號已在 Firebase 停用';
+    if (c==='permission-denied') return '沒有權限（請確認是該平台的管理者）';
+    if (c.indexOf('requests-from-referer')>=0 || c==='auth/api-key-not-valid.-please-pass-a-valid-api-key.') return '這個網址被平台的 API 金鑰限制擋下（見上線步驟）';
+    return c || (e && e.message) || '未知錯誤';
+  }
+
+  /* ---- 本機資料：備註、財務記帳狀態、操作紀錄 ---- */
+  var local;
+  function emptyLocal(){ return { version:2, people:{}, log:[] }; }
+  function loadLocal(){
+    try { var s = localStorage.getItem(KEY); if (s) { var o = JSON.parse(s); if (o && o.people) { o.log = o.log||[]; return o; } } } catch(e) {}
+    var o2 = emptyLocal();
+    try { var v1 = localStorage.getItem(V1KEY); if (v1) { importV1(o2, JSON.parse(v1)); o2.log.unshift({ t:nowStr(), msg:'自動帶入 v1 名冊的備註與財務記帳狀態' }); return o2; } } catch(e) {}
+    // 第一次使用：帶入 v1.1 的財務記帳名單（2026-10-07 小朱提供）
+    o2.people['朱士仁'] = { note:'各平台管理者（小朱）', fin:{ status:'ok', date:'' } };
+    o2.people['葉懿青'] = { note:'', fin:{ status:'wait', date:'' } };
+    o2.people['黃喬茵'] = { note:'', fin:{ status:'wait', date:'' } };
+    o2.log.unshift({ t:nowStr(), msg:'建立名冊：財務記帳朱士仁已開通，葉懿青、黃喬茵待建立' });
+    return o2;
+  }
+  function importV1(target, o){
+    if (!o || !Array.isArray(o.people)) throw new Error('bad');
+    o.people.forEach(function(x){
+      var n = cleanName(x.name); if (!n) return;
+      var fin = (x.perms && x.perms.finance) || { status:'none', date:'' };
+      target.people[n] = { note: x.note || '', fin: { status: FSTATUS[fin.status] ? fin.status : 'none', date: fin.date || '' } };
+    });
+  }
+  var saveWarned = false;
+  function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify(local)); } catch(e) { if(!saveWarned){ toast('這台電腦的瀏覽器無法儲存備註，請記得下載備份'); saveWarned=true; } } }
+  function addLog(msg){ local.log.unshift({ t:nowStr(), msg:msg }); if (local.log.length>300) local.log.length=300; saveLocal(); }
+  function lp(name){ if(!local.people[name]) local.people[name] = { note:'', fin:{ status:'none', date:'' } }; return local.people[name]; }
+
+  /* ---- Firebase 連線 ---- */
+  var C = {};   // id -> { app, auth, db, user, isAdmin, ok, err, rows }
+  PLATFORMS.forEach(function(pl){
+    var app = firebase.initializeApp(pl.cfg, 'roster-'+pl.id);
+    var auth = app.auth(), db = app.firestore();
+    if (EMU) { auth.useEmulator('http://127.0.0.1:9099'); db.useEmulator('127.0.0.1', 8080); }
+    C[pl.id] = { pl:pl, app:app, auth:auth, db:db, user:null, isAdmin:false, ok:false, err:'', rows:[], ready:false };
+  });
+  function anyOk(){ return PLATFORMS.some(function(pl){ return C[pl.id].ok; }); }
+  function myName(){ for (var i=0;i<PLATFORMS.length;i++){ var c=C[PLATFORMS[i].id]; if (c.ok && c.user && c.user.displayName) return c.user.displayName; } return lastLoginName || ''; }
+  var lastLoginName = '';
+
+  async function checkAdmin(c){
+    var uid = c.user.uid, pl = c.pl;
+    if (pl.kind === 'members') {
+      var a = await c.db.collection('admins').doc(uid).get();
+      return a.exists;
+    }
+    var d = await c.db.collection(pl.coll).doc(uid).get();
+    return d.exists && d.data().active === true && d.data().admin === true;
+  }
+  async function afterAuth(c){
+    c.ok = false; c.isAdmin = false; c.err = '';
+    if (!c.user) { c.rows = []; return; }
+    try {
+      c.isAdmin = await checkAdmin(c);
+      if (!c.isAdmin) { c.err = '不是這個平台的管理者'; await c.auth.signOut(); c.user = null; return; }
+      c.ok = true;
+      await loadRows(c);
+    } catch(e) { console.error(c.pl.id, e); c.err = errText(e); c.ok = false; }
+  }
+  async function loadRows(c){
+    var snap = await c.db.collection(c.pl.coll).get();
+    var rows = [];
+    snap.forEach(function(d){ var x = d.data(); rows.push({ uid:d.id, name:cleanName(x.name), active:x.active===true, admin:x.admin===true, createdAt:x.createdAt||0 }); });
+    c.rows = rows;
+  }
+  async function signInOne(c, name, pw){
+    c.err = '';
+    try {
+      await c.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+      var cred = await c.auth.signInWithEmailAndPassword(await nameToEmail(name, c.pl.domain), pw);
+      c.user = cred.user;
+      await afterAuth(c);
+    } catch(e) { console.error(c.pl.id, e); c.err = errText(e); c.ok = false; c.user = null; }
+  }
+
+  /* 開啟頁面時等各平台恢復登入狀態 */
+  var pendingInit = PLATFORMS.length;
+  PLATFORMS.forEach(function(pl){
+    var c = C[pl.id], first = true;
+    c.auth.onAuthStateChanged(async function(u){
+      if (!first) return;
+      first = false; c.user = u;
+      if (u) await afterAuth(c);
+      c.ready = true;
+      if (--pendingInit === 0) boot();
+    });
+  });
+
+  /* ---- 畫面切換 ---- */
+  function boot(){
+    local = loadLocal();
+    if (anyOk()) showMain(); else showLogin();
+  }
+  function showLogin(){ $('loginView').classList.remove('hidden'); $('mainView').classList.add('hidden'); setTimeout(function(){ $('lgName').focus(); }, 30); }
+  function showMain(){ $('loginView').classList.add('hidden'); $('mainView').classList.remove('hidden'); renderAll(); }
+
+  $('lgBtn').addEventListener('click', doLogin);
+  $('lgPw').addEventListener('keydown', function(e){ if (e.key==='Enter') doLogin(); });
+  async function doLogin(){
+    var n = cleanName($('lgName').value), p = $('lgPw').value;
+    if (!n || !p) { $('lgMsg').textContent = '請輸入姓名與密碼'; return; }
+    $('lgBtn').disabled = true; $('lgMsg').textContent = '登入四個平台中…';
+    lastLoginName = n;
+    await Promise.all(PLATFORMS.map(function(pl){ return signInOne(C[pl.id], n, p); }));
+    $('lgBtn').disabled = false;
+    if (!anyOk()) {
+      $('lgMsg').textContent = '四個平台都無法登入：' + PLATFORMS.map(function(pl){ return pl.name+'（'+(C[pl.id].err||'失敗')+'）'; }).join('、');
+      return;
+    }
+    $('lgPw').value = ''; $('lgMsg').textContent = '';
+    addLog(n + ' 登入名冊（' + PLATFORMS.filter(function(pl){ return C[pl.id].ok; }).map(function(pl){ return pl.name; }).join('、') + '）');
+    showMain();
+    var bad = PLATFORMS.filter(function(pl){ return !C[pl.id].ok; });
+    if (bad.length) toast(bad.map(function(pl){ return pl.name; }).join('、') + ' 沒有連上，點上方紅色標籤可個別登入', 4500);
+  }
+  async function logoutAll(reason){
+    await Promise.all(PLATFORMS.map(function(pl){ var c=C[pl.id]; c.ok=false; c.user=null; c.rows=[]; return c.auth.signOut().catch(function(){}); }));
+    showLogin();
+    if (reason) $('lgMsg').textContent = reason;
+  }
+
+  /* 30 分鐘沒操作自動登出 */
+  var idleTimer;
+  function bump(){ clearTimeout(idleTimer); idleTimer = setTimeout(function(){ if (anyOk()) logoutAll('已超過 30 分鐘沒有操作，自動登出'); }, IDLE_MS); }
+  ['click','keydown','touchstart'].forEach(function(ev){ document.addEventListener(ev, bump, { passive:true }); });
+  bump();
+
+  /* ---- 上方連線列 ---- */
+  function renderConn(){
+    var html = PLATFORMS.map(function(pl){
+      var c = C[pl.id];
+      return c.ok ? '<span class="conn ok"><span class="dot"></span>'+esc(pl.name)+'</span>'
+                  : '<span class="conn bad" data-relogin="'+pl.id+'" title="'+esc(c.err||'')+'"><span class="dot"></span>'+esc(pl.name)+'・未連線</span>';
+    }).join('');
+    html += '<span class="conn"><span class="dot"></span>財務記帳・手動</span>';
+    html += '<span class="who">'+esc(myName())+'（管理者） <button class="btn small" id="logoutBtn">登出</button></span>';
+    $('connBar').innerHTML = html;
+    $('logoutBtn').addEventListener('click', function(){ addLog(myName()+' 登出名冊'); logoutAll(''); });
+  }
+  $('connBar').addEventListener('click', function(e){
+    var b = e.target.closest('[data-relogin]'); if (!b) return;
+    openRelogin(b.getAttribute('data-relogin'));
+  });
+  var reId = null;
+  function openRelogin(id){
+    reId = id; var c = C[id];
+    $('reTitle').textContent = '登入' + c.pl.name;
+    $('reName').value = myName(); $('rePw').value = '';
+    $('reMsg').textContent = c.err ? ('上次失敗：' + c.err) : '';
+    $('reBg').classList.add('show'); setTimeout(function(){ $('rePw').focus(); }, 30);
+  }
+  $('reCancel').addEventListener('click', function(){ $('reBg').classList.remove('show'); });
+  $('rePw').addEventListener('keydown', function(e){ if (e.key==='Enter') $('reOk').click(); });
+  $('reOk').addEventListener('click', async function(){
+    var c = C[reId], n = cleanName($('reName').value), p = $('rePw').value;
+    if (!n || !p) { $('reMsg').textContent = '請輸入姓名與密碼'; return; }
+    $('reOk').disabled = true; $('reMsg').textContent = '登入中…';
+    await signInOne(c, n, p);
+    $('reOk').disabled = false;
+    if (c.ok) { $('reBg').classList.remove('show'); addLog(n+' 補登 '+c.pl.name); renderAll(); toast(c.pl.name+' 已連線'); }
+    else $('reMsg').textContent = c.err || '登入失敗';
+  });
+
+  /* ---- 名冊資料整合 ---- */
+  function pickRow(c, name){
+    var list = c.rows.filter(function(r){ return r.name === name; });
+    if (!list.length) return null;
+    list.sort(function(a,b){ return (b.active?1:0)-(a.active?1:0) || (b.createdAt-a.createdAt); });
+    return list[0];
+  }
+  function people(){
+    var names = {};
+    PLATFORMS.forEach(function(pl){ C[pl.id].rows.forEach(function(r){ if (r.name) names[r.name] = 1; }); });
+    Object.keys(local.people).forEach(function(n){ names[n] = 1; });
+    // 信徒查詢的管理者不在名冊集合裡，用自己的登入補上
+    return Object.keys(names).map(function(n){
+      var p = { name:n, plat:{}, admin:false, any:false, anyOk:false };
+      PLATFORMS.forEach(function(pl){
+        var c = C[pl.id];
+        if (!c.ok) { p.plat[pl.id] = { state:'na' }; return; }
+        var r = pickRow(c, n);
+        var isMe = c.user && cleanName(c.user.displayName) === n;
+        if (!r && isMe && pl.kind === 'members') { p.plat[pl.id] = { state:'ok', admin:true, me:true }; p.admin = true; p.any = p.anyOk = true; return; }
+        if (!r) { p.plat[pl.id] = { state:'none' }; return; }
+        var me = c.user && r.uid === c.user.uid;
+        p.plat[pl.id] = { state: r.active ? 'ok' : 'off', uid:r.uid, admin:r.admin, me:me, date: msToIso(r.createdAt) };
+        if (r.admin) p.admin = true;
+        p.any = true; if (r.active) p.anyOk = true;
+      });
+      var l = local.people[n] || { note:'', fin:{ status:'none', date:'' } };
+      p.note = l.note || ''; p.fin = l.fin || { status:'none', date:'' };
+      if (p.fin.status === 'ok' || p.fin.status === 'wait') p.anyOk = true;
+      if (p.fin.status !== 'none') p.any = true;
+      return p;
+    }).sort(function(a,b){ return (b.admin?1:0)-(a.admin?1:0) || a.name.localeCompare(b.name, 'zh-Hant'); });
+  }
+
+  /* ---- 名冊總表 ---- */
+  function renderRoster(){
+    var th = '<tr><th style="text-align:left;">姓名</th>';
+    PLATFORMS.forEach(function(pl){ th += '<th>'+esc(pl.name)+'<small>'+esc(pl.project)+'</small></th>'; });
+    th += '<th>'+FIN.name+'<small>手動記錄</small></th><th style="text-align:left;">備註</th><th class="noprint"></th></tr>';
+    $('thead').innerHTML = th;
+    var q = $('q').value.trim(), showOff = $('showOff').checked, html = '';
+    people().forEach(function(p){
+      if (!showOff && !p.anyOk && p.any) return;
+      if (q && (p.name+' '+p.note).indexOf(q) < 0) return;
+      html += '<tr><td class="name">'+esc(p.name)+(p.admin?'<span class="tag">管理者</span>':'')+'</td>';
+      PLATFORMS.forEach(function(pl){
+        var s = p.plat[pl.id];
+        if (s.state === 'na') { html += '<td><span class="chip na">未連線</span></td>'; return; }
+        var label = s.state==='ok' ? '已開通' : s.state==='off' ? '已停用' : '－';
+        var act = s.me ? '' : ' act';
+        var tip = s.me ? '你自己的帳號' : (s.state==='ok' ? '點一下停用' : s.state==='off' ? '點一下重新啟用' : '點一下開通');
+        html += '<td><span class="chip '+(s.state==='ok'?'ok':s.state==='off'?'off':'none')+act+'" data-name="'+esc(p.name)+'" data-plat="'+pl.id+'" title="'+tip+'">'+label+(s.date && s.state!=='none' ? '<span class="d">'+toRoc(s.date)+'</span>' : '')+'</span></td>';
+      });
+      html += '<td><span class="chip '+p.fin.status+' act" data-name="'+esc(p.name)+'" data-fin="1" title="點一下切換（手動記錄）">'+FSTATUS[p.fin.status]+(p.fin.date && p.fin.status!=='none' ? '<span class="d">'+toRoc(p.fin.date)+'</span>' : '')+'</span></td>';
+      html += '<td class="note">'+esc(p.note)+'</td><td class="noprint"><button class="btn small" data-edit="'+esc(p.name)+'">編輯</button></td></tr>';
+    });
+    if (!html) html = '<tr><td colspan="'+(PLATFORMS.length+4)+'" style="color:var(--muted);">沒有符合的人員</td></tr>';
+    $('tbody').innerHTML = html;
+  }
+  function renderLog(){
+    $('logBox').innerHTML = local.log.map(function(l){ return '<div><time>'+esc(l.t)+'</time>'+esc(l.msg)+'</div>'; }).join('') || '<div style="color:var(--muted);">尚無紀錄</div>';
+  }
+  function renderAll(){ renderConn(); renderRoster(); renderLog(); }
+
+  $('q').addEventListener('input', renderRoster);
+  $('showOff').addEventListener('change', renderRoster);
+  $('refreshBtn').addEventListener('click', async function(){
+    this.disabled = true;
+    await Promise.all(PLATFORMS.map(function(pl){ var c=C[pl.id]; return c.ok ? loadRows(c).catch(function(e){ c.err=errText(e); }) : null; }));
+    this.disabled = false; renderAll(); toast('已重新讀取');
+  });
+
+  $('tbody').addEventListener('click', async function(e){
+    var ed = e.target.closest('[data-edit]');
+    if (ed) { openEdit(ed.getAttribute('data-edit')); return; }
+    var chip = e.target.closest('.chip.act'); if (!chip) return;
+    var name = chip.getAttribute('data-name');
+    if (chip.getAttribute('data-fin')) {
+      var l = lp(name), old = l.fin.status;
+      l.fin.status = FCYCLE[(FCYCLE.indexOf(old)+1) % FCYCLE.length];
+      if (l.fin.status === 'ok' && !l.fin.date) l.fin.date = today();
+      addLog(name+'｜財務記帳（手動）：'+FSTATUS[old]+' → '+FSTATUS[l.fin.status]);
+      renderRoster();
+      if (l.fin.status === 'wait' || l.fin.status === 'ok') toast('財務記帳帳號要到 Firebase 後台建立，見「操作說明」', 3500);
+      if (l.fin.status === 'off') toast('記得到 Firebase 後台把財務記帳帳號停用', 3500);
+      return;
+    }
+    var id = chip.getAttribute('data-plat'), c = C[id];
+    var r = pickRow(c, name);
+    if (!r) { openAdd(name, id); return; }
+    var to = !r.active;
+    if (!confirm((to?'重新啟用':'停用')+'「'+name+'」的'+c.pl.name+'帳號？' + (to ? '' : '\n停用後他就不能登入'+c.pl.name+'，之前輸入的資料不會刪除。'))) return;
+    try {
+      await c.db.collection(c.pl.coll).doc(r.uid).update({ active: to });
+      r.active = to;
+      addLog(name+'｜'+c.pl.name+'：'+(to?'重新啟用':'停用'));
+      renderRoster(); toast('已'+(to?'啟用':'停用')+'「'+name+'」的'+c.pl.name+'帳號');
+    } catch(err) { console.error(err); toast(c.pl.name+' 更新失敗：'+errText(err), 4000); }
+  });
+
+  /* ---- 新增／開通 ---- */
+  var adding = false;
+  function openAdd(name, onlyPlat){
+    $('aTitle').textContent = name ? '開通：'+name : '新增志工';
+    $('aName').value = name || ''; $('aName').disabled = !!name;
+    $('aPw').value = ''; $('aNote').value = name ? ((local.people[name]||{}).note||'') : '';
+    $('aResults').innerHTML = '';
+    $('aSave').disabled = false; $('aSave').textContent = '開通';
+    renderPlats(name, onlyPlat ? [onlyPlat] : []);
+    $('addBg').classList.add('show');
+    setTimeout(function(){ (name ? $('aPw') : $('aName')).focus(); }, 30);
+  }
+  function renderPlats(name, checkIds){
+    var html = '';
+    PLATFORMS.forEach(function(pl){
+      var c = C[pl.id], r = name && c.ok ? pickRow(c, name) : null;
+      var st = !c.ok ? '未連線' : r ? (r.active ? '已開通' : '已停用，勾選會重新啟用') : '';
+      var dis = !c.ok || (r && r.active);
+      var chk = !dis && checkIds.indexOf(pl.id) >= 0;
+      html += '<div class="prow"><label><input type="checkbox" data-ap="'+pl.id+'"'+(dis?' disabled':'')+(chk?' checked':'')+'> '+esc(pl.name)+'</label><span class="st">'+esc(st)+'</span></div>';
+    });
+    var fs = name && local.people[name] ? local.people[name].fin.status : 'none';
+    html += '<div class="prow"><label><input type="checkbox" data-ap="finance"'+(fs!=='none'?' disabled':'')+'> 財務記帳（標記為待建立，帳號需到 Firebase 後台建）</label><span class="st">'+(fs!=='none'?FSTATUS[fs]:'')+'</span></div>';
+    $('aPlats').innerHTML = html;
+    updatePwBox();
+  }
+  function updatePwBox(){
+    var name = cleanName($('aName').value);
+    var need = PLATFORMS.some(function(pl){ var b=document.querySelector('[data-ap="'+pl.id+'"]'); return b && b.checked && !(name && pickRow(C[pl.id], name)); });
+    $('aPwBox').classList.toggle('hidden', !need);
+  }
+  $('aPlats').addEventListener('change', updatePwBox);
+  $('aName').addEventListener('input', updatePwBox);
+  $('addBtn').addEventListener('click', function(){ openAdd('', null); });
+  $('aCancel').addEventListener('click', function(){ if (!adding) { $('addBg').classList.remove('show'); renderAll(); } });
+
+  async function createOn(c, name, pw){
+    // 與各平台「管理者新增帳號」相同的做法：用第二個連線建立帳號，管理者本身不會被登出
+    var sec = firebase.initializeApp(c.pl.cfg, 'creator-'+c.pl.id+'-'+Date.now());
+    var sAuth = sec.auth(), sDb = sec.firestore();
+    if (EMU) { sAuth.useEmulator('http://127.0.0.1:9099'); sDb.useEmulator('127.0.0.1', 8080); }
+    try {
+      await sAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      var email = await nameToEmail(name, c.pl.domain), cred, made = true;
+      try {
+        cred = await sAuth.createUserWithEmailAndPassword(email, pw);
+      } catch(e1) {
+        // v2.1：平台關閉了網頁建帳號（admin-restricted-operation），或這個姓名已有登入帳號：
+        // 改用這組密碼登入那個帳號，補上名單資料後啟用（帳號要先在 Firebase 後台建好）
+        var blocked = e1 && e1.code === 'auth/admin-restricted-operation';
+        if (!blocked && !(e1 && e1.code === 'auth/email-already-in-use')) throw e1;
+        try { cred = await sAuth.signInWithEmailAndPassword(email, pw); made = false; }
+        catch(e2) {
+          var noUser = e2 && (e2.code === 'auth/user-not-found' || e2.code === 'auth/invalid-credential' || e2.code === 'auth/invalid-login-credentials' || e2.code === 'auth/wrong-password');
+          if (blocked && noUser) throw { code:'blocked', email:email };
+          if (!blocked && noUser) throw { code:'exists' };
+          throw e2;
+        }
+      }
+      var uid = cred.user.uid;
+      if (made) { try { await cred.user.updateProfile({ displayName:name }); } catch(e) {} }
+      var now = Date.now();
+      if (c.pl.kind === 'users') {
+        await sAuth.signOut();
+        var ex = await c.db.collection('users').doc(uid).get();
+        if (ex.exists) await c.db.collection('users').doc(uid).update({ active:true });
+        else await c.db.collection('users').doc(uid).set({ name:name, admin:false, active:true, createdAt:now });
+      } else {
+        var mine = await sDb.collection(c.pl.coll).doc(uid).get();
+        if (!mine.exists) {
+          var doc = c.pl.kind === 'members' ? { name:name, active:false, createdAt:now } : { name:name, active:false, admin:false, createdAt:now };
+          await sDb.collection(c.pl.coll).doc(uid).set(doc);
+        }
+        await sAuth.signOut();
+        await c.db.collection(c.pl.coll).doc(uid).update({ active:true });
+      }
+      c.rows = c.rows.filter(function(r){ return r.uid !== uid; });
+      c.rows.push({ uid:uid, name:name, active:true, admin:false, createdAt:now });
+      return made ? 'created' : 'linked';
+    } catch(e) {
+      try { await sAuth.signOut(); } catch(_) {}
+      throw e;
+    } finally { try { await sec.delete(); } catch(_) {} }
+  }
+
+  $('aSave').addEventListener('click', async function(){
+    if (adding) return;
+    var name = cleanName($('aName').value), pw = $('aPw').value, note = $('aNote').value.trim();
+    if (!name) { toast('請輸入姓名'); return; }
+    if (/密碼|password/i.test(note)) { toast('備註裡好像有密碼，請刪掉'); return; }
+    var picks = Array.prototype.filter.call(document.querySelectorAll('[data-ap]'), function(b){ return b.checked; }).map(function(b){ return b.getAttribute('data-ap'); });
+    var needPw = picks.some(function(id){ return id!=='finance' && !pickRow(C[id], name); });
+    if (needPw && pw.length < 8) { toast('預設密碼至少 8 個字元'); return; }
+    if (!picks.length && !note) { toast('請勾選要開通的平台'); return; }
+    adding = true; $('aSave').disabled = true; $('aCancel').disabled = true; $('aSave').textContent = '處理中…';
+    var out = [], failed = [];
+    for (var i=0;i<picks.length;i++){
+      var id = picks[i];
+      if (id === 'finance') {
+        var l = lp(name); l.fin = { status:'wait', date:'' };
+        out.push('<div class="o">財務記帳：已標記「待建立」，請到 Firebase 後台建立（登入 Email：'+esc(await nameToEmail(name, FIN.domain))+'）</div>');
+        addLog(name+'｜財務記帳（手動）：標記待建立');
+        continue;
+      }
+      var c = C[id], r = pickRow(c, name);
+      try {
+        if (r) {
+          await c.db.collection(c.pl.coll).doc(r.uid).update({ active:true }); r.active = true;
+          out.push('<div class="o">'+esc(c.pl.name)+'：已重新啟用</div>'); addLog(name+'｜'+c.pl.name+'：重新啟用');
+        } else {
+          var how = await createOn(c, name, pw);
+          var hw = how === 'created' ? '已建立帳號並開通' : '已接上後台建好的帳號並開通';
+          out.push('<div class="o">'+esc(c.pl.name)+'：'+hw+'</div>'); addLog(name+'｜'+c.pl.name+'：'+hw);
+        }
+      } catch(e) {
+        console.error(id, e);
+        failed.push(id);
+        if (e && e.code === 'blocked') {
+          out.push('<div class="e">'+esc(c.pl.name)+'：這個平台已關閉網頁建立帳號，要先到 Firebase 後台建好帳號，名冊再幫你接上並開通。</div>'
+            + '<div class="hint">① Firebase 主控台 → <b>'+esc(c.pl.project)+'</b> → Authentication → 使用者 → 新增使用者<br>'
+            + '② 電子郵件貼上：<code>'+esc(e.email)+'</code><br>'
+            + '③ 密碼填上面這組預設密碼 → 新增<br>④ 回到這裡，預設密碼再填一次，按「再試一次」。</div>');
+          addLog(name+'｜'+c.pl.name+'：需先在 Firebase 後台建帳號');
+          continue;
+        }
+        var t = e && e.code === 'exists' ? '這個姓名在平台上已經有帳號，但密碼和這次填的不同。請改填那個帳號目前的密碼再試一次，或請本人先登入一次'+c.pl.name+'，再回來按「重新讀取」後啟用。' : errText(e);
+        out.push('<div class="e">'+esc(c.pl.name)+'：沒有完成，'+esc(t)+'</div>'); addLog(name+'｜'+c.pl.name+'：開通失敗（'+t+'）');
+      }
+    }
+    if (note || local.people[name]) { lp(name).note = note; }
+    saveLocal();
+    $('aResults').innerHTML = out.join('') + (out.length > failed.length ? '<div class="hint">請把姓名與預設密碼當面交給本人，並請他登入後自行改密碼。</div>' : '') + (out.length ? '' : '<div class="o">已儲存備註</div>');
+    adding = false; $('aCancel').disabled = false;
+    if (failed.length) {
+      // 沒完成的平台保持勾選，可以直接再試一次；預設密碼保留在欄位裡
+      $('aName').disabled = true;
+      renderPlats(name, failed);
+      $('aSave').textContent = '再試一次'; $('aSave').disabled = false;
+    } else {
+      $('aPw').value = '';
+      $('aSave').textContent = '完成'; $('aSave').disabled = true;
+    }
+    // 重新整理勾選狀態
+    renderAll();
+  });
+
+  /* ---- 編輯備註／財務 ---- */
+  var editName = null;
+  async function openEdit(name){
+    editName = name; var l = local.people[name] || { note:'', fin:{ status:'none', date:'' } };
+    $('eTitle').textContent = '編輯：'+name;
+    $('eNote').value = l.note || ''; $('eFin').value = l.fin.status; $('eFinDate').value = l.fin.date || '';
+    $('eFinEmail').textContent = '財務記帳登入 Email：' + (await nameToEmail(name, FIN.domain));
+    $('editBg').classList.add('show');
+  }
+  $('eCancel').addEventListener('click', function(){ $('editBg').classList.remove('show'); });
+  $('eSave').addEventListener('click', function(){
+    var note = $('eNote').value.trim();
+    if (/密碼|password/i.test(note)) { toast('備註裡好像有密碼，請刪掉'); return; }
+    var l = lp(editName), old = l.fin.status, st = $('eFin').value, dt = $('eFinDate').value;
+    if (st === 'ok' && !dt) dt = today();
+    if (old !== st) addLog(editName+'｜財務記帳（手動）：'+FSTATUS[old]+' → '+FSTATUS[st]);
+    if ((l.note||'') !== note) addLog(editName+'｜修改備註');
+    l.note = note; l.fin = { status:st, date:dt };
+    saveLocal(); $('editBg').classList.remove('show'); renderRoster(); toast('已儲存');
+  });
+  $('eRemove').addEventListener('click', function(){
+    if (!confirm('刪除「'+editName+'」在本頁的備註與財務記帳紀錄？\n（不會影響各平台帳號）')) return;
+    delete local.people[editName]; addLog(editName+'｜刪除本頁備註'); saveLocal();
+    $('editBg').classList.remove('show'); renderRoster();
+  });
+
+  /* ---- 財務記帳 Email 產生器 ---- */
+  $('finGen').addEventListener('click', async function(){
+    var n = cleanName($('finName').value); if (!n) { toast('請輸入姓名'); return; }
+    $('finOut').innerHTML = '「'+esc(n)+'」的登入 Email：<code>'+esc(await nameToEmail(n, FIN.domain))+'</code>';
+  });
+
+  /* ---- 分頁 ---- */
+  var tabs = document.querySelectorAll('nav.tabs button');
+  Array.prototype.forEach.call(tabs, function(b){
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(tabs, function(o){ o.classList.toggle('on', o===b); $('tab-'+o.getAttribute('data-tab')).classList.add('hidden'); });
+      $('tab-'+b.getAttribute('data-tab')).classList.remove('hidden');
+    });
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    if (!adding) $('addBg').classList.remove('show');
+    $('editBg').classList.remove('show'); $('reBg').classList.remove('show');
+  });
+
+  /* ---- 匯出／備份 ---- */
+  function download(name, text, type){
+    var blob = new Blob([text], { type:type });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  $('exportCsv').addEventListener('click', function(){
+    function c(v){ v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+    var head = ['姓名','管理者'];
+    PLATFORMS.forEach(function(pl){ head.push(pl.name+'狀態', pl.name+'建立日期'); });
+    head.push('財務記帳狀態（手動）','財務記帳建立日期','備註');
+    var lines = [head.map(c).join(',')];
+    people().forEach(function(p){
+      var r = [p.name, p.admin?'是':''];
+      PLATFORMS.forEach(function(pl){ var s=p.plat[pl.id]; r.push(s.state==='na'?'未連線':s.state==='ok'?'已開通':s.state==='off'?'已停用':'－', s.state==='ok'||s.state==='off' ? toRoc(s.date) : ''); });
+      r.push(FSTATUS[p.fin.status], p.fin.status==='none'?'':toRoc(p.fin.date), p.note);
+      lines.push(r.map(c).join(','));
+    });
+    download('志工名冊_'+rocToday()+'.csv', '﻿'+lines.join('\r\n'), 'text/csv;charset=utf-8');
+  });
+  $('exportJson').addEventListener('click', function(){
+    download('志工名冊_備註備份_'+rocToday()+'.json', JSON.stringify(local, null, 2), 'application/json');
+  });
+  $('importBtn').addEventListener('click', function(){ $('importFile').click(); });
+  $('importFile').addEventListener('change', function(e){
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      try {
+        var o = JSON.parse(rd.result);
+        if (o && o.version === 2 && o.people) {
+          if (!confirm('用「'+f.name+'」取代本頁的備註與財務記帳紀錄？')) return;
+          local = { version:2, people:o.people, log:o.log||[] };
+        } else {
+          var t = emptyLocal(); t.log = local.log; importV1(t, o);
+          if (!confirm('從 v1 名冊備份「'+f.name+'」帶入 '+Object.keys(t.people).length+' 人的備註與財務記帳狀態？\n（四個平台的狀態以平台實際帳號為準）')) return;
+          local = t;
+        }
+        addLog('匯入備份：'+f.name); renderAll(); toast('已匯入');
+      } catch(err) { toast('這不是志工名冊的備份檔'); }
+      e.target.value = '';
+    };
+    rd.readAsText(f, 'utf-8');
+  });
+  $('printBtn').addEventListener('click', function(){ window.print(); });
+
+  if (/[?&]label=1/.test(location.search)) $('thumbLabel').style.display = 'block';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>古亭院 信徒報名查詢平台</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#241f1a;
+    --ink-soft:#5a5148;
+    --paper:#eee7d8;
+    --paper-raised:#f7f2e6;
+    --line:#d8cdb4;
+    --vermilion:#7c2a2a;
+    --vermilion-deep:#5e1f1f;
+    --gold:#a9843f;
+    --gold-soft:#e4d6ad;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Microsoft JhengHei","PingFang TC","Heiti TC",-apple-system,BlinkMacSystemFont,sans-serif;
+    line-height:1.6;
+  }
+
+  /* ===== 標頭 Banner ===== */
+  .banner{
+    position:relative;
+    background:linear-gradient(135deg, var(--vermilion) 0%, var(--vermilion-deep) 100%);
+    color:#fdf8ee;
+    padding:38px 20px 34px;
+    text-align:center;
+    overflow:hidden;
+  }
+  .banner.has-image{ padding:0; }
+  .banner-img{ width:100%; max-height:260px; object-fit:cover; display:block; }
+  .banner-overlay{ background:rgba(40,20,18,0.55); padding:26px 20px; }
+  .banner-title{ font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:0.02em; }
+  .banner-subtitle{ font-size:15px; opacity:0.92; margin:0 0 10px; }
+  .banner-text{ font-size:13px; opacity:0.85; margin:0; max-width:520px; margin-left:auto; margin-right:auto; }
+  .banner-divider{ width:44px; height:3px; background:var(--gold-soft); margin:14px auto 0; border-radius:2px; }
+
+  .wrap{ max-width:760px; margin:0 auto; padding:28px 18px 70px; }
+
+  .search-panel{ background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:6px; }
+  .search-panel-title{ font-size:14px; font-weight:700; color:var(--vermilion); margin:0 0 12px; }
+  .search-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .search-row input[type="text"]{
+    flex:2 1 220px; padding:12px 14px; font-size:16px;
+    border:1.5px solid var(--line); border-radius:6px; background:#fff; color:var(--ink);
+  }
+  .search-row select{
+    flex:1 1 150px; padding:12px 14px; font-size:14px;
+    border:1.5px solid var(--line); border-radius:6px; background:#fff; color:var(--ink);
+  }
+  .search-row input[type="text"]:focus, .search-row select:focus{ outline:none; border-color:var(--vermilion); }
+  .search-row button{
+    flex:0 0 auto; padding:12px 24px; font-size:15px; border:none; border-radius:6px;
+    background:var(--vermilion); color:#fff; cursor:pointer; font-weight:600;
+  }
+  .search-row button:disabled{ opacity:0.6; cursor:default; }
+  .search-row button:hover:not(:disabled){ background:var(--vermilion-deep); }
+  .hint{ font-size:12px; color:var(--ink-soft); margin:10px 2px 0; }
+
+  #results{ margin-top:30px; }
+  .name-summary{ background:var(--paper-raised); border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin-bottom:20px; }
+  .name-summary .who{ font-size:18px; font-weight:700; }
+  .name-summary .meta{ color:var(--ink-soft); font-size:13px; margin-top:4px; }
+  .multi-warning{ background:#f4e4d2; border:1px solid var(--gold); border-radius:6px; padding:10px 14px; font-size:13px; color:#5c4319; margin-bottom:18px; }
+  .year-group{ margin-bottom:20px; }
+  .year-title{ display:flex; align-items:baseline; gap:10px; border-bottom:2px solid var(--vermilion); padding-bottom:5px; margin-bottom:10px; }
+  .year-title .yr{ font-size:18px; font-weight:700; color:var(--vermilion); }
+  .year-title .assembly{ font-size:13px; color:var(--ink-soft); }
+  .record-card{ background:var(--paper-raised); border:1px solid var(--line); border-left:4px solid var(--gold); border-radius:6px; padding:12px 15px; margin-bottom:9px; }
+  .record-row{ display:flex; justify-content:space-between; gap:10px; font-size:14px; }
+  .record-item{ font-weight:600; }
+  .record-fee{ color:var(--vermilion); font-weight:600; white-space:nowrap; }
+  .record-detail{ font-size:12.5px; color:var(--ink-soft); margin-top:5px; }
+  .record-detail div{ margin-top:2px; }
+  .badge{ display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; background:var(--gold-soft); color:#5c4319; margin-left:6px; }
+  .empty-state{ text-align:center; color:var(--ink-soft); padding:44px 20px; border:1px dashed var(--line); border-radius:8px; }
+  .empty-state .big{ font-size:15px; margin-bottom:6px; color:var(--ink); }
+  .error-state{ background:#fbe4e4; border:1px solid #c66; color:#7a1f1f; padding:14px 16px; border-radius:6px; font-size:13px; }
+
+  .export-bar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; font-size:13px; color:var(--ink-soft); }
+  .export-bar button{
+    padding:6px 14px; font-size:13px; border:1px solid var(--vermilion); background:#fff;
+    color:var(--vermilion); border-radius:6px; cursor:pointer; font-weight:600;
+  }
+  .export-bar button:hover{ background:var(--vermilion); color:#fff; }
+  .source-tag{ font-size:10.5px; padding:1px 6px; border-radius:8px; background:var(--gold-soft); color:#5c4319; margin-left:6px; }
+
+  footer{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:40px; }
+  .version-badge{
+    display:inline-block; font-family:"Noto Serif TC",serif; font-weight:700; color:var(--vermilion);
+    background:var(--gold-soft); padding:1px 8px; border-radius:10px; font-size:11px; margin-left:8px;
+  }
+  .version-link{
+    background:none; border:none; color:var(--vermilion); font-size:11px; text-decoration:underline;
+    cursor:pointer; padding:0; margin-left:6px; font-family:inherit;
+  }
+  .changelog-panel{
+    max-width:480px; margin:14px auto 0; text-align:left; background:var(--paper-raised);
+    border:1px solid var(--line); border-radius:8px; padding:14px 18px;
+  }
+  .changelog-entry{ padding:8px 0; border-bottom:1px solid var(--line); }
+  .changelog-entry:last-child{ border-bottom:none; }
+  .changelog-entry .cl-version{ font-family:"Noto Serif TC",serif; font-weight:700; color:var(--vermilion-deep); font-size:13px; }
+  .changelog-entry .cl-date{ color:var(--ink-soft); font-size:11px; margin-left:8px; }
+  .changelog-entry ul{ margin:6px 0 0; padding-left:18px; font-size:12.5px; color:var(--ink); }
+  .changelog-entry li{ margin-bottom:3px; }
+</style>
+<style>
+  /* ===== v2.0：登入與管理工具 ===== */
+  body.locked .gated{ display:none !important; }
+  body:not(.locked) .login-only{ display:none !important; }
+  .login-card{ background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:22px; max-width:420px; margin:0 auto; }
+  .login-card h2{ margin:0 0 6px; font-size:16px; color:var(--vermilion); }
+  .login-card p{ margin:0 0 12px; font-size:13px; color:var(--ink-soft); }
+  .login-card input[type="text"], .login-card input[type="password"]{
+    width:100%; padding:12px 14px; font-size:16px; margin-bottom:10px;
+    border:1.5px solid var(--line); border-radius:6px; background:#fff; color:var(--ink);
+  }
+  .login-card button.primary, .tool-card button.primary{
+    padding:11px 22px; font-size:15px; border:none; border-radius:6px; background:var(--vermilion); color:#fff; cursor:pointer; font-weight:600;
+  }
+  .login-card button.primary:disabled, .tool-card button.primary:disabled{ opacity:.6; cursor:default; }
+  .msg-err{ color:#b3261e; font-size:13px; min-height:20px; margin:8px 0 0; }
+  .msg-ok{ color:#2e7d4f; font-size:13px; margin:8px 0 0; }
+  .userbar{ display:flex; justify-content:flex-end; align-items:center; gap:10px; font-size:12.5px; color:var(--ink-soft); margin-bottom:12px; }
+  .userbar button{ padding:4px 12px; font-size:12.5px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; color:var(--ink); }
+  .tool-card{ background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-top:26px; }
+  .tool-card summary{ cursor:pointer; font-weight:700; color:var(--vermilion); }
+  .tool-block{ margin-top:16px; padding-top:14px; border-top:1px dashed var(--line); font-size:13px; }
+  .tool-block h3{ margin:0 0 6px; font-size:14px; }
+  .tool-block p{ margin:0 0 8px; color:var(--ink-soft); line-height:1.6; }
+  .tool-block input[type="text"]{ width:100%; padding:8px 10px; font-size:13px; border:1.5px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; }
+  .tool-block button{ padding:7px 14px; font-size:13px; border:1px solid var(--vermilion); background:#fff; color:var(--vermilion); border-radius:6px; cursor:pointer; font-weight:600; margin-right:6px; }
+  .tool-block code{ background:#f1e9d4; padding:1px 5px; border-radius:4px; word-break:break-all; }
+  .data-note{ font-size:12px; color:var(--ink-soft); margin:8px 2px 0; }
+</style>
+</head>
+<body class="locked">
+<!-- Netlify 縮圖辨識標籤：平常隱藏，只有 Netlify 截圖程式（無頭瀏覽器）才顯示；網址加 ?label=1 可預覽 -->
+<div id="netlifyThumbLabel" style="display:none;background:#1565C0;padding:clamp(6px,1.6vw,22px) 0;">
+<svg viewBox="-60 -40 4570 1080" role="img" aria-label="報名查詢" style="height:clamp(34px,8vw,120px);width:auto;display:block;margin:0 auto;"><path fill="#fff" d="M510 73V968H619V918C637 935 655 955 666 972C709 940 747 902 781 858C818 900 858 935 904 963C922 933 957 890 983 868C931 842 885 805 844 760C895 667 930 557 949 439L877 413L857 417H619V178H814V260C814 271 809 273 794 274C779 275 724 275 675 273C689 301 704 344 709 376C783 376 836 375 875 359C914 343 925 313 925 262V73ZM702 512H823C811 564 794 615 772 663C744 616 720 565 702 512ZM619 560C644 634 675 703 713 765C686 803 654 837 619 866ZM96 405C111 436 126 475 132 505H61V606H211V686H37V786H211V966H322V786H483V686H322V606H463V505H394L445 404L380 388H483V287H322V219H460V119H322V33H211V119H66V219H211V287H38V388H154ZM341 388C330 424 312 468 294 505H182L228 490C222 463 205 422 188 388Z M1508 25C1449 136 1339 257 1173 345C1200 366 1240 410 1258 439C1298 415 1335 390 1370 363C1423 404 1483 457 1522 500C1418 578 1297 638 1171 674C1196 699 1227 749 1241 782C1317 756 1392 724 1462 684V969H1583V930H1924V970H2048V517H1690C1790 421 1871 304 1923 166L1840 123L1820 129H1593C1611 103 1627 77 1643 51ZM1924 822H1583V625H1924ZM1508 235H1759C1723 301 1675 362 1619 417C1577 374 1514 324 1460 285C1477 269 1493 252 1508 235Z M2627 655H2959V708H2627ZM2627 528H2959V579H2627ZM2361 836V941H3240V836ZM2737 449H2543C2617 402 2683 343 2737 278ZM2737 30V142H2353V246H2624C2547 323 2438 390 2326 425C2351 449 2386 492 2403 521C2439 507 2475 490 2509 470V787H3084V449H2856V279C2971 353 3105 449 3172 513L3249 425C3191 374 3092 306 2997 246H3249V142H2856V30Z M3527 471V562H3823V471ZM4105 607V674H4004V607ZM4105 516H4004V448H4105ZM3527 336V426H3822V354C3848 370 3886 398 3909 417V805H4004V768H4201V354H3970C3985 331 4000 307 4014 281H4289C4280 654 4269 801 4243 833C4232 847 4222 852 4205 852C4182 852 4135 851 4083 847C4104 880 4118 932 4120 966C4172 968 4225 968 4259 962C4296 956 4321 945 4346 907C4383 856 4393 691 4403 228C4404 213 4404 173 4404 173H4064C4079 137 4092 100 4103 62L3984 35C3953 154 3894 270 3822 344V336ZM3585 70C3608 108 3636 159 3652 196H3488V291H3864V196H3683L3745 156C3730 119 3698 64 3669 22ZM3528 610V956H3622V914H3823V610ZM3622 705H3727V818H3622Z"/></svg>
+</div>
+<script>(function(){try{var u=navigator.userAgent||"";if(navigator.webdriver||/headless|puppeteer|playwright|phantom|screenshot|netlify/i.test(u)||/[?&]label=1/.test(location.search)){document.getElementById("netlifyThumbLabel").style.display="block";}}catch(e){}})();</script>
+
+<!--
+  ============================================================
+  設定區：Firebase 專案設定（信徒查詢專用的獨立專案）
+  Firebase 主控台 → 專案設定 → 一般 → 你的應用程式 → SDK 設定，把整組貼到下面取代
+  ============================================================
+-->
+<script>
+  const CONFIG = {
+    BANNER_TITLE: '古亭院 信徒報名查詢平台',
+    BANNER_SUBTITLE: '嘉義番路鄉 古亭院 昇龍觀世音菩薩',
+    BANNER_TEXT: '輸入姓名查詢歷年法會報名紀錄，可依法會類別篩選',
+    BANNER_IMAGE_URL: 'https://drive.google.com/uc?export=view&id=1JXf64vnHHUoWdT4YnMxIlz5TVYxY0jIV'   // 留空＝不顯示圖片
+  };
+
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAVC3Cun5mF56SMww1X-o8wI3JG-_ZMJiI",
+    authDomain: "kuting-lookup.firebaseapp.com",
+    projectId: "kuting-lookup",
+    storageBucket: "kuting-lookup.firebasestorage.app",
+    messagingSenderId: "364311861094",
+    appId: "1:364311861094:web:176f9eb4bffa76d7a49aa7"
+  };
+</script>
+
+<div class="banner" id="banner">
+  <div class="banner-title" id="bannerTitle"></div>
+  <div class="banner-subtitle" id="bannerSubtitle"></div>
+  <div class="banner-divider" id="bannerDivider"></div>
+  <div class="banner-text" id="bannerText"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- 登入（未登入時只看得到這一塊） -->
+  <div class="login-only">
+    <div class="login-card">
+      <h2>工作人員登入</h2>
+      <p>本系統含信徒個人資料，僅限寺方工作人員使用。請輸入姓名與密碼；沒有帳號請洽管理者建立。</p>
+      <input type="text" id="loginName" placeholder="姓名／帳號" autocomplete="username">
+      <input type="password" id="loginPw" placeholder="密碼" autocomplete="current-password">
+      <button class="primary" id="loginBtn">登入</button>
+      <p class="msg-err" id="loginMsg"></p>
+      <details style="margin-top:12px;font-size:12px;color:var(--ink-soft);">
+        <summary style="cursor:pointer;">新增帳號（管理者用）</summary>
+        <p style="margin:8px 0 6px;line-height:1.6;">輸入新人員的姓名，取得登入 Email，再到 Firebase 後台 → Authentication → 使用者 → 新增使用者，貼上這個 Email 並設定密碼（至少 8 個字元）。</p>
+        <input type="text" id="newName" placeholder="新人員姓名" style="padding:8px 10px;font-size:13px;">
+        <button type="button" id="genEmailBtn" style="padding:6px 12px;font-size:12.5px;border:1px solid var(--vermilion);background:#fff;color:var(--vermilion);border-radius:6px;cursor:pointer;">產生登入 Email</button>
+        <p id="genEmailOut" style="word-break:break-all;margin:6px 0 0;"></p>
+      </details>
+    </div>
+  </div>
+
+  <!-- 登入後才顯示 -->
+  <div class="gated">
+    <div class="userbar"><span id="whoLabel"></span><button type="button" id="changePwBtn">修改密碼</button><button type="button" id="logoutBtn">登出</button></div>
+    <div id="changePwPanel" class="tool-card" style="display:none;padding:12px 14px;margin-bottom:12px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="password" id="pwCur" placeholder="目前密碼" style="padding:8px 10px;font-size:13px;">
+        <input type="password" id="pwNew" placeholder="新密碼（至少 8 字）" style="padding:8px 10px;font-size:13px;">
+        <input type="password" id="pwNew2" placeholder="再輸入一次新密碼" style="padding:8px 10px;font-size:13px;">
+        <button type="button" id="pwSaveBtn">儲存新密碼</button>
+      </div>
+      <p id="pwMsg" class="msg-ok" style="margin:6px 0 0;"></p>
+    </div>
+
+    <div class="search-panel">
+      <p class="search-panel-title">信徒報名紀錄查詢</p>
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="請輸入姓名，例如：陳 或 陳大明" autocomplete="off">
+        <select id="assemblySelect">
+          <option value="">全部法會</option>
+        </select>
+        <button id="searchBtn">查詢</button>
+      </div>
+      <p class="hint">僅支援姓名關鍵字查詢（可輸入完整姓名或姓氏），可另外選擇法會類別縮小查詢範圍</p>
+      <div class="export-bar" style="margin-top:14px;margin-bottom:0;">
+        <span>匯出所有報名資料（不限查詢結果，含歷史資料＋線上報名資料）</span>
+        <button type="button" id="exportAllBtn">匯出全部 Excel</button>
+      </div>
+      <p class="data-note" id="dataNote"></p>
+    </div>
+
+    <div id="results">
+      <div class="empty-state"><div class="big">請輸入姓名開始查詢</div>可輸入完整姓名或姓氏</div>
+    </div>
+
+    <!-- 管理工具（只有管理員看得到） -->
+    <details class="tool-card" id="adminTools" style="display:none;">
+      <summary>資料管理（僅管理員）</summary>
+
+      <div class="tool-block">
+        <h3>一、匯入歷史資料（舊版 Google 試算表的資料）</h3>
+        <p>方式 A：貼上舊版查詢系統的 Apps Script 網址（結尾是 <code>/exec</code>），按「從網址匯入」，系統會直接把全部歷史資料抓進來。<br>方式 B：選擇歷史資料的 Excel／CSV 檔（欄位：年度、法會名稱、報名者姓名、電話、陽上人、項目、地址、費用、備註、收款狀態、照片、編號；每個工作表若沒有「法會名稱」欄，會用工作表名稱代替）。<br>重新匯入會「取代」全部歷史資料，不影響線上報名資料。</p>
+        <input type="text" id="histUrl" placeholder="https://script.google.com/macros/s/……/exec">
+        <button type="button" id="histUrlBtn">從網址匯入</button>
+        <div style="margin-top:8px;"><input type="file" id="histFile" accept=".xlsx,.xls,.csv"> <button type="button" id="histFileBtn">從檔案匯入</button></div>
+        <p id="histMsg" class="msg-ok"></p>
+      </div>
+
+      <div class="tool-block">
+        <h3>二、更新法會報名平台的線上報名資料</h3>
+        <p><b>方式 A（建議）：直接從法會報名平台抓取最新資料。</b>輸入您在<b>法會報名平台</b>的姓名與密碼（帳號需為啟用中的工作人員），按「從法會報名平台更新」。密碼只用這一次，不會儲存，抓完會自動登出法會報名平台。</p>
+        <input type="text" id="fahuiName" placeholder="法會報名平台的姓名" autocomplete="off">
+        <input type="password" id="fahuiPw" placeholder="法會報名平台的密碼" autocomplete="off">
+        <button type="button" id="fahuiSyncBtn">從法會報名平台更新</button>
+        <p id="fahuiMsg" class="msg-ok"></p>
+        <p style="margin-top:12px;">方式 B：到法會報名平台後台，按「匯出資料備份（下載檔案）」，把下載的 .json 檔選進來。</p>
+        <input type="file" id="liveFile" accept=".json,application/json"> <button type="button" id="liveFileBtn">匯入線上報名資料</button>
+        <p id="liveMsg" class="msg-ok"></p>
+        <p style="font-size:12.5px;">兩種方式都會「取代」上一次的線上報名資料（會換成法會報名平台目前的完整資料）。</p>
+      </div>
+
+      <div class="tool-block">
+        <h3>三、新增工作人員帳號</h3>
+        <p>輸入志工姓名與預設密碼，按「新增帳號」就會建立並直接啟用。志工登入後可按上方「修改密碼」自行更改。</p>
+        <input type="text" id="newStaffName" placeholder="志工中文姓名">
+        <input type="text" id="newStaffPw" placeholder="預設密碼（至少 8 字）" autocomplete="off">
+        <button type="button" id="addStaffBtn">新增帳號</button>
+        <p id="addStaffMsg" class="msg-ok"></p>
+        <details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12.5px;">（舊方法）產生登入 Email，到 Firebase 後台手動建立</summary>
+          <input type="text" id="newName2" placeholder="新人員姓名">
+          <button type="button" id="genEmailBtn2">產生登入 Email</button>
+          <p id="genEmailOut2" style="word-break:break-all;"></p>
+        </details>
+      </div>
+
+      <div class="tool-block">
+        <h3>四、工作人員帳號啟用</h3>
+        <p>工作人員第一次登入後會出現在下面（顯示「待啟用」），管理員按「啟用」後對方才看得到資料。不認識的名字請不要啟用。</p>
+        <button type="button" id="memberRefreshBtn">重新整理名單</button>
+        <div id="memberList" style="margin-top:8px;"></div>
+      </div>
+    </details>
+  </div>
+
+  <footer>
+    嘉義古亭院 昇龍觀世音菩薩・信徒法會報名查詢系統
+    <span class="version-badge" id="versionBadge"></span>
+    <button type="button" class="version-link" id="toggleChangelogBtn">版本紀錄</button>
+    <div class="changelog-panel" id="changelogPanel" style="display:none;"></div>
+  </footer>
+</div>
+
+<script>
+// ---- 套用標頭設定 ----
+const bannerEl = document.getElementById('banner');
+document.getElementById('bannerTitle').textContent = CONFIG.BANNER_TITLE;
+document.getElementById('bannerSubtitle').textContent = CONFIG.BANNER_SUBTITLE;
+document.getElementById('bannerText').textContent = CONFIG.BANNER_TEXT;
+if (CONFIG.BANNER_IMAGE_URL) {
+  bannerEl.classList.add('has-image');
+  const img = document.createElement('img');
+  img.className = 'banner-img';
+  img.onerror = () => {
+    img.remove(); bannerEl.classList.remove('has-image');
+    const ov = bannerEl.querySelector('.banner-overlay');
+    if (ov) { ov.style.background = 'transparent'; ov.style.padding = '0'; }
+  };
+  img.src = CONFIG.BANNER_IMAGE_URL;
+  bannerEl.prepend(img);
+  document.getElementById('bannerDivider').style.display = 'none';
+  bannerEl.querySelectorAll('.banner-title,.banner-subtitle,.banner-text').forEach(el => { el.style.position = 'relative'; });
+  const overlay = document.createElement('div');
+  overlay.className = 'banner-overlay';
+  overlay.appendChild(document.getElementById('bannerTitle'));
+  overlay.appendChild(document.getElementById('bannerSubtitle'));
+  overlay.appendChild(document.getElementById('bannerText'));
+  bannerEl.appendChild(overlay);
+}
+
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const assemblySelect = document.getElementById('assemblySelect');
+const resultsEl = document.getElementById('results');
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =====================================================================
+   登入與資料載入（Firebase：Authentication + Firestore）
+   - 資料放在 Firestore 的 data 集合（分成 hist_版本_序號／live_版本_序號 幾份文件），登入後才讀得到
+   - meta/info 記錄目前使用的版本與筆數；admins/{uid} 有文件的帳號才是管理員
+   ===================================================================== */
+let auth = null, db = null;
+let ALL = [];              // 歷史資料＋線上報名資料（登入後載入到記憶體，在瀏覽器內搜尋）
+let isAdmin = false;
+let currentUid = '';
+let lastLoginName = '';     // v2.1：登入時輸入的姓名（第一次登入建立名冊用）
+
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+// Firebase 帳號需要 email 格式：把姓名轉成固定的假 email，工作人員仍然只要輸入姓名＋密碼
+async function usernameToEmail(name){
+  return (await sha256Hex(name.trim().toLowerCase())) + '@kuting-lookup-accounts.local';
+}
+
+const COLS = ['年度','法會名稱','報名者姓名','電話','陽上人','項目','地址','費用','備註','收款狀態','照片','編號'];
+
+async function loadAll(){
+  const metaSnap = await db.collection('meta').doc('info').get();
+  const meta = metaSnap.exists ? metaSnap.data() : {};
+  const snap = await db.collection('data').get();
+  const docs = {};
+  snap.forEach(d => { docs[d.id] = d.data(); });
+  const collect = (prefix, ver) => {
+    if(!ver) return [];
+    const pre = prefix + '_' + ver + '_';
+    return Object.keys(docs).filter(k => k.indexOf(pre) === 0).sort()
+      .reduce((arr, k) => arr.concat(JSON.parse(docs[k].json)), []);
+  };
+  const hist = collect('hist', meta.histVer);
+  const live = collect('live', meta.liveVer);
+  ALL = hist.concat(live);
+  const fmtT = t => t ? new Date(t).toLocaleString('zh-TW', {hour12:false}) : '尚未匯入';
+  document.getElementById('dataNote').textContent =
+    `目前資料：歷史資料 ${hist.length} 筆（匯入時間：${fmtT(meta.histAt)}）；線上報名資料 ${live.length} 筆（匯入時間：${fmtT(meta.liveAt)}）`;
+  // 法會類別下拉選單
+  const keep = assemblySelect.value;
+  assemblySelect.innerHTML = '<option value="">全部法會</option>';
+  [...new Set(ALL.map(r => r['法會名稱']).filter(Boolean))].sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    assemblySelect.appendChild(opt);
+  });
+  assemblySelect.value = keep;
+}
+
+function setLocked(locked){
+  document.body.classList.toggle('locked', locked);
+}
+
+async function onUser(user){
+  if(!user){
+    setLocked(true);
+    ALL = []; isAdmin = false; currentUid = '';
+    resultsEl.innerHTML = '<div class="empty-state"><div class="big">請輸入姓名開始查詢</div>可輸入完整姓名或姓氏</div>';
+    return;
+  }
+  currentUid = user.uid;
+  document.getElementById('whoLabel').textContent = '登入身分：' + (user.displayName || '工作人員');
+  try{
+    const a = await db.collection('admins').doc(user.uid).get();
+    isAdmin = a.exists;
+  }catch(e){ isAdmin = false; }
+  document.getElementById('adminTools').style.display = isAdmin ? '' : 'none';
+  // v2.1：非管理員必須在 members 名冊中且「已啟用」才讀得到資料
+  const searchPanel = document.querySelector('.search-panel');
+  searchPanel.style.display = '';
+  if(!isAdmin){
+    let active = false;
+    try{
+      const ref = db.collection('members').doc(user.uid);
+      const m = await ref.get();
+      if(m.exists) active = m.data().active === true;
+      else await ref.set({ name: lastLoginName || user.displayName || '', active: false, createdAt: Date.now() });
+    }catch(e){ console.error('讀取帳號名冊失敗', e); }
+    if(!active){
+      searchPanel.style.display = 'none';
+      resultsEl.innerHTML = '<div class="empty-state"><div class="big">帳號尚未啟用</div>請洽管理員在「資料管理 → 四、工作人員帳號啟用」按「啟用」，再重新整理此頁</div>';
+      setLocked(false);
+      return;
+    }
+  } else {
+    loadMembers();
+  }
+  try{
+    await loadAll();
+  }catch(e){
+    console.error('載入資料失敗', e);
+    document.getElementById('dataNote').textContent = '載入資料失敗，請確認網路或權限（' + (e.code || e.message) + '）';
+  }
+  setLocked(false);
+}
+
+async function doLogin(){
+  const msg = document.getElementById('loginMsg');
+  const n = document.getElementById('loginName').value.trim();
+  const p = document.getElementById('loginPw').value;
+  if(!n || !p){ msg.textContent = '請輸入姓名與密碼'; return; }
+  lastLoginName = n;
+  msg.textContent = '登入中…';
+  document.getElementById('loginBtn').disabled = true;
+  try{
+    const cred = await auth.signInWithEmailAndPassword(await usernameToEmail(n), p);
+    // 管理者在後台建立的帳號沒有顯示名稱：第一次登入時，用輸入的姓名補上
+    if(!cred.user.displayName){ try{ await cred.user.updateProfile({displayName: n}); }catch(e){} }
+    msg.textContent = '';
+    document.getElementById('loginPw').value = '';
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/too-many-requests') msg.textContent = '嘗試次數過多，請稍後再試';
+    else msg.textContent = '姓名或密碼錯誤；沒有帳號請洽管理者建立';
+  }finally{
+    document.getElementById('loginBtn').disabled = false;
+  }
+}
+
+function initFirebase(){
+  if(!FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey || String(FIREBASE_CONFIG.apiKey).indexOf('PASTE') === 0){
+    document.getElementById('loginMsg').textContent = '尚未設定 Firebase 連線：請把 Firebase 專案的設定值貼到網頁最上方的 FIREBASE_CONFIG。';
+    document.getElementById('loginBtn').disabled = true;
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  auth.onAuthStateChanged(onUser);
+}
+
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('loginPw').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  const done = () => location.reload();   // 登出後重新整理，清除畫面與記憶體中的資料
+  if(auth) auth.signOut().then(done, done); else done();
+});
+async function genEmail(inputId, outId){
+  const n = document.getElementById(inputId).value.trim();
+  const out = document.getElementById(outId);
+  out.innerHTML = n ? ('登入 Email：<code>' + (await usernameToEmail(n)) + '</code>') : '請先輸入姓名';
+}
+document.getElementById('genEmailBtn').addEventListener('click', () => genEmail('newName', 'genEmailOut'));
+document.getElementById('genEmailBtn2').addEventListener('click', () => genEmail('newName2', 'genEmailOut2'));
+
+// ---- v2.1：管理員直接新增志工帳號（用第二個 Firebase 連線建立，不會把管理員自己登出）----
+let staffCreatorApp = null;
+function getStaffCreatorApp(){
+  if(!staffCreatorApp) staffCreatorApp = firebase.initializeApp(FIREBASE_CONFIG, 'staffCreator');
+  return staffCreatorApp;
+}
+document.getElementById('addStaffBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('addStaffMsg');
+  const name = document.getElementById('newStaffName').value.trim();
+  const pw = document.getElementById('newStaffPw').value;
+  if(!isAdmin){ msg.className = 'msg-err'; msg.textContent = '只有管理員可以新增帳號'; return; }
+  if(!name){ msg.className = 'msg-err'; msg.textContent = '請輸入志工姓名'; return; }
+  if(pw.length < 8){ msg.className = 'msg-err'; msg.textContent = '預設密碼至少 8 個字元'; return; }
+  const btn = document.getElementById('addStaffBtn'); btn.disabled = true;
+  const app = getStaffCreatorApp();
+  try{
+    const cred = await app.auth().createUserWithEmailAndPassword(await usernameToEmail(name), pw);
+    try{ await cred.user.updateProfile({ displayName: name }); }catch(e){}
+    await app.firestore().collection('members').doc(cred.user.uid).set({ name, active: false, createdAt: Date.now() });
+    await app.auth().signOut();
+    await db.collection('members').doc(cred.user.uid).update({ active: true });
+    msg.className = 'msg-ok'; msg.textContent = `已新增「${name}」並啟用，請把姓名與預設密碼交給本人`;
+    document.getElementById('newStaffName').value = ''; document.getElementById('newStaffPw').value = '';
+    loadMembers();
+  }catch(e){
+    console.error('addStaff', e);
+    try{ await app.auth().signOut(); }catch(_){}
+    msg.className = 'msg-err';
+    msg.textContent = e.code === 'auth/email-already-in-use' ? `「${name}」已經有帳號了，請在下方名單按「啟用」即可` : ('新增失敗：' + (e.code || e.message));
+  }finally{ btn.disabled = false; }
+});
+
+// ---- v2.1：修改自己的密碼 ----
+document.getElementById('changePwBtn').addEventListener('click', () => {
+  const p = document.getElementById('changePwPanel');
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+});
+document.getElementById('pwSaveBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('pwMsg');
+  const cur = document.getElementById('pwCur').value, n1 = document.getElementById('pwNew').value, n2 = document.getElementById('pwNew2').value;
+  if(n1 !== n2){ msg.className = 'msg-err'; msg.textContent = '兩次輸入的新密碼不一致'; return; }
+  if(n1.length < 8){ msg.className = 'msg-err'; msg.textContent = '新密碼至少 8 個字元'; return; }
+  const user = auth && auth.currentUser;
+  if(!user){ msg.className = 'msg-err'; msg.textContent = '請先登入'; return; }
+  try{
+    await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, cur));
+    await user.updatePassword(n1);
+    msg.className = 'msg-ok'; msg.textContent = '已修改密碼';
+    ['pwCur','pwNew','pwNew2'].forEach(id => document.getElementById(id).value = '');
+  }catch(e){
+    console.error(e);
+    msg.className = 'msg-err';
+    msg.textContent = (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') ? '目前密碼錯誤' : ('修改失敗：' + (e.code || e.message));
+  }
+});
+
+// ---- v2.1：工作人員帳號啟用（僅管理員）----
+async function loadMembers(){
+  const box = document.getElementById('memberList');
+  if(!box || !isAdmin) return;
+  box.textContent = '載入中…';
+  try{
+    const snap = await db.collection('members').get();
+    const rows = [];
+    snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.active === b.active) ? (b.createdAt || 0) - (a.createdAt || 0) : (a.active ? 1 : -1));
+    if(!rows.length){ box.textContent = '目前沒有工作人員帳號（工作人員第一次登入後才會出現）'; return; }
+    box.innerHTML = rows.map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px;">
+        <span style="flex:1;">${escapeHtml(r.name || '（未填姓名）')}　<span style="color:${r.active ? '#2e7d32' : '#b23a2a'};">${r.active ? '已啟用' : '待啟用'}</span>
+          <span style="color:#999;font-size:11.5px;">${r.createdAt ? new Date(r.createdAt).toLocaleDateString('zh-TW') : ''}</span></span>
+        <button type="button" data-member="${r.uid}" data-active="${r.active ? '1' : '0'}">${r.active ? '停用' : '啟用'}</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-member]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try{
+        await db.collection('members').doc(b.dataset.member).update({ active: b.dataset.active !== '1' });
+        await loadMembers();
+      }catch(e){ alert('更新失敗：' + (e.code || e.message)); b.disabled = false; }
+    }));
+  }catch(e){
+    console.error(e);
+    box.textContent = '讀取名單失敗（' + (e.code || e.message) + '）';
+  }
+}
+document.getElementById('memberRefreshBtn').addEventListener('click', loadMembers);
+
+/* =====================================================================
+   把「法會報名平台」的備份檔，轉換成跟查詢系統一樣的統一欄位格式
+   ===================================================================== */
+function fieldBucket(label){
+  label = label || '';
+  if(/報名者/.test(label)) return 'name';
+  if(/陽上人|戶長/.test(label)) return 'yangshang';
+  if(/電話|手機/.test(label)) return 'phone';
+  if(/備註/.test(label)) return 'note';
+  if(/地址|牌位/.test(label)) return 'address';
+  return 'content';
+}
+function extractYear(dateText){
+  const m = (dateText || '').match(/(\d{2,3})/);
+  return m ? m[1] : (dateText || '');
+}
+function buildLiveRecords(events, regDocs){
+  const evById = {};
+  (events || []).forEach(ev => { evById[ev.id] = ev; });
+  const out = [];
+  const byEvent = {};
+  (regDocs || []).forEach(doc => {
+    if(!doc || !doc.eventId) return;
+    (byEvent[doc.eventId] = byEvent[doc.eventId] || []).push(doc);
+  });
+  Object.keys(byEvent).forEach(eventId => {
+    byEvent[eventId].sort((a, b) => ((a.payload && a.payload.createdAt) || 0) - ((b.payload && b.payload.createdAt) || 0));
+  });
+  Object.keys(byEvent).forEach(eventId => {
+    const ev = evById[eventId];
+    if(!ev) return;
+    let seq = 0;
+    byEvent[eventId].forEach(doc => {
+      const payload = doc.payload;
+      if(!payload) return;
+      const sharedF = payload.f || {};
+      const subItems = (payload.items && payload.items.length) ? payload.items : [null];
+      subItems.forEach((it) => {
+        seq++;
+        const merged = {...sharedF, ...((it && it.f) || {})};
+        let name = '', yangshang = '', phone = '', note = '';
+        const contentParts = [];
+        const addrParts = [];
+        (ev.fields || []).forEach(f => {
+          const v = merged[f.k];
+          if(v === undefined || v === null || v === '') return;
+          const bucket = fieldBucket(f.label);
+          if(bucket === 'name') name = name || String(v);
+          else if(bucket === 'yangshang') yangshang = yangshang || String(v);
+          else if(bucket === 'phone') phone = phone || String(v);
+          else if(bucket === 'note') note = note || String(v);
+          else if(bucket === 'address') addrParts.push(String(v));
+          else contentParts.push(`${f.label}：${v}`);
+        });
+        (ev.fees || []).forEach(fl => {
+          const qty = (it && it.fee && it.fee[fl.k]) || (payload.fee && payload.fee[fl.k]);
+          if(qty) contentParts.push(`${fl.label}×${qty}`);
+        });
+        if(it && it.itemName) contentParts.unshift(it.itemName);
+        const amount = (it && typeof it.price === 'number' && typeof it.qty === 'number')
+          ? it.price * it.qty
+          : (subItems.length === 1 ? payload.total : '');
+        out.push({
+          '年度': extractYear(ev.date),
+          '法會名稱': ev.name || '',
+          '報名者姓名': name || sharedF.reporter || '',
+          '電話': phone,
+          '陽上人': yangshang,
+          '項目': contentParts.join('；'),
+          '地址': [...new Set(addrParts)].join('；'),
+          '費用': amount,
+          '備註': note,
+          '收款狀態': payload.paid ? '已收款' : '',
+          '照片': payload.confirmed ? '已確認' : '',
+          '編號': seq,
+          '_來源': '線上報名平台',
+          '_time': typeof payload.createdAt === 'number' ? payload.createdAt : 0
+        });
+      });
+    });
+  });
+  return out;
+}
+
+/* =====================================================================
+   管理員：匯入資料（先寫入新版本，成功後才切換版本並清掉舊版本，中途失敗不會弄丟原有資料）
+   ===================================================================== */
+async function replaceDataset(prefix, records){
+  const CH = 1000;
+  const ver = Date.now().toString(36);
+  const pad = n => String(n).padStart(3, '0');
+  for(let i = 0, k = 0; i < records.length; i += CH, k++){
+    const part = records.slice(i, i + CH);
+    await db.collection('data').doc(`${prefix}_${ver}_${pad(k)}`).set({ json: JSON.stringify(part), n: part.length, at: Date.now() });
+  }
+  await db.collection('meta').doc('info').set({ [prefix + 'Ver']: ver, [prefix + 'At']: Date.now(), [prefix + 'Count']: records.length }, { merge: true });
+  // 清掉這個資料集的舊版本
+  const snap = await db.collection('data').get();
+  const olds = snap.docs.filter(d => d.id.indexOf(prefix + '_') === 0 && d.id.indexOf(prefix + '_' + ver + '_') !== 0);
+  for(const d of olds){ await d.ref.delete(); }
+  await loadAll();
+  const now = ALL.filter(r => prefix === 'live' ? r['_來源'] === '線上報名平台' : r['_來源'] !== '線上報名平台').length;
+  if(now !== records.length) throw new Error(`驗證失敗：寫入 ${records.length} 筆，讀回 ${now} 筆`);
+}
+
+function normalizeHistRows(rows, sheetName){
+  const out = [];
+  rows.forEach(row => {
+    const r = {};
+    COLS.forEach(c => { const v = row[c]; r[c] = (v === undefined || v === null) ? '' : v; });
+    if(!r['法會名稱'] && sheetName) r['法會名稱'] = sheetName;
+    if(!String(r['報名者姓名']).trim() && !String(r['項目']).trim()) return;
+    out.push(r);
+  });
+  return out;
+}
+
+async function importHist(records, msgEl){
+  if(!records.length){ msgEl.className = 'msg-err'; msgEl.textContent = '沒有可匯入的資料（請確認欄位名稱）'; return; }
+  if(!confirm(`確定要匯入 ${records.length} 筆歷史資料嗎？這會取代目前全部的歷史資料。`)) return;
+  msgEl.className = 'msg-ok'; msgEl.textContent = '匯入中，請稍候…';
+  try{
+    await replaceDataset('hist', records);
+    msgEl.textContent = `匯入成功並驗證通過：共 ${records.length} 筆歷史資料。`;
+  }catch(e){
+    console.error(e); msgEl.className = 'msg-err'; msgEl.textContent = '匯入失敗：' + (e.message || e);
+  }
+}
+
+document.getElementById('histUrlBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('histMsg');
+  const url = document.getElementById('histUrl').value.trim();
+  if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)){ msg.className = 'msg-err'; msg.textContent = '請貼上完整的 Apps Script 網址（結尾是 /exec）'; return; }
+  msg.className = 'msg-ok'; msg.textContent = '從舊版抓取資料中…';
+  try{
+    const res = await fetch(url + '?action=all').then(r => r.json());
+    if(res && res.error) throw new Error(res.error);
+    if(!Array.isArray(res)) throw new Error('回傳格式不是資料列表');
+    await importHist(normalizeHistRows(res, ''), msg);
+  }catch(e){ console.error(e); msg.className = 'msg-err'; msg.textContent = '抓取失敗：' + (e.message || e); }
+});
+
+document.getElementById('histFileBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('histMsg');
+  const f = document.getElementById('histFile').files[0];
+  if(!f){ msg.className = 'msg-err'; msg.textContent = '請先選擇 Excel／CSV 檔'; return; }
+  try{
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    let all = [];
+    wb.SheetNames.forEach(sn => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+      all = all.concat(normalizeHistRows(rows, wb.SheetNames.length > 1 ? sn : ''));
+    });
+    await importHist(all, msg);
+  }catch(e){ console.error(e); msg.className = 'msg-err'; msg.textContent = '讀取檔案失敗：' + (e.message || e); }
+});
+
+document.getElementById('liveFileBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('liveMsg');
+  const f = document.getElementById('liveFile').files[0];
+  if(!f){ msg.className = 'msg-err'; msg.textContent = '請先選擇法會報名平台的備份檔（.json）'; return; }
+  try{
+    const data = JSON.parse(await f.text());
+    if(!Array.isArray(data.events) || !data.regs) throw new Error('這不是法會報名平台的資料備份檔');
+    const regDocs = [];
+    Object.keys(data.regs).forEach(eventId => (data.regs[eventId] || []).forEach(p => regDocs.push({ eventId, payload: p })));
+    const recs = buildLiveRecords(data.events, regDocs);
+    if(!confirm(`備份檔內有 ${regDocs.length} 筆報名（轉成 ${recs.length} 筆查詢紀錄）。確定要匯入嗎？這會取代目前全部的線上報名資料。`)) return;
+    msg.className = 'msg-ok'; msg.textContent = '匯入中，請稍候…';
+    await replaceDataset('live', recs);
+    msg.textContent = `匯入成功並驗證通過：共 ${recs.length} 筆線上報名資料。`;
+  }catch(e){ console.error(e); msg.className = 'msg-err'; msg.textContent = '匯入失敗：' + (e.message || e); }
+});
+
+/* =====================================================================
+   v2.3：直接從法會報名平台（Firebase 專案 kuting-9d240）抓取最新報名資料
+   - 用法會報名平台的工作人員帳號登入（另開一個獨立的 Firebase 連線，不影響本平台的登入）
+   - 法會報名平台的規則只允許「啟用中的工作人員」讀取報名，所以資料一樣不對外公開
+   - 密碼不儲存；抓完立即登出法會報名平台
+   ===================================================================== */
+const FAHUI_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBhHRRu6WNq6bcDAPyfQtFgt1YLnFJJKoM",
+  authDomain: "kuting-9d240.firebaseapp.com",
+  projectId: "kuting-9d240",
+  storageBucket: "kuting-9d240.firebasestorage.app",
+  messagingSenderId: "929588060992",
+  appId: "1:929588060992:web:0fcaa8c3bafba279d1d0a5"
+};
+let fahuiApp = null;
+async function fahuiNameToEmail(name){
+  return (await sha256Hex(name.trim().toLowerCase())) + '@kuting-fahui-accounts.local';
+}
+document.getElementById('adminTools').addEventListener('toggle', () => {
+  const el = document.getElementById('fahuiName');
+  const u = auth && auth.currentUser;
+  if(el && !el.value && u && u.displayName) el.value = u.displayName;
+});
+document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('fahuiMsg');
+  const btn = document.getElementById('fahuiSyncBtn');
+  const n = document.getElementById('fahuiName').value.trim();
+  const pwEl = document.getElementById('fahuiPw');
+  const p = pwEl.value;
+  if(!n || !p){ msg.className = 'msg-err'; msg.textContent = '請輸入法會報名平台的姓名與密碼'; return; }
+  btn.disabled = true;
+  msg.className = 'msg-ok'; msg.textContent = '登入法會報名平台中…';
+  try{
+    if(!fahuiApp){
+      fahuiApp = firebase.initializeApp(FAHUI_FIREBASE_CONFIG, 'fahui');
+      await fahuiApp.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+    }
+    const fAuth = fahuiApp.auth(), fDb = fahuiApp.firestore();
+    try{
+      await fAuth.signInWithEmailAndPassword(await fahuiNameToEmail(n), p);
+    }catch(e){
+      throw new Error(e.code === 'auth/too-many-requests' ? '嘗試次數過多，請稍後再試' : '法會報名平台的姓名或密碼錯誤');
+    }
+    pwEl.value = '';
+    msg.textContent = '讀取法會報名資料中…';
+    let events, regDocs = [];
+    try{
+      const evDoc = await fDb.collection('kv').doc('events').get();
+      events = evDoc.exists ? JSON.parse(evDoc.data().value || '[]') : [];
+      const snap = await fDb.collection('regs').get();
+      snap.forEach(d => { const x = d.data(); if(x && x.eventId && x.payload) regDocs.push({ eventId: x.eventId, payload: x.payload }); });
+    }catch(e){
+      if(e.code === 'permission-denied') throw new Error('這個帳號在法會報名平台尚未啟用，無法讀取報名資料，請先由法會報名平台的管理者啟用');
+      throw e;
+    }finally{
+      try{ await fAuth.signOut(); }catch(e){}
+    }
+    if(!Array.isArray(events) || !events.length) throw new Error('法會報名平台目前沒有任何場次');
+    const ids = new Set(events.map(ev => ev.id));
+    regDocs = regDocs.filter(r => ids.has(r.eventId));   // 跟「匯出資料備份」一樣，只取現有場次的報名
+    const recs = buildLiveRecords(events, regDocs);
+    if(!confirm(`法會報名平台目前有 ${events.length} 個場次、${regDocs.length} 筆報名（轉成 ${recs.length} 筆查詢紀錄）。確定要更新嗎？這會取代目前全部的線上報名資料。`)){
+      msg.textContent = '已取消，資料沒有變動'; return;
+    }
+    msg.textContent = '更新中，請稍候…';
+    await replaceDataset('live', recs);
+    msg.textContent = `更新成功並驗證通過：共 ${recs.length} 筆線上報名資料（${new Date().toLocaleString('zh-TW', {hour12:false})}）。`;
+  }catch(e){
+    console.error(e); msg.className = 'msg-err'; msg.textContent = '更新失敗：' + (e.message || e);
+  }finally{
+    pwEl.value = '';
+    btn.disabled = false;
+  }
+});
+
+/* =====================================================================
+   查詢（在瀏覽器內搜尋已載入的資料）
+   ===================================================================== */
+function doSearch(){
+  const q = searchInput.value.trim();
+  const assembly = assemblySelect.value;
+  if(!q){
+    resultsEl.innerHTML = `<div class="empty-state"><div class="big">請輸入姓名開始查詢</div>可輸入完整姓名或姓氏</div>`;
+    return;
+  }
+  const matches = ALL.filter(r => {
+    const hit = String(r['報名者姓名'] || '').includes(q) || String(r['項目'] || '').includes(q);
+    if(!hit) return false;
+    if(assembly && assembly !== '全部法會' && r['法會名稱'] !== assembly) return false;
+    return true;
+  });
+  renderResults(matches);
+}
+
+function renderResults(matches){
+  resultsEl.innerHTML = '';
+  if(!matches || matches.length === 0){
+    resultsEl.innerHTML = `<div class="empty-state"><div class="big">查無符合的報名紀錄</div>請確認姓名是否正確，或嘗試只輸入姓氏／改選「全部法會」</div>`;
+    return;
+  }
+  const countLine = document.createElement('p');
+  countLine.style.cssText = 'font-size:13px;color:var(--ink-soft);margin:0 0 14px;';
+  countLine.textContent = `共 ${matches.length} 筆符合紀錄`;
+  resultsEl.appendChild(countLine);
+
+  function recencyKey(r){
+    const y = parseInt(String(r['年度'] || '').replace(/[^\d]/g, ''), 10) || 0;
+    const t = typeof r['_time'] === 'number' ? r['_time'] : 0;
+    return y * 1e13 + t;
+  }
+  const distinctNames = [...new Set(matches.map(r => r['報名者姓名']))];
+  const latestKeyByName = {};
+  matches.forEach(r => {
+    const name = r['報名者姓名'];
+    const k = recencyKey(r);
+    if (latestKeyByName[name] === undefined || k > latestKeyByName[name]) latestKeyByName[name] = k;
+  });
+  distinctNames.sort((a, b) => latestKeyByName[b] - latestKeyByName[a]);
+
+  distinctNames.forEach(name => {
+    const records = matches.filter(r => r['報名者姓名'] === name);
+    const phones = [...new Set(records.map(r => r['電話']).filter(Boolean))];
+    const addrs = [...new Set(records.map(r => r['地址']).filter(Boolean))];
+    const years = [...new Set(records.map(r => String(r['年度'])))].sort().reverse();
+
+    const summary = document.createElement('div');
+    summary.className = 'name-summary';
+    summary.innerHTML = `
+      <div class="who">${escapeHtml(name)}</div>
+      <div class="meta">共 ${records.length} 筆報名紀錄，涵蓋 ${years.map(escapeHtml).join('、')} 年度
+      ${phones.length ? ' ・ 電話：' + phones.map(escapeHtml).join('、') : ''}</div>
+    `;
+    resultsEl.appendChild(summary);
+
+    if(distinctNames.length > 1 || addrs.length > 1){
+      const warn = document.createElement('div');
+      warn.className = 'multi-warning';
+      warn.textContent = distinctNames.length > 1
+        ? `注意：本次查到 ${distinctNames.length} 位不同姓名符合關鍵字，請往下確認是否為同一人。`
+        : `此姓名有多筆不同地址紀錄，可能為不同人或地址已變更，請以電話或地址進一步核對。`;
+      resultsEl.appendChild(warn);
+    }
+
+    const byYear = {};
+    records.forEach(r => {
+      const key = String(r['年度']);
+      if(!byYear[key]) byYear[key] = [];
+      byYear[key].push(r);
+    });
+    Object.keys(byYear).forEach(year => {
+      byYear[year].sort((a, b) => (b['_time'] || 0) - (a['_time'] || 0));
+    });
+
+    Object.keys(byYear).sort().reverse().forEach(year => {
+      const group = document.createElement('div');
+      group.className = 'year-group';
+      const first = byYear[year][0];
+      group.innerHTML = `<div class="year-title"><span class="yr">民國 ${escapeHtml(year)} 年</span><span class="assembly">${escapeHtml(first['法會名稱'] || '')}</span></div>`;
+      byYear[year].forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'record-card';
+        card.innerHTML = `
+          <div class="record-row">
+            <div class="record-item">姓氏祖先：${escapeHtml(r['項目'] || '（未填項目說明）')}${r['_來源'] ? `<span class="source-tag">${escapeHtml(r['_來源'])}</span>` : ''}</div>
+            <div class="record-fee">${r['費用'] ? 'NT$ ' + escapeHtml(r['費用']) : ''}</div>
+          </div>
+          <div class="record-detail">
+            ${r['陽上人'] ? `<div>陽上人：${escapeHtml(r['陽上人'])}</div>` : ''}
+            ${r['地址'] ? `<div>祖先牌位地址：${escapeHtml(r['地址'])}</div>` : ''}
+            ${r['備註'] ? `<div>備註：${escapeHtml(r['備註'])}</div>` : ''}
+            <div>編號 #${escapeHtml(r['編號'])}
+              ${r['收款狀態'] ? `<span class="badge">已收款 ${escapeHtml(r['收款狀態'])}</span>` : ''}
+              ${r['照片'] ? `<span class="badge">照片 ${escapeHtml(r['照片'])}</span>` : ''}
+            </div>
+          </div>
+        `;
+        group.appendChild(card);
+      });
+      resultsEl.appendChild(group);
+    });
+  });
+}
+
+// ---- 匯出「全部」報名資料為 Excel ----
+const exportAllBtn = document.getElementById('exportAllBtn');
+exportAllBtn.addEventListener('click', () => {
+  if(!ALL.length){ alert('目前沒有任何可匯出的報名資料'); return; }
+  const rows = ALL.map(r => COLS.map(c => (r[c] !== undefined && r[c] !== null) ? r[c] : ''));
+  const ws = XLSX.utils.aoa_to_sheet([COLS, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '報名資料');
+  XLSX.writeFile(wb, `信徒報名資料_全部_${new Date().toISOString().slice(0,10)}.xlsx`);
+});
+
+searchBtn.addEventListener('click', doSearch);
+searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
+
+// ---- 版本紀錄 ----
+const APP_VERSION = 'v2.3';
+const CHANGELOG = [
+  { version:'v2.3', date:'2026-10-08', items:[
+    '線上報名資料不用再手動下載、匯入備份檔：管理員在「資料管理 → 二」輸入法會報名平台的姓名與密碼，按「從法會報名平台更新」就會直接抓取最新報名資料（密碼不儲存，抓完自動登出法會報名平台）',
+    '原本「匯入備份檔」的方式保留，作為備用',
+  ]},
+  { version:'v2.2', date:'2026-10-07', items:[
+    '頁面標題與首頁加上平台名稱，Netlify 專案列表的縮圖也看得出是哪個平台',
+    '密碼規則：新建帳號、修改密碼一律至少 8 碼（舊的短密碼仍可登入，下次修改時需改成 8 碼以上）',
+  ]},
+  { version:'v2.1', date:'2026-10-07', items:[
+    '資安加強：工作人員帳號改為「白名單」制，第一次登入後需由管理員在「資料管理 → 四、工作人員帳號啟用」按「啟用」才看得到資料；就算有人自行建立帳號也讀不到信徒資料',
+    '管理員可在「資料管理 → 三」直接新增志工帳號（姓名＋預設密碼，建立後自動啟用）；所有人可按上方「修改密碼」自行更改密碼',
+  ]},
+  { version:'v2.0', date:'2026-10-06', items:[
+    '資安改版：資料從 Google 試算表／Apps Script 搬到獨立的 Firebase 專案；必須先用「姓名＋個人密碼」登入才能查詢，未登入看不到任何信徒資料',
+    '查詢改為在瀏覽器內搜尋，速度更快；新增管理員「資料管理」：匯入歷史資料、匯入法會報名平台備份檔、產生新帳號的登入 Email',
+    '不再直接連線法會報名平台的資料庫（報名資料不必對外公開）；線上報名資料改由管理員匯入備份檔更新',
+  ]},
+  { version:'v1.8', date:'2026-10-04', items:[
+    '修正線上報名平台資料的「編號」顯示：改成跟報名平台後台「報名清單」一致的循序號碼',
+  ]},
+  { version:'v1.7', date:'2026-10-04', items:['匯出Excel改成匯出「全部」報名資料，按鈕移到查詢欄位下方']},
+  { version:'v1.6', date:'2026-10-04', items:['查詢結果排序改為「最新報名資料在最前面」']},
+  { version:'v1.5', date:'2026-10-04', items:['版本紀錄改為頁尾呈現','查詢結果新增「匯出 Excel」功能','自動讀取法會報名平台的最新報名資料']},
+  { version:'v1.4', date:'2026-10-02', items:['修正banner圖片連結失效時顯示破圖小圖示的問題','新增Netlify專案縮圖中文標籤']},
+  { version:'v1.3', date:'2026-10-01', items:['查詢同時比對「項目」欄位','查詢結果卡片新增「姓氏祖先」「祖先牌位地址」欄位標籤']},
+  { version:'v1.2', date:'2026-09-09', items:['調整banner圖片版面比例與裁切方式']},
+  { version:'v1.1', date:'2026-09-09', items:['新增可自訂標頭標題、說明文字與banner圖片']},
+  { version:'v1.0', date:'2026-09-08', items:['初版上線：姓名關鍵字查詢、法會類別篩選']},
+];
+document.getElementById('versionBadge').textContent = APP_VERSION;
+const changelogPanel = document.getElementById('changelogPanel');
+changelogPanel.innerHTML = CHANGELOG.map(c => `
+  <div class="changelog-entry">
+    <span class="cl-version">${c.version}</span><span class="cl-date">${c.date}</span>
+    <ul>${c.items.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
+  </div>
+`).join('');
+document.getElementById('toggleChangelogBtn').addEventListener('click', () => {
+  changelogPanel.style.display = changelogPanel.style.display === 'none' ? 'block' : 'none';
+});
+
+initFirebase();
+</script>
+</body>
+</html>
