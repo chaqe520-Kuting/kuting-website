@@ -500,3 +500,16 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
 .cal-notes ul { margin: 0; padding-left: 1.2em; }
 .cal-notes li { margin: 2px 0; }
 .h2-note { margin-left: 10px; font-size: .9rem; font-weight: 400; color: var(--text-muted); }
+
+/* 影片區：播放器下方的影片標題清單，點選即播放 */
+.video-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.video-list button {
+  width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; cursor: pointer;
+  padding: 8px; background: #fff; border: 1px solid #e6d7b8; border-radius: 8px; font: inherit; color: inherit;
+}
+.video-list button:hover, .video-list button.active { border-color: #c9a046; background: #fdf6e3; }
+.video-list button.active strong { color: #8e1f2c; }
+.video-list img { width: 112px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; flex: none; background: #3a2618; }
+.video-list span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.video-list strong { font-size: 1rem; line-height: 1.4; }
+.video-list small { color: #7a6650; }
