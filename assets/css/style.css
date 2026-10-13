@@ -513,3 +513,198 @@ a.card:hover { transform: translateY(-2px); color: inherit; }
 .video-list span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .video-list strong { font-size: 1rem; line-height: 1.4; }
 .video-list small { color: #7a6650; }
+/* =====================================================================
+ * 古風寺廟主題：宣紙底、回紋邊、祥雲標題、朱印日期、楷書字體
+ * ===================================================================== */
+:root {
+  --font-kai: "LXGW WenKai TC", "BiauKai", "DFKai-SB", "KaiTi", var(--font-serif);
+  --paper: #f3e7cc;
+  --paper-deep: #e9d8b4;
+  --ink: #2e1d12;
+  --fret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 11H11V1H3V8H8V4H6' fill='none' stroke='%23c9a046' stroke-width='1.4'/%3E%3Cpath d='M12 11H23V1H15V8H20V4H18' fill='none' stroke='%23c9a046' stroke-width='1.4'/%3E%3C/svg%3E");
+  --cloud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 24'%3E%3Cg fill='none' stroke='%23b8742b' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M2 18c6 0 8-4 12-4s5 4 9 4 4-6 0-7-6 3-3 5'/%3E%3Cpath d='M23 18c5 0 7-9 14-9s8 9 13 9 6-6 1-8-7 4-3 6'/%3E%3Cpath d='M2 22h56'/%3E%3C/g%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.32 0 0 0 0 0.15 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --bg: var(--paper);
+  --surface: #fbf4e3;
+  --surface-alt: var(--paper-deep);
+  --text: var(--ink);
+  --border: #d6bf92;
+}
+
+body {
+  background: var(--grain), radial-gradient(ellipse at top, #f8eed8, var(--paper) 60%);
+  font-family: var(--font-serif);
+}
+
+h1, h2, h3, h4,
+.brand, .site-nav a, .btn, .event-date .d {
+  font-family: var(--font-kai);
+}
+
+/* 頁首：朱紅木樑 + 金色回紋飾帶 */
+.site-header {
+  background: linear-gradient(180deg, #9a2431, var(--primary) 55%, var(--primary-dark));
+  border-bottom: 0;
+}
+.site-header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -12px;
+  height: 12px;
+  background: var(--fret) repeat-x, #4a1018;
+  background-size: 24px 12px;
+  border-bottom: 2px solid var(--accent);
+}
+.brand { font-size: 1.7rem; letter-spacing: 0.25em; }
+.site-nav a { font-size: 1.12rem; letter-spacing: 0.15em; }
+.notice-bar { margin-top: 14px; background: #f7ebc9; }
+
+/* 首頁橫幅：照片加木框 */
+.hero { background: #4a1018; padding: 18px 0 0; }
+.hero-img {
+  border: 6px solid #6b4423;
+  outline: 2px solid var(--accent);
+  outline-offset: -10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  max-width: calc(100% - 24px);
+}
+@media (min-width: 1040px) { .hero-img { max-width: 1000px; } }
+.hero-band {
+  margin-top: 18px;
+  background: var(--fret) repeat-x top / 24px 12px, var(--fret) repeat-x bottom / 24px 12px, var(--primary);
+  padding: 22px 16px;
+  border-top: 0;
+}
+.hero-band p { font-family: var(--font-kai); font-size: clamp(1.15rem, 4vw, 1.7rem); letter-spacing: 0.25em; }
+
+/* 區塊標題：置中、兩側祥雲 */
+.section { padding-top: 48px; }
+.section-head {
+  position: relative;
+  justify-content: center;
+  border-bottom: 0;
+  padding-bottom: 18px;
+  margin-bottom: 24px;
+  background: var(--fret) repeat-x bottom / 24px 12px;
+}
+.section-head h2 {
+  font-size: 1.75rem;
+  letter-spacing: 0.3em;
+  padding: 0 70px;
+  background: var(--cloud) no-repeat left center / 56px auto, var(--cloud) no-repeat right center / 56px auto;
+}
+.section-head h2::first-letter { color: var(--primary); }
+.section-head a {
+  position: absolute;
+  right: 0;
+  bottom: 22px;
+  font-family: var(--font-kai);
+}
+@media (max-width: 640px) {
+  .section-head { flex-direction: column; align-items: center; }
+  .section-head h2 { font-size: 1.45rem; padding: 0 56px; background-size: 44px auto, 44px auto; }
+  .section-head a { position: static; margin-top: 4px; }
+}
+
+/* 頁面標題：卷軸感 */
+.page-title {
+  text-align: center;
+  background: var(--fret) repeat-x bottom / 24px 12px, linear-gradient(180deg, var(--paper-deep), var(--paper));
+  border-bottom: 0;
+  padding-bottom: 36px;
+}
+.page-title h1 { font-size: clamp(1.9rem, 6vw, 2.6rem); letter-spacing: 0.35em; }
+
+/* 卡片：宣紙 + 內框金線 */
+.card, .event, .info-box, .article {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  box-shadow: 0 2px 0 rgba(107, 68, 35, 0.15), 0 6px 16px rgba(70, 40, 15, 0.08);
+  position: relative;
+}
+.card::before, .event::before, .info-box::before, .article::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(201, 160, 70, 0.55);
+  pointer-events: none;
+}
+.album-cover { border-bottom: 3px solid var(--primary); }
+
+/* 法會日期：朱紅印章 */
+.event { align-items: center; padding: 16px 18px; }
+.event-date {
+  width: 76px;
+  padding: 6px 0;
+  border: 0;
+  background: var(--primary);
+  color: #f6e3b0;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px #f1d27a, inset 0 0 0 4px var(--primary);
+}
+.event-date .m, .event-date .w { color: #f1d27a; }
+.event-date .d { color: #fff4d0; font-weight: 700; }
+.event-info h3 { font-size: 1.25rem; }
+.badge { border-radius: 2px; font-family: var(--font-kai); }
+
+/* 按鈕 */
+.btn { border-radius: 2px; border-color: var(--border); background: var(--surface); }
+.btn.active, .btn-primary { box-shadow: inset 0 0 0 2px #f1d27a; }
+
+/* 月曆 */
+.cal-grid { border-radius: 2px; background: var(--surface); }
+.cal-grid .wd { background: var(--primary); color: #f1d27a; font-family: var(--font-kai); font-size: 1rem; }
+
+/* 文章：直式書卷感 */
+.article { padding: 36px 28px; }
+.article h1 { text-align: center; letter-spacing: 0.2em; }
+.article blockquote { font-family: var(--font-kai); font-size: 1.1rem; }
+
+/* 頁尾：深木 + 回紋 */
+.site-footer {
+  border-top: 0;
+  background: var(--fret) repeat-x top / 24px 12px, linear-gradient(180deg, #3f2a1b, #2a1a10);
+  padding-top: 44px;
+}
+.site-footer h4 { font-family: var(--font-kai); font-size: 1.15rem; }
+@media (max-width: 640px) {
+  .hero-band { gap: 8px; padding: 20px 10px; }
+  .hero-band .lotus { width: 26px; }
+  .hero-band p { font-size: 1.08rem; letter-spacing: 0.06em; }
+}
+
+/* ===== 首頁標語：白馬寺照壁風格（黃底、白色圓框字） ===== */
+.hero-band .lotus { display: none; }
+.hero-band p.zhaobi {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px 28px;
+  margin: 0 auto;
+  background: #eed892;
+  border: 3px solid #7d2519;
+  box-shadow: inset 0 0 0 6px #eed892, inset 0 0 0 8px rgba(125, 37, 25, 0.35);
+  padding: 18px 24px;
+  max-width: 1000px;
+  width: 100%;
+  letter-spacing: 0;
+}
+.zhaobi .group { display: flex; gap: 10px; }
+.zhaobi .ch {
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  background: #fffdf6;
+  color: #7d2519;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-kai, var(--font-serif));
+  font-weight: 700;
+  font-size: 1.7rem;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+@media (max-width: 640px) {
+  .hero-band p.zhaobi { padding: 14px 10px; gap: 10px; }
+  .zhaobi .group { gap: 6px; }
+  .zhaobi .ch { width: 40px; height: 40px; font-size: 1.35rem; }
+}
