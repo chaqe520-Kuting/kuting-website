@@ -59,7 +59,7 @@ window.ALBUMS = [
  *   也可以貼「播放清單網址」：只播放清單裡的影片。
  *     例如 "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx"
  */
-window.VIDEO_PLAYLIST = "https://www.youtube.com/playlist?list=PLBS8vMNMpxMo";
+window.VIDEO_PLAYLIST = "https://www.youtube.com/channel/UCZP_tOAPNNszszPnDQM8oqQ";
 
 /*
  * 個別影片清單（有播放清單的話可以不填）
