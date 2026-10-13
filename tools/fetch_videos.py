@@ -1,12 +1,13 @@
 """抓古亭院 YouTube 頻道的影片標題，產生網站影片清單 data/channel_videos.js。
 
 GitHub 每小時自動執行（.github/workflows/videos.yml）：
-  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，從 YouTube 公開的 RSS 取得最新 15 部影片，
-  和原本清單合併（較舊的影片保留），依上傳日期由新到舊排列。
+  讀 data/albums.js 裡 VIDEO_PLAYLIST 的頻道 ID，用 yt-dlp 讀頻道「上傳的影片」清單（含直式短影片）；
+  yt-dlp 失敗時改讀 YouTube 的 RSS（最新 15 部，較舊的影片沿用原本清單）。
 
-在自己電腦執行：python3 tools/fetch_videos.py
+在自己電腦執行：pip install yt-dlp，再執行 python3 tools/fetch_videos.py
 """
 import json
+import subprocess
 import os
 import re
 import sys
@@ -51,6 +52,48 @@ def parse_feed(xml):
     return videos
 
 
+def fetch_with_ytdlp(cid):
+    """用 yt-dlp 讀頻道「上傳的影片」清單（含直式短影片，新到舊）；沒有安裝或失敗回傳 None"""
+    url = "https://www.youtube.com/playlist?list=UU" + cid[2:]
+    try:
+        r = subprocess.run(
+            ["yt-dlp", "--flat-playlist", "-J", "--extractor-args", "youtubetab:approximate_date", url],
+            capture_output=True, text=True, timeout=120)
+        if r.returncode:
+            print("yt-dlp 讀取失敗：" + r.stderr.strip()[-500:])
+            return None
+        entries = json.loads(r.stdout).get("entries") or []
+    except Exception as e:
+        print("yt-dlp 讀取失敗（%s）" % e)
+        return None
+    videos = []
+    for e in entries:
+        if not e.get("id"):
+            continue
+        d = e.get("upload_date") or ""
+        if not d and e.get("timestamp"):
+            d = datetime.fromtimestamp(e["timestamp"], timezone(timedelta(hours=8))).strftime("%Y%m%d")
+        videos.append({"id": e["id"], "title": (e.get("title") or "").strip(),
+                       "date": "%s-%s-%s" % (d[:4], d[4:6], d[6:8]) if len(d) == 8 else ""})
+    print("yt-dlp 讀取成功：%d 部" % len(videos))
+    return videos
+
+
+def fetch_latest(cid):
+    """依序試頻道 RSS、頻道「上傳的影片」清單 RSS；都失敗回傳 None"""
+    urls = [FEED + cid, FEED.replace("channel_id", "playlist_id") + "UU" + cid[2:]]
+    for url in urls:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "zh-TW"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                videos = parse_feed(r.read())
+            print("讀取成功：%s（%d 部）" % (url, len(videos)))
+            return videos
+        except Exception as e:  # 網路或 YouTube 暫時錯誤：換下一個網址
+            print("讀取失敗：%s（%s）" % (url, e))
+    return None
+
+
 def load_existing():
     if not os.path.exists(OUT):
         return []
@@ -72,12 +115,20 @@ def main():
     if not cid:
         print("data/albums.js 的 VIDEO_PLAYLIST 不是頻道網址，略過")
         return 0
-    with urllib.request.urlopen(FEED + cid, timeout=30) as r:
-        latest = parse_feed(r.read())
-    # RSS 只有最新 15 部：較舊的影片沿用原本清單
-    ids = {v["id"] for v in latest}
-    videos = latest + [v for v in load_existing() if v["id"] not in ids]
-    videos.sort(key=lambda v: v["date"], reverse=True)
+    full = fetch_with_ytdlp(cid)
+    latest = full if full is not None else fetch_latest(cid)
+    if latest is None:
+        print("::warning::暫時抓不到 YouTube 影片清單，網站維持原本的清單，下個小時再試")
+        return 0
+    old = {v["id"]: v for v in load_existing()}
+    for v in latest:  # 抓不到日期時沿用原本的日期
+        if not v["date"] and v["id"] in old:
+            v["date"] = old[v["id"]]["date"]
+    if full is None:  # RSS 只有最新 15 部：較舊的影片沿用原本清單
+        ids = {v["id"] for v in latest}
+        latest += [v for v in old.values() if v["id"] not in ids]
+        latest.sort(key=lambda v: v["date"], reverse=True)
+    videos = latest
     write(videos)
     print("影片 %d 部" % len(videos))
     return 0

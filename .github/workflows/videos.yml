@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: pip install -U yt-dlp
       - run: python tools/fetch_videos.py
       - name: 存回影片清單
         run: |
