@@ -51,6 +51,21 @@ def parse_feed(xml):
     return videos
 
 
+def fetch_latest(cid):
+    """依序試頻道 RSS、頻道「上傳的影片」清單 RSS；都失敗回傳 None"""
+    urls = [FEED + cid, FEED.replace("channel_id", "playlist_id") + "UU" + cid[2:]]
+    for url in urls:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "zh-TW"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                videos = parse_feed(r.read())
+            print("讀取成功：%s（%d 部）" % (url, len(videos)))
+            return videos
+        except Exception as e:  # 網路或 YouTube 暫時錯誤：換下一個網址
+            print("讀取失敗：%s（%s）" % (url, e))
+    return None
+
+
 def load_existing():
     if not os.path.exists(OUT):
         return []
@@ -72,8 +87,10 @@ def main():
     if not cid:
         print("data/albums.js 的 VIDEO_PLAYLIST 不是頻道網址，略過")
         return 0
-    with urllib.request.urlopen(FEED + cid, timeout=30) as r:
-        latest = parse_feed(r.read())
+    latest = fetch_latest(cid)
+    if latest is None:
+        print("::warning::暫時抓不到 YouTube 影片清單，網站維持原本的清單，下個小時再試")
+        return 0
     # RSS 只有最新 15 部：較舊的影片沿用原本清單
     ids = {v["id"] for v in latest}
     videos = latest + [v for v in load_existing() if v["id"] not in ids]
