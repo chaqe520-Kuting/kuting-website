@@ -831,9 +831,14 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.2';
-const APP_DATE = '2026-10-08';
+const APP_VERSION = 'v1.11.3';
+const APP_DATE = '2026-10-15';
 const CHANGELOG = [
+  { version:'v1.11.3', date:'2026-10-15', items:[
+    '修正：網頁登記的現金收入／支出，在歷史資料已有的月份（例如115年9月只有銀行帳）不會算進月份明細、圖表與結餘的問題',
+    '現在新增、修改、刪除收支登記後，儀表板、月份明細、累計結餘、支出分類與帳戶餘額都會立即同步更新',
+    '網頁登記出現新年度時，年度選單會自動加上',
+  ]},
   { version:'v1.11.2', date:'2026-10-08', items:[
     '收支明細查詢（合併查詢、銀行存款明細、現金收入）欄位排列比照「最近登記」：年月、來源、姓名、金額固定寬度，項目／摘要放寬',
     '項目／摘要內容過長時才換行；手機畫面可左右滑動',
@@ -1514,17 +1519,53 @@ function rebuildLiveDerived(){
     }
   });
 
-  const liveMonthRows = Object.values(byYM)
-    .filter(r => !SEED_YM.has(`${r.year}-${r.month}`))
-    .map(r => ({
-      year:r.year, month:r.month,
-      cashIn:r.cashIn||null, cashOut:r.cashOut||null, bankIn:r.bankIn||null, bankOut:r.bankOut||null,
-      note:'網頁即時登記', categories:r.categories
-    }));
+  // v1.11.3：網頁登記一律併入月份統計。以前只要歷史資料已有該月份（例如115年9月只有銀行帳），
+  // 該月的網頁登記就整筆被略過，造成月份明細、圖表、結餘沒有更新。
+  // 現在改為逐欄相加：歷史資料該欄空白（例如「現金帳未入」）就直接用網頁登記金額。
+  const merged = JSON.parse(JSON.stringify(SEED_MONTHS));
+  const addField = (base, add) => add ? (base||0) + add : (base===undefined ? null : base);
+  Object.values(byYM).forEach(r=>{
+    let m = merged.find(x=>x.year===r.year && x.month===r.month);
+    if(!m){
+      merged.push({
+        year:r.year, month:r.month,
+        cashIn:r.cashIn||null, cashOut:r.cashOut||null, bankIn:r.bankIn||null, bankOut:r.bankOut||null,
+        note:'網頁即時登記', categories:r.categories
+      });
+      return;
+    }
+    const hadCash = m.cashIn!==null || m.cashOut!==null;
+    m.cashIn = addField(m.cashIn, r.cashIn);
+    m.cashOut = addField(m.cashOut, r.cashOut);
+    m.bankIn = addField(m.bankIn, r.bankIn);
+    m.bankOut = addField(m.bankOut, r.bankOut);
+    m.categories = Object.assign({}, m.categories||{});
+    Object.keys(r.categories).forEach(c=>{ m.categories[c] = (m.categories[c]||0) + r.categories[c]; });
+    if(!hadCash && (r.cashIn || r.cashOut)){
+      // 原本的「現金帳本月尚未登記」說明已不適用
+      m.note = '現金：網頁即時登記' + (r.bankIn || r.bankOut ? '；銀行：帳本數字＋網頁登記' : ((m.bankIn!==null || m.bankOut!==null) ? '；銀行：帳本數字' : ''));
+    } else {
+      m.note = [m.note, '含網頁即時登記'].filter(Boolean).join('；');
+    }
+  });
 
-  monthsData = JSON.parse(JSON.stringify(SEED_MONTHS)).concat(liveMonthRows);
+  monthsData = merged;
   monthsData.sort((a,b)=> a.year - b.year || a.month - b.month);
+  refreshYearPicker();
   populateAutocompleteLists();
+}
+
+// 網頁登記出現新年度（例如116年1月）時，年度選單要跟著加上，並保留目前選的年度
+function refreshYearPicker(){
+  const sel = document.getElementById('yearPick');
+  if(!sel || !dataReady || !monthsData.length) return;
+  const have = new Set(Array.from(sel.options).map(o=>o.value));
+  const need = Array.from(new Set(monthsData.map(r=>String(r.year))));
+  if(need.every(y=>have.has(y))) return;
+  const prev = sel.value;
+  const wasLatest = !prev || prev === Array.from(sel.options).filter(o=>o.value!=='ALL').map(o=>o.value).pop();
+  populateYearPicker(monthsData);
+  if(prev && !wasLatest && Array.from(sel.options).some(o=>o.value===prev)) sel.value = prev;
 }
 
 function showLiveStatus(text){
