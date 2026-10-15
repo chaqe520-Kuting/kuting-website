@@ -492,7 +492,7 @@
           </div>
           <div>
             <label>金額</label>
-            <input type="number" id="entryAmount" min="0" placeholder="0">
+            <input type="text" id="entryAmount" inputmode="numeric" autocomplete="off" placeholder="0">
           </div>
         </div>
 
@@ -831,9 +831,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.3';
+const APP_VERSION = 'v1.11.4';
 const APP_DATE = '2026-10-15';
 const CHANGELOG = [
+  { version:'v1.11.4', date:'2026-10-15', items:[
+    '日常收支登記的金額欄，輸入時自動加上千分位逗號（例如 12,500），方便核對位數',
+    '「最近登記」清單的金額拿掉 NT$ 字樣，只顯示數字',
+  ]},
   { version:'v1.11.3', date:'2026-10-15', items:[
     '修正：網頁登記的現金收入／支出，在歷史資料已有的月份（例如115年9月只有銀行帳）不會算進月份明細、圖表與結餘的問題',
     '現在新增、修改、刪除收支登記後，儀表板、月份明細、累計結餘、支出分類與帳戶餘額都會立即同步更新',
@@ -1678,13 +1682,30 @@ function renderAccountBalances(){
   renderBalancePreview();
 }
 
+// v1.11.4 金額欄邊輸入邊加千分位逗號（例 12,500），存檔時去掉逗號轉成數字
+function getEntryAmount(){
+  return Number(String(document.getElementById('entryAmount').value).replace(/[,，\s]/g,''));
+}
+function formatAmountInput(el){
+  const raw = el.value;
+  const digitsBefore = raw.slice(0, el.selectionStart||0).replace(/\D/g,'').length;
+  const digits = raw.replace(/\D/g,'').replace(/^0+(?=\d)/,'');
+  const out = digits ? Number(digits).toLocaleString('en-US') : '';
+  if(out === raw) return;
+  el.value = out;
+  // 游標維持在原本那個數字後面
+  let pos = 0, seen = 0;
+  while(pos < out.length && seen < digitsBefore){ if(/\d/.test(out[pos])) seen++; pos++; }
+  try{ el.setSelectionRange(pos, pos); }catch(_){}
+}
+
 function renderBalancePreview(){
   const wrap = document.getElementById('refPreviewWrap');
   const out = document.getElementById('refPreviewBalance');
   if(!wrap || !out) return;
   const account = document.getElementById('entryAccount').value;
   const direction = document.getElementById('entryDirection').value;
-  const amount = Number(document.getElementById('entryAmount').value);
+  const amount = getEntryAmount();
   if(!amount || amount <= 0){
     wrap.style.display = 'none';
     return;
@@ -1957,7 +1978,7 @@ async function handleSubmitEntry(){
   if(!dateStr){ msg.textContent = '請選擇日期'; return; }
   const account = document.getElementById('entryAccount').value;
   const direction = document.getElementById('entryDirection').value;
-  const amount = Number(document.getElementById('entryAmount').value);
+  const amount = getEntryAmount();
   if(!amount || amount <= 0){ msg.textContent = '請輸入正確的金額'; return; }
   const {year, month} = gregorianToROC(dateStr);
 
@@ -2002,7 +2023,7 @@ function startEditEntry(id){
   document.getElementById('entryDate').value = e.date;
   document.getElementById('entryAccount').value = e.account;
   document.getElementById('entryDirection').value = e.direction;
-  document.getElementById('entryAmount').value = e.amount;
+  document.getElementById('entryAmount').value = Math.round(e.amount).toLocaleString('en-US');
   document.getElementById('entryNote').value = e.note||'';
   toggleEntryDirectionFields();
   document.getElementById('entryName').value = e.name||'';
@@ -2049,7 +2070,7 @@ function renderLiveEntryTable(){
       <td>${e.direction==='in'?'收入':'支出'}</td>
       <td>${nameOrCat}</td>
       <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}</td>
-      <td>${money(e.amount)}</td>
+      <td>${moneyPlain(e.amount)}</td>
       <td class="muted">${e.enteredBy||''}</td>
       <td>
         <button class="row-edit" onclick="startEditEntry('${e.id}')">編輯</button>
@@ -2470,7 +2491,7 @@ function init(){
   document.getElementById('importSeedBtn').addEventListener('click', handleImportSeed);
   document.getElementById('entryDirection').addEventListener('change', ()=>{ toggleEntryDirectionFields(); renderBalancePreview(); });
   document.getElementById('entryAccount').addEventListener('change', ()=>{ toggleEntryDirectionFields(); renderBalancePreview(); });
-  document.getElementById('entryAmount').addEventListener('input', renderBalancePreview);
+  document.getElementById('entryAmount').addEventListener('input', ev=>{ formatAmountInput(ev.target); renderBalancePreview(); });
   document.getElementById('submitEntryBtn').addEventListener('click', handleSubmitEntry);
   document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
   document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
