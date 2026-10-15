@@ -933,7 +933,9 @@
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">王張牡丹,4,10</code>
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">陳小姐,壽桃,2</code>
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">黃姐,12,500</code><br>
-        項次可填數字（比對「項次」欄）或品項名稱都可以。只要整段貼上的內容「每一行都有逗號分隔成2～3欄」，系統就會優先用這個方式解析，最準確、最不會有辨識落差。若沒有逗號，系統仍會嘗試辨識「供品項次：」「贊助數量：」「贊助者姓名：」標籤格式，或「陳小姐 壽桃 2」這種舊格式，但正確率不如逗號格式。解析結果請務必核對後再匯入。</p>
+        <strong>各師尊大壽金</strong>要寫敬致的仙佛／師尊時，用 4 欄「姓名,項次,仙佛名稱,數量」，例如：
+        <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">王小明,17,觀世音菩薩,1</code><br>
+        項次可填數字（比對「項次」欄）或品項名稱都可以。只要整段貼上的內容「每一行都有逗號分隔成2～4欄」，系統就會優先用這個方式解析，最準確、最不會有辨識落差。若沒有逗號，系統仍會嘗試辨識「供品項次：」「贊助數量：」「贊助者姓名：」標籤格式，或「陳小姐 壽桃 2」這種舊格式，但正確率不如逗號格式。解析結果請務必核對後再匯入。</p>
         <textarea id="bulkText" placeholder="建議格式，每行「姓名,項次或品項,數量」：&#10;王張牡丹,4,10&#10;陳小姐,壽桃,2"></textarea>
         <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
           <button class="ghost-btn" id="bulkParseBtn">解析預覽</button>
@@ -942,7 +944,7 @@
         <div id="bulkPreviewWrap" style="margin-top:14px; display:none;">
           <div class="table-wrap">
             <table>
-              <thead><tr><th></th><th>姓名</th><th>比對品項</th><th>數量/金額</th><th>狀態</th></tr></thead>
+              <thead><tr><th></th><th>姓名</th><th>比對品項</th><th>敬致仙佛</th><th>數量/金額</th><th>狀態</th></tr></thead>
               <tbody id="bulkPreviewBody"></tbody>
             </table>
           </div>
@@ -1131,8 +1133,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v86";
-  var APP_UPDATED = "2026-10-08";
+  var APP_VERSION = "v87";
+  var APP_UPDATED = "2026-10-15";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1142,6 +1144,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v87", date: "2026-10-15", changes: [
+      "「LINE 訊息貼上快速登記」：各師尊大壽金可寫敬致的仙佛／師尊名稱，格式「姓名,項次,仙佛名稱,數量」，例：王小明,17,觀世音菩薩,1（項次後面一欄是仙佛稱號，最後是數量）；不寫數量時視為 1",
+      "解析預覽多一欄「敬致仙佛」可直接修改，匯入後登記清單、單筆預覽與紅紙都會顯示仙佛名稱；資料庫與規則未變更"
+    ]},
     { version: "v86", date: "2026-10-08", changes: [
       "新增：可「加到手機主畫面」，像 App 一樣有「供」字圖示（硃紅底金框），點開直接進報名頁、不顯示網址列",
       "新增：頁面下方「加到主畫面」提示列：從 LINE 打開時提示「用瀏覽器開啟」，Android 有一鍵加入按鈕，iPhone 顯示步驟；按 × 關掉後 14 天不再出現"
@@ -5983,27 +5989,40 @@
     return parts;
   }
 
+  // v87 — 各師尊大壽金要另外寫敬致哪一位仙佛，所以也接受 4 欄
+  // 「姓名,項次,仙佛名稱,數量」（例：王小明,17,觀世音菩薩,1）。
   function looksLikeCsv(rawLines){
     return rawLines.length > 0 && rawLines.every(function(l){
       var parts = splitCsvLine(l);
-      return parts.length === 2 || parts.length === 3;
+      return parts.length >= 2 && parts.length <= 4;
     });
   }
+
+  function isQtyToken(t){ return /^\s*[各]?\s*\d+(?:\.\d+)?\s*[^\d\s]{0,2}\s*$/.test(t || ""); }
 
   function parseCsvRecords(rawLines, occ){
     return rawLines.map(function(line){
       var parts = splitCsvLine(line);
-      var name, itemTok, qtyTok;
-      if(parts.length === 3){
+      var name, itemTok, qtyTok, dedicate = "";
+      if(parts.length === 4){
+        // 姓名,項次,仙佛名稱,數量 —— 若仙佛與數量順序寫反（數量在前），以「是數字的那欄」當數量
+        name = parts[0]; itemTok = parts[1];
+        if(!isQtyToken(parts[3]) && isQtyToken(parts[2])){ qtyTok = parts[2]; dedicate = parts[3]; }
+        else { dedicate = parts[2]; qtyTok = parts[3]; }
+      } else if(parts.length === 3){
         name = parts[0]; itemTok = parts[1]; qtyTok = parts[2];
       } else {
         name = ""; itemTok = parts[0]; qtyTok = parts[1];
       }
       var matched = resolveItemToken(itemTok, occ);
+      // 3 欄但最後一欄不是數字（例：王小明,17,觀世音菩薩），而且是需要寫仙佛的品項：當成仙佛名稱、數量 1
+      if(parts.length === 3 && matched && itemNeedsDedication(matched.catId, occ) && !isQtyToken(qtyTok)){
+        dedicate = qtyTok; qtyTok = null;
+      }
       var qty = parseQtyToken(qtyTok);
       name = name.trim() || "(未填姓名)";
       return {
-        raw: line, name: name, matched: matched, qty: qty,
+        raw: line, name: name, matched: matched, qty: qty, dedicateTo: dedicate.trim(),
         amount: matched ? (matched.type === "donation" ? qty : qty * matched.price) : 0
       };
     });
@@ -6098,12 +6117,18 @@
         '<td><input type="checkbox" class="preview-check" ' + (checkable ? "checked" : "") + (row.overCapacity ? " disabled" : "") + ' data-idx="' + idx + '" data-role="check"></td>' +
         '<td><input type="text" value="' + row.name.replace(/"/g,"&quot;") + '" data-idx="' + idx + '" data-role="name" style="width:110px;"></td>' +
         '<td>' + matchedLabel + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') + '</td>' +
+        '<td>' + (row.matched && itemNeedsDedication(row.matched.catId)
+          ? '<input type="text" value="' + (row.dedicateTo || "").replace(/"/g,"&quot;") + '" placeholder="仙佛名稱" data-idx="' + idx + '" data-role="dedicate" style="width:110px;">'
+          : '<span class="type-tag">—</span>') + '</td>' +
         '<td class="num">' + qtyLabel + '</td>' +
         '<td>' + statusBadge + '</td>';
       bulkPreviewBody.appendChild(tr);
     });
     bulkPreviewBody.querySelectorAll('[data-role="name"]').forEach(function(inp){
       inp.addEventListener("input", function(){ previewRows[+inp.getAttribute("data-idx")].name = inp.value; });
+    });
+    bulkPreviewBody.querySelectorAll('[data-role="dedicate"]').forEach(function(inp){
+      inp.addEventListener("input", function(){ previewRows[+inp.getAttribute("data-idx")].dedicateTo = inp.value; });
     });
   }
 
@@ -6120,7 +6145,8 @@
         addRegistration({
           name: row.name, phone: "", catId: row.matched.catId, label: row.matched.label, type: row.matched.type,
           qty: row.qty, unitPrice: row.matched.price,
-          amount: row.matched.type === "donation" ? row.qty : row.qty * row.matched.price
+          amount: row.matched.type === "donation" ? row.qty : row.qty * row.matched.price,
+          dedicateTo: itemNeedsDedication(row.matched.catId) ? String(row.dedicateTo || "").trim() : ""
         });
         added++;
       }
