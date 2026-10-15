@@ -537,6 +537,13 @@
           </div>
         </div>
 
+        <div class="form-row">
+          <div style="grid-column:1 / -1;">
+            <label>紅包袋編號（選填）</label>
+            <input type="text" id="entryEnvelope" autocomplete="off" placeholder="例如 0123">
+          </div>
+        </div>
+
         <div class="form-footer">
           <button class="btn" id="submitEntryBtn">新增登記</button>
           <button class="btn secondary" id="cancelEditBtn" style="display:none;">取消編輯</button>
@@ -831,9 +838,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.4';
+const APP_VERSION = 'v1.11.5';
 const APP_DATE = '2026-10-15';
 const CHANGELOG = [
+  { version:'v1.11.5', date:'2026-10-15', items:[
+    '日常收支登記在「備註」下方新增「紅包袋編號」欄位（選填），會計人員可直接輸入紅包袋上的編號',
+    '「最近登記」清單在項目下方顯示紅包袋編號；匯出明細 Excel 的「網頁登記明細」與操作紀錄也會包含紅包袋編號',
+  ]},
   { version:'v1.11.4', date:'2026-10-15', items:[
     '日常收支登記的金額欄，輸入時自動加上千分位逗號（例如 12,500），方便核對位數',
     '「最近登記」清單的金額拿掉 NT$ 字樣，只顯示數字',
@@ -1965,6 +1976,7 @@ function clearEntryForm(){
   document.getElementById('entryItemIn').value = '';
   document.getElementById('entryItemOut').value = '';
   document.getElementById('entryNote').value = '';
+  document.getElementById('entryEnvelope').value = '';
   editingEntryId = null;
   document.getElementById('submitEntryBtn').textContent = '新增登記';
   document.getElementById('cancelEditBtn').style.display = 'none';
@@ -1985,6 +1997,7 @@ async function handleSubmitEntry(){
   const entry = {
     date: dateStr, year, month, account, direction, amount,
     note: document.getElementById('entryNote').value||'',
+    envelopeNo: document.getElementById('entryEnvelope').value.trim(),
     enteredBy: currentUser.name,
     updatedAt: new Date().toISOString(),
   };
@@ -2025,6 +2038,7 @@ function startEditEntry(id){
   document.getElementById('entryDirection').value = e.direction;
   document.getElementById('entryAmount').value = Math.round(e.amount).toLocaleString('en-US');
   document.getElementById('entryNote').value = e.note||'';
+  document.getElementById('entryEnvelope').value = e.envelopeNo||'';
   toggleEntryDirectionFields();
   document.getElementById('entryName').value = e.name||'';
   document.getElementById('entryActivity').value = e.activity||'';
@@ -2054,6 +2068,10 @@ async function deleteEntry(id){
   }
 }
 
+function escapeHtmlText(t){
+  return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderLiveEntryTable(){
   const body = document.getElementById('liveEntryBody');
   if(!body) return;
@@ -2069,7 +2087,7 @@ function renderLiveEntryTable(){
       <td>${e.account==='cash'?'現金':'銀行'}</td>
       <td>${e.direction==='in'?'收入':'支出'}</td>
       <td>${nameOrCat}</td>
-      <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}</td>
+      <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}${e.envelopeNo ? `<br><span style="color:var(--temple-red-deep);">紅包袋 ${escapeHtmlText(e.envelopeNo)}</span>` : ''}</td>
       <td>${moneyPlain(e.amount)}</td>
       <td class="muted">${e.enteredBy||''}</td>
       <td>
@@ -2092,7 +2110,7 @@ const AUDIT_ACTIONS = {
 };
 const AUDIT_FIELDS = [
   ['date','日期'], ['account','帳別'], ['direction','收支'], ['amount','金額'],
-  ['name','姓名'], ['activity','活動名稱'], ['item','項目'], ['category','分類'], ['note','備註']
+  ['name','姓名'], ['activity','活動名稱'], ['item','項目'], ['category','分類'], ['note','備註'], ['envelopeNo','紅包袋編號']
 ];
 const AUDIT_PAGE = 200;
 let isAdminUser = false;
@@ -2419,7 +2437,7 @@ function exportDetailExcel(){
     .slice().sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .map(e=>[e.date, e.account==='cash'?'現金':'銀行', e.direction==='in'?'收入':'支出',
              e.name||'', e.activity||'', e.category ? (CAT_LABELS[e.category]||e.category) : '',
-             e.item||'', e.amount, e.note||'', e.enteredBy||'', e.createdAt||'']);
+             e.item||'', e.amount, e.note||'', e.envelopeNo||'', e.enteredBy||'', e.createdAt||'']);
 
   const total = incomeRows.length + bankRows.length + expenseRows.length + mergedRows.length + liveRows.length;
   if(total === 0){ msg.textContent = '這個範圍沒有資料可以匯出'; setTimeout(()=>{ msg.textContent=''; }, 3000); return; }
@@ -2435,8 +2453,8 @@ function exportDetailExcel(){
   addSheet('現金支出分類', ['年','月', ...catKeys.map(k=>CAT_LABELS[k]), '分類合計','現金支出總額','備註'], expenseRows,
            [7,6, ...catKeys.map(()=>14), 12,14,36]);
   addSheet('合併明細', ['年','月','來源','姓名','項目／摘要','收入','支出'], mergedRows, [7,6,8,16,36,12,12]);
-  addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','登記人','登記時間'], liveRows,
-           [12,8,8,16,20,14,30,12,20,12,24]);
+  addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','紅包袋編號','登記人','登記時間'], liveRows,
+           [12,8,8,16,20,14,30,12,20,12,12,24]);
 
   const ey = document.getElementById('exportYearPick').value;
   const em = document.getElementById('exportMonthPick').value;
