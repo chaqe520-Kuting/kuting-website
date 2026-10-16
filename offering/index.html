@@ -1142,7 +1142,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v89";
+  var APP_VERSION = "v90";
   var APP_UPDATED = "2026-10-16";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1153,6 +1153,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v90", date: "2026-10-16", changes: [
+      "修正：供品項管理按「＋新增品項」後輸入品項名稱，畫面會一直跳動、游標跑掉、中文輸入法打到一半被打斷；原因是每次雲端同步回來都會整張品項表重畫。現在正在輸入的時候不會重畫，離開輸入欄後才更新；中文選字完成才同步到雲端",
+      "資料庫與規則未變更"
+    ]},
     { version: "v89", date: "2026-10-16", changes: [
       "修正：登記清單按「編輯」時，各師尊大壽金這一項沒有仙佛名稱欄位可以改；現在品項下方會出現「敬致仙佛／師尊」欄，顯示目前的仙佛名稱，可直接修改，也可從本場次已登記過的仙佛名稱清單點選",
       "改成其他品項時這一欄會自動隱藏，儲存後登記清單、單筆預覽與紅紙都會用新的仙佛名稱；資料庫與規則未變更"
@@ -5027,8 +5031,24 @@
   }
 
   var itemManageBody = document.getElementById("itemManageBody");
+  // v90 — 小朱回報「＋新增品項後無法正常輸入品項名稱，畫面亂跳」：每次雲端快照
+  // （包括自己剛寫入的那一筆）都會 renderAll() 把整張品項表砍掉重畫，正在打字
+  // 的輸入框被換掉，游標消失、捲動位置跳動、中文輸入法選字也被打斷。現在只要
+  // 焦點還在品項表的輸入框裡就先不重畫（只記下需要重畫），離開輸入框後再補畫。
+  var itemManageDirty = false;
+  function itemManageEditing(){
+    var a = document.activeElement;
+    return !!(a && a.tagName === "INPUT" && itemManageBody.contains(a));
+  }
+  itemManageBody.addEventListener("focusout", function(){
+    setTimeout(function(){
+      if(itemManageDirty && !itemManageEditing()) renderItemManage();
+    }, 0);
+  });
   function renderItemManage(){
     var occ = current();
+    if(itemManageEditing()){ itemManageDirty = true; return; }
+    itemManageDirty = false;
     itemManageBody.innerHTML = "";
     occ.items.forEach(function(it){
       // v53 — 總量 0（或留空）＝無上限，「剩餘」欄改顯示「不限量」，不會被誤判成已額滿。
@@ -5050,10 +5070,16 @@
     });
   }
 
+  itemManageBody.addEventListener("compositionend", function(e){
+    // 中文輸入法選字完成：補送一次 input，讓最後選定的字寫入並同步
+    e.target.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
   itemManageBody.addEventListener("input", function(e){
     var el = e.target;
     var field = el.getAttribute("data-field");
     if(!field) return;
+    if(e.isComposing) return; // 中文選字中先不處理，等 compositionend
     var it = findItem(el.getAttribute("data-id"));
     if(!it) return;
     if(field === "price" || field === "total" || field === "sponsored"){
