@@ -921,8 +921,8 @@
         </div>
         <div class="field-row" id="qaBuyunRow" style="display:none; margin-top:10px;">
           <div class="field">
-            <label for="qaBuyunName">補運姓名</label>
-            <input type="text" id="qaBuyunName" placeholder="補運者姓名">
+            <label for="qaBuyunName">補運名稱</label>
+            <input type="text" id="qaBuyunName" placeholder="補運名稱">
           </div>
           <div class="field" style="flex:1;">
             <label for="qaBuyunAddr">補運地址</label>
@@ -1152,7 +1152,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v92";
+  var APP_VERSION = "v93";
   var APP_UPDATED = "2026-10-16";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1163,6 +1163,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v93", date: "2026-10-16", changes: [
+      "補運欄的「補運姓名」改名為「補運名稱」，登記清單與預覽顯示「名稱：…　地址：…」；已填的資料不受影響"
+    ]},
     { version: "v92", date: "2026-10-16", changes: [
       "補運欄分成「補運姓名」「補運地址」兩格：後台快速登記與登記清單編輯都可分別填寫，登記清單與預覽會顯示「姓名：…　地址：…」；資料庫與規則未變更"
     ]},
@@ -1965,7 +1968,7 @@
   // v91 舊的單一欄位 buyun 若有填過，仍附在後面顯示。
   function buyunParts(reg){
     var out = [];
-    if(reg.buyunName) out.push("姓名：" + reg.buyunName);
+    if(reg.buyunName) out.push("名稱：" + reg.buyunName);
     if(reg.buyunAddr) out.push("地址：" + reg.buyunAddr);
     if(reg.buyun) out.push(reg.buyun);
     return out;
@@ -6468,7 +6471,7 @@
               '<datalist id="editDedicateList-' + reg.id + '">' + dedicateNameOptions(occ) + '</datalist>' +
             '</div>' +
             '<div id="editBuyunWrap-' + reg.id + '" style="margin-top:6px;' + (itemNeedsBuyun(reg.catId, occ) ? '' : ' display:none;') + '">' +
-              '<input type="text" class="edit-input" id="editBuyunName-' + reg.id + '" value="' + escAttr(reg.buyunName || "") + '" placeholder="補運姓名" style="width:150px;">' +
+              '<input type="text" class="edit-input" id="editBuyunName-' + reg.id + '" value="' + escAttr(reg.buyunName || "") + '" placeholder="補運名稱" style="width:150px;">' +
               '<input type="text" class="edit-input" id="editBuyunAddr-' + reg.id + '" value="' + escAttr(reg.buyunAddr || reg.buyun || "") + '" placeholder="補運地址" style="width:150px; margin-top:4px;">' +
             '</div></td>' +
           '<td><input type="number" min="0" step="0.01" class="edit-input" id="editQty-' + reg.id + '" value="' + reg.qty + '" style="width:76px;"></td>' +
