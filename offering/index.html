@@ -824,7 +824,7 @@
         <p class="pdesc">「項次」可直接作為快速登記與 LINE 訊息貼上的辨識關鍵字（例如輸入「3」即比對到 3 號品項）；修改「單價」「總量」「已贊助基準」會立即反映到「剩餘名額總覽」與關鍵字比對，「已贊助基準」是開放報名前既有的預訂數量，之後志工登記會在此基礎上累加。「總量」填 0 或留空代表這項供品不限量，畫面會顯示「不限量」，不會出現已額滿，登記時也不會被擋。</p>
         <div class="table-wrap">
           <table class="manage-table">
-            <thead><tr><th>項次</th><th>品項名稱</th><th>規格說明</th><th>單位</th><th>單價</th><th>總量</th><th>已贊助基準</th><th>剩餘</th><th>操作</th></tr></thead>
+            <thead><tr><th>項次</th><th>品項名稱</th><th>規格說明</th><th>單位</th><th>單價</th><th>總量</th><th>已贊助基準</th><th>剩餘</th><th title="勾選後信眾報名頁不顯示這個品項">不公開</th><th title="勾選後登記這個品項時多一格「補運」可填寫">補運欄</th><th>操作</th></tr></thead>
             <tbody id="itemManageBody"></tbody>
           </table>
         </div>
@@ -917,6 +917,12 @@
           <div class="field">
             <label for="qaDedicateTo">仙佛名稱</label>
             <input type="text" id="qaDedicateTo" placeholder="例如：玄天上帝">
+          </div>
+        </div>
+        <div class="field-row" id="qaBuyunRow" style="display:none; margin-top:10px;">
+          <div class="field" style="flex:1;">
+            <label for="qaBuyun">補運</label>
+            <input type="text" id="qaBuyun" placeholder="補運資料（例如：補運者姓名、生辰、地址）">
           </div>
         </div>
         <div id="qaFullWarning" class="qty-warning" style="display:none;"></div>
@@ -1142,7 +1148,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v90";
+  var APP_VERSION = "v91";
   var APP_UPDATED = "2026-10-16";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1153,6 +1159,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v91", date: "2026-10-16", changes: [
+      "新增：「供品品項管理」每個品項多兩個勾選欄——「不公開」：勾選後信眾報名頁的剩餘名額清單與「我要贊助」搜尋都看不到這個品項，只有後台可以登記；「補運欄」：勾選後登記這個品項時多一格「補運」可以填寫",
+      "補運欄會出現在後台「快速登記」與登記清單的「編輯」，填寫內容顯示在登記清單、單筆預覽與合併預覽；資料庫與規則未變更"
+    ]},
     { version: "v90", date: "2026-10-16", changes: [
       "修正：供品項管理按「＋新增品項」後輸入品項名稱，畫面會一直跳動、游標跑掉、中文輸入法打到一半被打斷；原因是每次雲端同步回來都會整張品項表重畫。現在正在輸入的時候不會重畫，離開輸入欄後才更新；中文選字完成才同步到雲端",
       "資料庫與規則未變更"
@@ -1937,6 +1947,13 @@
     var it = findItem(catId, occ);
     return !!(it && it.name === "各師尊大壽金");
   }
+
+  // v91 — 品項可在「供品品項管理」勾選：
+  //  hidden     不公開：信眾報名頁（剩餘名額清單、我要贊助的品項搜尋）不顯示，只有後台看得到、登記得到
+  //  needsBuyun 補運欄：登記這個品項時多一格「補運」可填寫（後台快速登記、登記清單編輯）
+  var ITEM_SYNC_KEYS = ["id","no","name","spec","unit","price","total","hidden","needsBuyun"];
+  function itemIsHidden(catId, occ){ var it = findItem(catId, occ); return !!(it && it.hidden); }
+  function itemNeedsBuyun(catId, occ){ var it = findItem(catId, occ); return !!(it && it.needsBuyun); }
 
   // How much of an item is still available to sponsor. When editing an
   // existing registration (excludeRegId), that registration's own quantity
@@ -3301,7 +3318,7 @@
     var it = occ && findItem(itemId, occ);
     if(!it) return null;
     var payload = {};
-    ["id","no","name","spec","unit","price","total"].forEach(function(k){ payload[k] = it[k]; });
+    ITEM_SYNC_KEYS.forEach(function(k){ if(it[k] !== undefined) payload[k] = it[k]; });
     return payload;
   }
 
@@ -3385,7 +3402,7 @@
           } else if(localIt){
             // 這份品項文件在雲端還沒有完整寫入過：連同完整欄位一起寫，
             // 避免只剩 sponsored 一個欄位（見 ensureItemFieldsPayload）。
-            ["id","no","name","spec","unit","price","total"].forEach(function(k){ payload[k] = localIt[k]; });
+            ITEM_SYNC_KEYS.forEach(function(k){ if(localIt[k] !== undefined) payload[k] = localIt[k]; });
             payload.sponsored = sponsored + delta;
           } else {
             return;
@@ -3451,9 +3468,9 @@
     // override is included in the very same debounced write.
     if(!fsReady){ warnNotSynced(); return; }
     var copy = {};
-    var keys = ["id","no","name","spec","unit","price","total"];
+    var keys = ITEM_SYNC_KEYS.slice();
     if(includeSponsored) keys.push("sponsored");
-    keys.forEach(function(k){ copy[k] = item[k]; });
+    keys.forEach(function(k){ if(item[k] !== undefined) copy[k] = item[k]; });
     fsGetItemRef(occId, item.id).set(copy, { merge: true }).then(function(){
       markItemConfirmed(occId, item.id);
       reportFsWriteIssue(null);
@@ -3484,7 +3501,7 @@
     (oldItems || []).forEach(function(it){ batch.delete(itemsColl.doc(String(it.id))); });
     (newItems || []).forEach(function(it){
       var copy = {};
-      ["id","no","name","spec","unit","price","total","sponsored"].forEach(function(k){ copy[k] = it[k]; });
+      ITEM_SYNC_KEYS.concat(["sponsored"]).forEach(function(k){ if(it[k] !== undefined) copy[k] = it[k]; });
       batch.set(itemsColl.doc(String(it.id)), copy);
     });
     batch.commit().then(function(){
@@ -3545,9 +3562,9 @@
     var batch = fsDb.batch();
     (items || []).forEach(function(it){
       var copy = {};
-      var keys = ["id","no","name","spec","unit","price","total"];
+      var keys = ITEM_SYNC_KEYS.slice();
       if(includeSponsored) keys.push("sponsored");
-      keys.forEach(function(k){ copy[k] = it[k]; });
+      keys.forEach(function(k){ if(it[k] !== undefined) copy[k] = it[k]; });
       batch.set(itemsColl.doc(String(it.id)), copy, { merge: true });
     });
     batch.commit().then(function(){
@@ -4880,7 +4897,12 @@
       publicItemsCard.innerHTML = '<div class="ss-spec">尚未設定供品項目</div>';
       return;
     }
-    publicItemsCard.innerHTML = sortItemsForPublicDisplay(occ.items).map(function(it){
+    var shownItems = occ.items.filter(function(it){ return !it.hidden; }); // v91：不公開的品項不顯示
+    if(!shownItems.length){
+      publicItemsCard.innerHTML = '<div class="ss-spec">尚未設定供品項目</div>';
+      return;
+    }
+    publicItemsCard.innerHTML = sortItemsForPublicDisplay(shownItems).map(function(it){
       // v53 — 總量 0（或留空）＝無上限，一律顯示「不限量」而不是已額滿／已超額。
       var unlimited = !it.total || it.total <= 0;
       var remaining = it.total - it.sponsored;
@@ -5038,7 +5060,7 @@
   var itemManageDirty = false;
   function itemManageEditing(){
     var a = document.activeElement;
-    return !!(a && a.tagName === "INPUT" && itemManageBody.contains(a));
+    return !!(a && a.tagName === "INPUT" && a.type !== "checkbox" && itemManageBody.contains(a));
   }
   itemManageBody.addEventListener("focusout", function(){
     setTimeout(function(){
@@ -5065,6 +5087,8 @@
         '<td class="col-num"><input type="number" value="' + it.total + '" min="0" data-id="' + it.id + '" data-field="total" placeholder="0＝不限量"></td>' +
         '<td class="col-num"><input type="number" value="' + it.sponsored + '" min="0" data-id="' + it.id + '" data-field="sponsored"></td>' +
         '<td class="remaining-cell num">' + remainingText + '</td>' +
+        '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="hidden"' + (it.hidden ? " checked" : "") + '></td>' +
+        '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="needsBuyun"' + (it.needsBuyun ? " checked" : "") + '></td>' +
         '<td><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
       itemManageBody.appendChild(tr);
     });
@@ -5082,7 +5106,9 @@
     if(e.isComposing) return; // 中文選字中先不處理，等 compositionend
     var it = findItem(el.getAttribute("data-id"));
     if(!it) return;
-    if(field === "price" || field === "total" || field === "sponsored"){
+    if(el.type === "checkbox"){
+      it[field] = el.checked;
+    } else if(field === "price" || field === "total" || field === "sponsored"){
       it[field] = Math.max(0, parseFloat(el.value) || 0);
     } else {
       it[field] = el.value;
@@ -5368,6 +5394,8 @@
   var qaFullWarning = document.getElementById("qaFullWarning");
   var qaDedicateRow = document.getElementById("qaDedicateRow");
   var qaDedicateTo = document.getElementById("qaDedicateTo");
+  var qaBuyunRow = document.getElementById("qaBuyunRow");
+  var qaBuyun = document.getElementById("qaBuyun");
   var qaSelected = null;
 
   function renderQaChip(){
@@ -5386,6 +5414,9 @@
     var needsDedication = !!(qaSelected && itemNeedsDedication(qaSelected.catId));
     qaDedicateRow.style.display = needsDedication ? "flex" : "none";
     if(!needsDedication) qaDedicateTo.value = "";
+    var needsBuyun = !!(qaSelected && itemNeedsBuyun(qaSelected.catId));
+    qaBuyunRow.style.display = needsBuyun ? "flex" : "none";
+    if(!needsBuyun) qaBuyun.value = "";
     if(!qaSelected){ qaAmountPreview.textContent = "—"; qaAddBtn.disabled = true; qaFullWarning.style.display = "none"; return; }
     var q = parseFloat(qaQty.value) || 0;
     var amount = qaSelected.type === "donation" ? q : q * qaSelected.price;
@@ -5444,10 +5475,11 @@
       qty: q,
       unitPrice: qaSelected.price,
       amount: qaSelected.type === "donation" ? q : q * qaSelected.price,
-      dedicateTo: itemNeedsDedication(qaSelected.catId) ? qaDedicateTo.value.trim() : ""
+      dedicateTo: itemNeedsDedication(qaSelected.catId) ? qaDedicateTo.value.trim() : "",
+      buyun: itemNeedsBuyun(qaSelected.catId) ? qaBuyun.value.trim() : ""
     });
     showToast("已登記：" + qaName.value.trim() + " ‧ " + qaSelected.label);
-    qaName.value = ""; qaPhone.value = ""; qaKeyword.value = ""; qaQty.value = 1; qaDedicateTo.value = "";
+    qaName.value = ""; qaPhone.value = ""; qaKeyword.value = ""; qaQty.value = 1; qaDedicateTo.value = ""; qaBuyun.value = "";
     qaSelected = null; renderQaChip(); updateQaPreview();
   });
 
@@ -5510,7 +5542,7 @@
 
   pubQaKeyword.addEventListener("input", function(){
     pubQaSelected = null;
-    var results = search(pubQaKeyword.value);
+    var results = search(pubQaKeyword.value).filter(function(c){ return !itemIsHidden(c.catId); }); // v91：不公開的品項信眾搜尋不到
     if(!results.length){ pubQaSuggest.hidden = true; pubQaSuggest.innerHTML = ""; updatePubQaPreview(); return; }
     pubQaSuggest.innerHTML = "";
     results.forEach(function(c){
@@ -6253,6 +6285,7 @@
       id: newRegId(), name: data.name, phone: data.phone, catId: data.catId, label: data.label,
       type: data.type, qty: data.qty, unitPrice: data.unitPrice, amount: data.amount, paid: false, confirmed: false,
       dedicateTo: data.dedicateTo || "",
+      buyun: data.buyun || "",
       time: nowTimeStr()
     };
     occ.registrations.push(reg);
@@ -6414,6 +6447,9 @@
             '<div id="editDedicateWrap-' + reg.id + '" style="margin-top:6px;' + (itemNeedsDedication(reg.catId, occ) ? '' : ' display:none;') + '">' +
               '<input type="text" class="edit-input" id="editDedicate-' + reg.id + '" list="editDedicateList-' + reg.id + '" value="' + escAttr(reg.dedicateTo || "") + '" placeholder="敬致仙佛／師尊名稱" style="width:150px;">' +
               '<datalist id="editDedicateList-' + reg.id + '">' + dedicateNameOptions(occ) + '</datalist>' +
+            '</div>' +
+            '<div id="editBuyunWrap-' + reg.id + '" style="margin-top:6px;' + (itemNeedsBuyun(reg.catId, occ) ? '' : ' display:none;') + '">' +
+              '<input type="text" class="edit-input" id="editBuyun-' + reg.id + '" value="' + escAttr(reg.buyun || "") + '" placeholder="補運" style="width:150px;">' +
             '</div></td>' +
           '<td><input type="number" min="0" step="0.01" class="edit-input" id="editQty-' + reg.id + '" value="' + reg.qty + '" style="width:76px;"></td>' +
           '<td class="num" id="editAmountPreview-' + reg.id + '">' + fmt(reg.amount) + '</td>' +
@@ -6429,6 +6465,8 @@
           var selCat = findCatalog(sel.value, occ);
           var dedWrap = document.getElementById("editDedicateWrap-" + reg.id);
           if(dedWrap) dedWrap.style.display = (selCat && itemNeedsDedication(selCat.catId, occ)) ? "" : "none";
+          var buyunWrap = document.getElementById("editBuyunWrap-" + reg.id);
+          if(buyunWrap) buyunWrap.style.display = (selCat && itemNeedsBuyun(selCat.catId, occ)) ? "" : "none";
           var q = parseFloat(qtyEl.value);
           if(!selCat || isNaN(q)){ previewEl.textContent = "—"; if(warnCell) warnCell.textContent = "編輯中…"; return; }
           var amt = selCat.type === "donation" ? q : q * selCat.price;
@@ -6451,7 +6489,7 @@
         '<td><input type="checkbox" class="reg-select-chk" data-id="' + reg.id + '"' + (selectedRegIds[reg.id] ? " checked" : "") + '></td>' +
         '<td><button type="button" class="link-btn" data-act="preview" data-id="' + reg.id + '">' + escHtml(reg.name) + '</button></td>' +
         '<td>' + escHtml(reg.phone || "—") + '</td>' +
-        '<td>' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div></td>' +
+        '<td>' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (reg.buyun ? '<div class="type-tag">補運：' + escHtml(reg.buyun) + '</div>' : '') + '</td>' +
         '<td class="num">' + qtyDisplay + '</td>' +
         '<td class="num">' + fmt(reg.amount) + '</td>' +
         '<td><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
@@ -6519,6 +6557,8 @@
       reg.amount = newCat.type === "donation" ? newQty : newQty * newCat.price;
       var dedInput = document.getElementById("editDedicate-" + id);
       reg.dedicateTo = itemNeedsDedication(newCat.catId, occ) && dedInput ? dedInput.value.trim() : "";
+      var buyunInput = document.getElementById("editBuyun-" + id);
+      reg.buyun = itemNeedsBuyun(newCat.catId, occ) && buyunInput ? buyunInput.value.trim() : "";
       var newItem = null;
       if(reg.type === "item"){
         newItem = findItem(reg.catId, occ);
@@ -6588,6 +6628,7 @@
         '<div class="merged-preview-name">' + escHtml(reg.name) + '</div>' +
         '<div class="preview-row"><span class="preview-label">聯絡電話</span><span class="preview-value">' + escHtml(reg.phone || "未填寫") + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">贊助品項</span><span class="preview-value">' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '</span></div>' +
+        (reg.buyun ? '<div class="preview-row"><span class="preview-label">補運</span><span class="preview-value">' + escHtml(reg.buyun) + '</span></div>' : '') +
         '<div class="preview-row"><span class="preview-label">數量</span><span class="preview-value">' + qtyDisplay + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">金額</span><span class="preview-value">' + fmt(reg.amount) + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">登記時間</span><span class="preview-value">' + formatRegTime(reg.time) + '</span></div>' +
@@ -6697,10 +6738,11 @@
       ["姓名", escHtml(reg.name)],
       ["聯絡電話", escHtml(reg.phone || "未填寫")],
       ["贊助品項", escHtml(reg.label + "（" + typeLabel + "）" + (reg.dedicateTo ? "　－　" + reg.dedicateTo : ""))],
+      ["補運", reg.buyun ? escHtml(reg.buyun) : ""],
       ["數量", qtyDisplay],
       ["金額", fmt(reg.amount)],
       ["登記時間", formatRegTime(reg.time)]
-    ];
+    ].filter(function(r){ return r[0] !== "補運" || r[1]; });
     var html = rows.map(function(r){
       return '<div class="preview-row"><span class="preview-label">' + r[0] + '</span><span class="preview-value">' + r[1] + '</span></div>';
     }).join("");
