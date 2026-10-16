@@ -920,9 +920,13 @@
           </div>
         </div>
         <div class="field-row" id="qaBuyunRow" style="display:none; margin-top:10px;">
+          <div class="field">
+            <label for="qaBuyunName">補運姓名</label>
+            <input type="text" id="qaBuyunName" placeholder="補運者姓名">
+          </div>
           <div class="field" style="flex:1;">
-            <label for="qaBuyun">補運</label>
-            <input type="text" id="qaBuyun" placeholder="補運資料（例如：補運者姓名、生辰、地址）">
+            <label for="qaBuyunAddr">補運地址</label>
+            <input type="text" id="qaBuyunAddr" placeholder="補運者地址">
           </div>
         </div>
         <div id="qaFullWarning" class="qty-warning" style="display:none;"></div>
@@ -1148,7 +1152,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v91";
+  var APP_VERSION = "v92";
   var APP_UPDATED = "2026-10-16";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1159,6 +1163,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v92", date: "2026-10-16", changes: [
+      "補運欄分成「補運姓名」「補運地址」兩格：後台快速登記與登記清單編輯都可分別填寫，登記清單與預覽會顯示「姓名：…　地址：…」；資料庫與規則未變更"
+    ]},
     { version: "v91", date: "2026-10-16", changes: [
       "新增：「供品品項管理」每個品項多兩個勾選欄——「不公開」：勾選後信眾報名頁的剩餘名額清單與「我要贊助」搜尋都看不到這個品項，只有後台可以登記；「補運欄」：勾選後登記這個品項時多一格「補運」可以填寫",
       "補運欄會出現在後台「快速登記」與登記清單的「編輯」，填寫內容顯示在登記清單、單筆預覽與合併預覽；資料庫與規則未變更"
@@ -1954,6 +1961,15 @@
   var ITEM_SYNC_KEYS = ["id","no","name","spec","unit","price","total","hidden","needsBuyun"];
   function itemIsHidden(catId, occ){ var it = findItem(catId, occ); return !!(it && it.hidden); }
   function itemNeedsBuyun(catId, occ){ var it = findItem(catId, occ); return !!(it && it.needsBuyun); }
+  // v92 — 補運欄分成「姓名」「地址」兩格（registrations.buyunName／buyunAddr）；
+  // v91 舊的單一欄位 buyun 若有填過，仍附在後面顯示。
+  function buyunParts(reg){
+    var out = [];
+    if(reg.buyunName) out.push("姓名：" + reg.buyunName);
+    if(reg.buyunAddr) out.push("地址：" + reg.buyunAddr);
+    if(reg.buyun) out.push(reg.buyun);
+    return out;
+  }
 
   // How much of an item is still available to sponsor. When editing an
   // existing registration (excludeRegId), that registration's own quantity
@@ -5395,7 +5411,8 @@
   var qaDedicateRow = document.getElementById("qaDedicateRow");
   var qaDedicateTo = document.getElementById("qaDedicateTo");
   var qaBuyunRow = document.getElementById("qaBuyunRow");
-  var qaBuyun = document.getElementById("qaBuyun");
+  var qaBuyunName = document.getElementById("qaBuyunName");
+  var qaBuyunAddr = document.getElementById("qaBuyunAddr");
   var qaSelected = null;
 
   function renderQaChip(){
@@ -5416,7 +5433,7 @@
     if(!needsDedication) qaDedicateTo.value = "";
     var needsBuyun = !!(qaSelected && itemNeedsBuyun(qaSelected.catId));
     qaBuyunRow.style.display = needsBuyun ? "flex" : "none";
-    if(!needsBuyun) qaBuyun.value = "";
+    if(!needsBuyun){ qaBuyunName.value = ""; qaBuyunAddr.value = ""; }
     if(!qaSelected){ qaAmountPreview.textContent = "—"; qaAddBtn.disabled = true; qaFullWarning.style.display = "none"; return; }
     var q = parseFloat(qaQty.value) || 0;
     var amount = qaSelected.type === "donation" ? q : q * qaSelected.price;
@@ -5476,10 +5493,11 @@
       unitPrice: qaSelected.price,
       amount: qaSelected.type === "donation" ? q : q * qaSelected.price,
       dedicateTo: itemNeedsDedication(qaSelected.catId) ? qaDedicateTo.value.trim() : "",
-      buyun: itemNeedsBuyun(qaSelected.catId) ? qaBuyun.value.trim() : ""
+      buyunName: itemNeedsBuyun(qaSelected.catId) ? qaBuyunName.value.trim() : "",
+      buyunAddr: itemNeedsBuyun(qaSelected.catId) ? qaBuyunAddr.value.trim() : ""
     });
     showToast("已登記：" + qaName.value.trim() + " ‧ " + qaSelected.label);
-    qaName.value = ""; qaPhone.value = ""; qaKeyword.value = ""; qaQty.value = 1; qaDedicateTo.value = ""; qaBuyun.value = "";
+    qaName.value = ""; qaPhone.value = ""; qaKeyword.value = ""; qaQty.value = 1; qaDedicateTo.value = ""; qaBuyunName.value = ""; qaBuyunAddr.value = "";
     qaSelected = null; renderQaChip(); updateQaPreview();
   });
 
@@ -6285,7 +6303,8 @@
       id: newRegId(), name: data.name, phone: data.phone, catId: data.catId, label: data.label,
       type: data.type, qty: data.qty, unitPrice: data.unitPrice, amount: data.amount, paid: false, confirmed: false,
       dedicateTo: data.dedicateTo || "",
-      buyun: data.buyun || "",
+      buyunName: data.buyunName || "",
+      buyunAddr: data.buyunAddr || "",
       time: nowTimeStr()
     };
     occ.registrations.push(reg);
@@ -6449,7 +6468,8 @@
               '<datalist id="editDedicateList-' + reg.id + '">' + dedicateNameOptions(occ) + '</datalist>' +
             '</div>' +
             '<div id="editBuyunWrap-' + reg.id + '" style="margin-top:6px;' + (itemNeedsBuyun(reg.catId, occ) ? '' : ' display:none;') + '">' +
-              '<input type="text" class="edit-input" id="editBuyun-' + reg.id + '" value="' + escAttr(reg.buyun || "") + '" placeholder="補運" style="width:150px;">' +
+              '<input type="text" class="edit-input" id="editBuyunName-' + reg.id + '" value="' + escAttr(reg.buyunName || "") + '" placeholder="補運姓名" style="width:150px;">' +
+              '<input type="text" class="edit-input" id="editBuyunAddr-' + reg.id + '" value="' + escAttr(reg.buyunAddr || reg.buyun || "") + '" placeholder="補運地址" style="width:150px; margin-top:4px;">' +
             '</div></td>' +
           '<td><input type="number" min="0" step="0.01" class="edit-input" id="editQty-' + reg.id + '" value="' + reg.qty + '" style="width:76px;"></td>' +
           '<td class="num" id="editAmountPreview-' + reg.id + '">' + fmt(reg.amount) + '</td>' +
@@ -6489,7 +6509,7 @@
         '<td><input type="checkbox" class="reg-select-chk" data-id="' + reg.id + '"' + (selectedRegIds[reg.id] ? " checked" : "") + '></td>' +
         '<td><button type="button" class="link-btn" data-act="preview" data-id="' + reg.id + '">' + escHtml(reg.name) + '</button></td>' +
         '<td>' + escHtml(reg.phone || "—") + '</td>' +
-        '<td>' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (reg.buyun ? '<div class="type-tag">補運：' + escHtml(reg.buyun) + '</div>' : '') + '</td>' +
+        '<td>' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (buyunParts(reg).length ? '<div class="type-tag">補運　' + escHtml(buyunParts(reg).join("　")) + '</div>' : '') + '</td>' +
         '<td class="num">' + qtyDisplay + '</td>' +
         '<td class="num">' + fmt(reg.amount) + '</td>' +
         '<td><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
@@ -6557,8 +6577,12 @@
       reg.amount = newCat.type === "donation" ? newQty : newQty * newCat.price;
       var dedInput = document.getElementById("editDedicate-" + id);
       reg.dedicateTo = itemNeedsDedication(newCat.catId, occ) && dedInput ? dedInput.value.trim() : "";
-      var buyunInput = document.getElementById("editBuyun-" + id);
-      reg.buyun = itemNeedsBuyun(newCat.catId, occ) && buyunInput ? buyunInput.value.trim() : "";
+      var buyunNameInput = document.getElementById("editBuyunName-" + id);
+      var buyunAddrInput = document.getElementById("editBuyunAddr-" + id);
+      var keepBuyun = itemNeedsBuyun(newCat.catId, occ);
+      reg.buyunName = keepBuyun && buyunNameInput ? buyunNameInput.value.trim() : "";
+      reg.buyunAddr = keepBuyun && buyunAddrInput ? buyunAddrInput.value.trim() : "";
+      reg.buyun = ""; // v91 舊欄位：編輯時已帶進地址欄，存檔後不再另外保留
       var newItem = null;
       if(reg.type === "item"){
         newItem = findItem(reg.catId, occ);
@@ -6628,7 +6652,7 @@
         '<div class="merged-preview-name">' + escHtml(reg.name) + '</div>' +
         '<div class="preview-row"><span class="preview-label">聯絡電話</span><span class="preview-value">' + escHtml(reg.phone || "未填寫") + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">贊助品項</span><span class="preview-value">' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '</span></div>' +
-        (reg.buyun ? '<div class="preview-row"><span class="preview-label">補運</span><span class="preview-value">' + escHtml(reg.buyun) + '</span></div>' : '') +
+        (buyunParts(reg).length ? '<div class="preview-row"><span class="preview-label">補運</span><span class="preview-value">' + escHtml(buyunParts(reg).join("　")) + '</span></div>' : '') +
         '<div class="preview-row"><span class="preview-label">數量</span><span class="preview-value">' + qtyDisplay + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">金額</span><span class="preview-value">' + fmt(reg.amount) + '</span></div>' +
         '<div class="preview-row"><span class="preview-label">登記時間</span><span class="preview-value">' + formatRegTime(reg.time) + '</span></div>' +
@@ -6738,7 +6762,7 @@
       ["姓名", escHtml(reg.name)],
       ["聯絡電話", escHtml(reg.phone || "未填寫")],
       ["贊助品項", escHtml(reg.label + "（" + typeLabel + "）" + (reg.dedicateTo ? "　－　" + reg.dedicateTo : ""))],
-      ["補運", reg.buyun ? escHtml(reg.buyun) : ""],
+      ["補運", escHtml(buyunParts(reg).join("　"))],
       ["數量", qtyDisplay],
       ["金額", fmt(reg.amount)],
       ["登記時間", formatRegTime(reg.time)]
