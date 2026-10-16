@@ -1050,6 +1050,15 @@
       <label for="redPaperDate">日期文字（直書在右下角）</label>
       <input type="text" id="redPaperDate" placeholder="丙午年九月十九日">
     </div>
+    <div class="field" style="margin-top:12px;">
+      <label>紅紙格式（選一種印出）</label>
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:6px; font-size:.9rem;">
+        <input type="radio" name="redPaperFormat" value="orig" checked style="margin-top:4px;"> <span><b>原格式</b>：各師尊大壽金一欄，寫成「仙佛（姓名）」</span>
+      </label>
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:6px; font-size:.9rem;">
+        <input type="radio" name="redPaperFormat" value="deity" style="margin-top:4px;"> <span><b>佛號分列</b>：各師尊大壽金改成每位菩薩佛號各一欄，佛號下方列出報名的信徒姓名</span>
+      </label>
+    </div>
     <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:.9rem;">
       <input type="checkbox" id="redPaperPaidOnly"> 只列出「已收款」的贊助者
     </label>
@@ -1133,8 +1142,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v87";
-  var APP_UPDATED = "2026-10-15";
+  var APP_VERSION = "v88";
+  var APP_UPDATED = "2026-10-16";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1144,6 +1153,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v88", date: "2026-10-16", changes: [
+      "匯出紅紙（A3）新增第二種格式「各師尊大壽金依佛號分列」：各師尊大壽金不再寫成「仙佛（姓名）」擠在同一欄，改成每一位菩薩／仙佛佛號各自一欄，佛號寫在最上面，下面列出報名這位佛號的信徒姓名與數量",
+      "匯出時可選「原格式」或「佛號分列」，其他品項、版面大小與字級規則都跟原格式一樣；資料庫與規則未變更"
+    ]},
     { version: "v87", date: "2026-10-15", changes: [
       "「LINE 訊息貼上快速登記」：各師尊大壽金可寫敬致的仙佛／師尊名稱，格式「姓名,項次,仙佛名稱,數量」，例：王小明,17,觀世音菩薩,1（項次後面一欄是仙佛稱號，最後是數量）；不寫數量時視為 1",
       "解析預覽多一欄「敬致仙佛」可直接修改，匯入後登記清單、單筆預覽與紅紙都會顯示仙佛名稱；資料庫與規則未變更"
@@ -6715,22 +6728,49 @@
   }
 
   // 同一個人在同一個品項登記多次（或同一個敬致對象）→ 數量合併成一格，順序依第一次登記的先後
-  function buildRedPaperData(occ, title, dateText, paidOnly){
-    var items = occ.items.map(function(it){
-      var order = [], byKey = {};
+  // v88 — byDeity：「各師尊大壽金」改成每位佛號各成一個品項（佛號當品名、下面列信徒姓名），
+  // 排在原本這個品項的位置，佛號順序依第一次登記的先後；沒填佛號的登記歸在原品名底下。
+  function buildRedPaperData(occ, title, dateText, paidOnly, byDeity){
+    var items = [];
+    occ.items.forEach(function(it){
+      if(!byDeity || !itemNeedsDedication(it.id, occ)){ items.push(buildRedPaperItem(occ, it, paidOnly)); return; }
+      var groups = [], byDeityName = {};
       occ.registrations.forEach(function(r){
         if(r.catId !== it.id) return;
         if(paidOnly && !r.paid) return;
-        var name = String(r.name || "").trim() || "（未填姓名）";
-        var text = r.dedicateTo ? String(r.dedicateTo).trim() + "（" + name + "）" : name;
-        if(!byKey[text]){ byKey[text] = { text: text, qty: 0 }; order.push(byKey[text]); }
-        byKey[text].qty += Number(r.qty) || 0;
+        var deity = String(r.dedicateTo || "").trim() || String(it.name || "").trim();
+        if(!byDeityName[deity]){ byDeityName[deity] = { deity: deity, regs: [] }; groups.push(byDeityName[deity]); }
+        byDeityName[deity].regs.push(r);
       });
-      var entries = order.filter(function(e){ return e.qty > 0; });
-      var sum = entries.reduce(function(s, e){ return s + e.qty; }, 0);
-      return { name: String(it.name || "").trim(), total: (it.total > 0 ? it.total : sum), unit: it.unit || "", entries: entries };
+      if(!groups.length){ items.push(buildRedPaperItem(occ, it, paidOnly)); return; }
+      groups.forEach(function(g){
+        var order = [], byKey = {};
+        g.regs.forEach(function(r){
+          var name = String(r.name || "").trim() || "（未填姓名）";
+          if(!byKey[name]){ byKey[name] = { text: name, qty: 0 }; order.push(byKey[name]); }
+          byKey[name].qty += Number(r.qty) || 0;
+        });
+        var entries = order.filter(function(e){ return e.qty > 0; });
+        var sum = entries.reduce(function(acc, e){ return acc + e.qty; }, 0);
+        if(entries.length) items.push({ name: g.deity, total: sum, unit: it.unit || "", entries: entries });
+      });
     });
     return { title: title, dateText: dateText, temple: "古亭院", pinText: "祝壽供品", items: items };
+  }
+
+  function buildRedPaperItem(occ, it, paidOnly){
+    var order = [], byKey = {};
+    occ.registrations.forEach(function(r){
+      if(r.catId !== it.id) return;
+      if(paidOnly && !r.paid) return;
+      var name = String(r.name || "").trim() || "（未填姓名）";
+      var text = r.dedicateTo ? String(r.dedicateTo).trim() + "（" + name + "）" : name;
+      if(!byKey[text]){ byKey[text] = { text: text, qty: 0 }; order.push(byKey[text]); }
+      byKey[text].qty += Number(r.qty) || 0;
+    });
+    var entries = order.filter(function(e){ return e.qty > 0; });
+    var sum = entries.reduce(function(s, e){ return s + e.qty; }, 0);
+    return { name: String(it.name || "").trim(), total: (it.total > 0 ? it.total : sum), unit: it.unit || "", entries: entries };
   }
 
   function deliverXlsxBytes(filename, bytes){
@@ -6783,10 +6823,12 @@
       var title = document.getElementById("redPaperTitle").value.trim() || RED_PAPER_DEFAULT_TITLE;
       var dateText = document.getElementById("redPaperDate").value.trim();
       var paidOnly = document.getElementById("redPaperPaidOnly").checked;
+      var fmtEl = document.querySelector('input[name="redPaperFormat"]:checked');
+      var byDeity = !!(fmtEl && fmtEl.value === "deity");
       try { localStorage.setItem(RED_PAPER_STORAGE_KEY, JSON.stringify({ title: title })); } catch(e){}
       try {
-        var out = window.HongzhiXlsx.buildRedPaperXlsxBytes(buildRedPaperData(occ, title, dateText, paidOnly));
-        var filename = "贊助供品-紅紙A3_" + occ.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".xlsx";
+        var out = window.HongzhiXlsx.buildRedPaperXlsxBytes(buildRedPaperData(occ, title, dateText, paidOnly, byDeity));
+        var filename = "贊助供品-紅紙A3" + (byDeity ? "-佛號分列" : "") + "_" + occ.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".xlsx";
         deliverXlsxBytes(filename, out.bytes);
         close();
       } catch(err){
