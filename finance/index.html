@@ -669,7 +669,7 @@
 
       <div id="incomePane">
         <p class="muted">點選下方活動／項目快速篩選，或直接用關鍵字搜尋姓名／項目／活動（可同時使用）。</p>
-        <input type="text" id="incomeSearch" class="search-box" placeholder="輸入姓名、項目或活動關鍵字搜尋全部列表...">
+        <input type="text" id="incomeSearch" class="search-box" placeholder="輸入姓名、項目、活動、備註、帳號、紅包袋編號或金額搜尋...">
         <div class="pill-row" id="activityPills"></div>
         <div class="detail-table-wrap">
           <table id="incomeTable">
@@ -703,7 +703,7 @@
 
       <div id="bankPane" style="display:none;">
         <p class="muted">銀行帳戶存入／提領逐筆明細，點選下方存入／支出快速篩選，或用關鍵字搜尋姓名／項目。</p>
-        <input type="text" id="bankSearch" class="search-box" placeholder="輸入姓名或項目關鍵字搜尋全部銀行明細...">
+        <input type="text" id="bankSearch" class="search-box" placeholder="輸入姓名、摘要、帳號、備註或金額搜尋全部銀行明細...">
         <div class="pill-row" id="bankTypePills">
           <button class="pill active" data-type="ALL">全部</button>
           <button class="pill" data-type="in">存入（收入）</button>
@@ -726,7 +726,7 @@
 
       <div id="mergedPane" style="display:none;">
         <p class="muted">合併「現金登記」與「銀行存款」兩本帳的逐筆收入／支出，可一次查到某人不論用現金或匯款的所有紀錄；每筆都會標示來源帳本。</p>
-        <input type="text" id="mergedSearch" class="search-box" placeholder="輸入姓名或項目關鍵字，搜尋現金＋銀行全部明細...">
+        <input type="text" id="mergedSearch" class="search-box" placeholder="輸入姓名、摘要、帳號、備註、紅包袋編號或金額，搜尋現金＋銀行全部明細...">
         <div class="pill-row" id="mergedTypePills">
           <button class="pill active" data-type="ALL">全部</button>
           <button class="pill" data-type="in">收入／存入</button>
@@ -838,9 +838,14 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.5';
-const APP_DATE = '2026-10-15';
+const APP_VERSION = 'v1.11.6';
+const APP_DATE = '2026-10-16';
 const CHANGELOG = [
+  { version:'v1.11.6', date:'2026-10-16', items:[
+    '收支明細查詢的搜尋欄，除了姓名、項目，也能搜尋網頁登記的備註、紅包袋編號，以及摘要裡的帳號數字，方便查出是誰匯款',
+    '搜尋欄輸入純數字時，也會找出金額相同的資料（可含逗號，例如 3,000）',
+    '有備註或紅包袋編號的資料，會在項目下方顯示出來',
+  ]},
   { version:'v1.11.5', date:'2026-10-15', items:[
     '日常收支登記在「備註」下方新增「紅包袋編號」欄位（選填），會計人員可直接輸入紅包袋上的編號',
     '「最近登記」清單在項目下方顯示紅包袋編號；匯出明細 Excel 的「網頁登記明細」與操作紀錄也會包含紅包袋編號',
@@ -1275,8 +1280,7 @@ function renderIncomePane(yearRows){
 
   if(keyword){
     filtered = filtered.filter(r=>{
-      const hay = `${r[2]||''} ${r[3]||''} ${r[4]||''}`.toLowerCase();
-      return hay.includes(keyword);
+      return matchKeyword(keyword, `${r[2]||''} ${r[3]||''} ${r[4]||''} ${extraText(r[6])}`, r[5]);
     });
   }
 
@@ -1292,7 +1296,7 @@ function renderIncomePane(yearRows){
     <tr>
       <td>${r[0]}/${MONTH_NAMES[r[1]-1]}</td>
       <td>${r[2] || '（未填姓名）'}</td>
-      <td class="muted" style="text-align:left;">${r[4] || (r[3]||'')}</td>
+      <td class="muted" style="text-align:left;">${r[4] || (r[3]||'')}${extraHtml(r[6])}</td>
       <td>${moneyPlain(r[5])}</td>
     </tr>
   `).join('') || `<tr><td colspan="4" class="muted">查無符合資料</td></tr>`;
@@ -1366,8 +1370,7 @@ function renderBankPane(yearRows){
   let filtered = activeBankType === 'ALL' ? records : records.filter(r=>r[5]===activeBankType);
   if(keyword){
     filtered = filtered.filter(r=>{
-      const hay = `${r[2]||''} ${r[3]||''}`.toLowerCase();
-      return hay.includes(keyword);
+      return matchKeyword(keyword, `${r[2]||''} ${r[3]||''} ${extraText(r[6])}`, r[4]);
     });
   }
 
@@ -1384,7 +1387,7 @@ function renderBankPane(yearRows){
     <tr>
       <td>${r[0]}/${MONTH_NAMES[r[1]-1]}</td>
       <td>${r[2] || '（未填姓名）'}</td>
-      <td class="muted" style="text-align:left;">${r[3]||''}</td>
+      <td class="muted" style="text-align:left;">${r[3]||''}${extraHtml(r[6])}</td>
       <td>${r[5]==='in' ? moneyPlain(r[4]) : ''}</td>
       <td class="expense-amount">${r[5]==='out' ? moneyPlain(r[4]) : ''}</td>
     </tr>
@@ -1397,13 +1400,13 @@ function renderBankPane(yearRows){
 
 function getMergedRecords(){
   const fromIncome = getIncomeRecordsAll().map(r=>({
-    year:r[0], month:r[1], source:'現金', name:r[2], item: r[4] || r[3] || '', type:'in', amount:r[5]
+    year:r[0], month:r[1], source:'現金', name:r[2], item: r[4] || r[3] || '', type:'in', amount:r[5], extra:r[6]
   }));
   const fromBank = getBankRecordsAll().map(r=>({
-    year:r[0], month:r[1], source:'銀行', name:r[2], item:r[3]||'', type:r[5], amount:r[4]
+    year:r[0], month:r[1], source:'銀行', name:r[2], item:r[3]||'', type:r[5], amount:r[4], extra:r[6]
   }));
   const fromLiveCashOut = LIVE_CASH_EXPENSE.map(r=>({
-    year:r.year, month:r.month, source:'現金', name:r.name, item:r.item, type:'out', amount:r.amount
+    year:r.year, month:r.month, source:'現金', name:r.name, item:r.item, type:'out', amount:r.amount, extra:r.extra
   }));
   return [...fromIncome, ...fromBank, ...fromLiveCashOut].sort((a,b)=> a.year-b.year || a.month-b.month);
 }
@@ -1426,8 +1429,7 @@ function renderMergedPane(yearRows){
   let filtered = activeMergedType === 'ALL' ? records : records.filter(r=>r.type===activeMergedType);
   if(keyword){
     filtered = filtered.filter(r=>{
-      const hay = `${r.name||''} ${r.item||''}`.toLowerCase();
-      return hay.includes(keyword);
+      return matchKeyword(keyword, `${r.name||''} ${r.item||''} ${extraText(r.extra)}`, r.amount);
     });
   }
 
@@ -1446,7 +1448,7 @@ function renderMergedPane(yearRows){
       <td>${r.year}/${MONTH_NAMES[r.month-1]}</td>
       <td>${r.source}</td>
       <td>${r.name || '（未填姓名）'}</td>
-      <td class="muted" style="text-align:left;">${r.item}</td>
+      <td class="muted" style="text-align:left;">${r.item}${extraHtml(r.extra)}</td>
       <td>${r.type==='in' ? moneyPlain(r.amount) : ''}</td>
       <td class="expense-amount">${r.type==='out' ? moneyPlain(r.amount) : ''}</td>
     </tr>
@@ -1507,6 +1509,31 @@ function joinLabel(activity, item){
   return [activity, item].map(s=>(s||'').trim()).filter(Boolean).join('／');
 }
 
+// v1.11.6 網頁登記的備註、紅包袋編號一起帶進明細查詢，供搜尋與顯示
+function liveExtra(e){
+  return { note:(e.note||'').trim(), env:(e.envelopeNo||'').trim() };
+}
+function extraText(x){
+  return x ? `${x.note} ${x.env}` : '';
+}
+function extraHtml(x){
+  if(!x || (!x.note && !x.env)) return '';
+  const parts = [];
+  if(x.note) parts.push('備註：' + escapeHtmlText(x.note));
+  if(x.env) parts.push('紅包袋：' + escapeHtmlText(x.env));
+  return `<br><span style="font-size:13px;color:var(--temple-red-deep);">${parts.join('　')}</span>`;
+}
+// 搜尋：姓名、活動、項目／摘要（含帳號）、備註、紅包袋編號；輸入純數字時也比對金額（可含逗號）
+function matchKeyword(keyword, text, amount){
+  if(text.toLowerCase().includes(keyword)) return true;
+  const digits = keyword.replace(/[,，\s]/g,'');
+  if(/^\d+$/.test(digits)){
+    if(text.replace(/[,，\s-]/g,'').includes(digits)) return true;
+    if(Math.round(amount) === Number(digits)) return true;
+  }
+  return false;
+}
+
 function rebuildLiveDerived(){
   LIVE_INCOME = [];
   LIVE_BANK = [];
@@ -1520,17 +1547,17 @@ function rebuildLiveDerived(){
     if(e.account === 'cash'){
       if(e.direction === 'in'){
         acc.cashIn += e.amount;
-        LIVE_INCOME.push([e.year, e.month, e.name||'', e.activity||'', e.item||'', e.amount]);
+        LIVE_INCOME.push([e.year, e.month, e.name||'', e.activity||'', e.item||'', e.amount, liveExtra(e)]);
       } else {
         acc.cashOut += e.amount;
         const cat = e.category || 'misc';
         acc.categories[cat] = (acc.categories[cat]||0) + e.amount;
-        LIVE_CASH_EXPENSE.push({year:e.year, month:e.month, name:e.name||'', item:joinLabel(e.activity, e.item) || CAT_LABELS[cat] || '', amount:e.amount});
+        LIVE_CASH_EXPENSE.push({year:e.year, month:e.month, name:e.name||'', item:joinLabel(e.activity, e.item) || CAT_LABELS[cat] || '', amount:e.amount, extra:liveExtra(e)});
       }
     } else {
       if(e.direction === 'in'){ acc.bankIn += e.amount; }
       else { acc.bankOut += e.amount; }
-      LIVE_BANK.push([e.year, e.month, e.name||'', joinLabel(e.activity, e.item), e.amount, e.direction]);
+      LIVE_BANK.push([e.year, e.month, e.name||'', joinLabel(e.activity, e.item), e.amount, e.direction, liveExtra(e)]);
     }
   });
 
