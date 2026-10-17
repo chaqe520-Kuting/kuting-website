@@ -263,6 +263,7 @@
   .form-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
   #loginMsg, #entryMsg{font-size:13px;color:var(--jade);font-weight:700;}
   #liveEntryBody .row-edit{color:var(--gold);cursor:pointer;background:none;border:none;font-size:12.5px;margin-right:8px;text-decoration:underline;font-family:inherit;}
+  #liveEntryBody td:nth-child(6){white-space:nowrap;}
   #liveEntryBody .row-del{color:var(--temple-red);cursor:pointer;background:none;border:none;font-size:12.5px;text-decoration:underline;font-family:inherit;}
   @media (max-width:760px){
     .form-row{grid-template-columns:1fr 1fr;}
@@ -551,11 +552,17 @@
         </div>
 
         <h3 style="font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;margin:22px 0 10px;">最近登記（線上即時）</h3>
+        <input type="text" id="liveEntrySearch" class="search-box" autocomplete="off" placeholder="找登記：輸入紅包袋編號（例 5，或範圍 1-61）、姓名、項目或金額">
+        <div id="liveEntryInfo" class="muted" style="margin:6px 0 8px;font-size:14px;"></div>
         <div class="detail-table-wrap">
           <table id="liveEntryTable">
             <thead><tr><th>日期</th><th>帳別</th><th>收支</th><th>姓名／分類</th><th>項目</th><th>金額</th><th>登記人</th><th>操作</th></tr></thead>
             <tbody id="liveEntryBody"></tbody>
           </table>
+        </div>
+        <div style="margin-top:10px;text-align:center;">
+          <button class="btn secondary small" id="liveEntryMoreBtn" style="display:none;">顯示更多</button>
+          <button class="btn secondary small" id="liveEntryAllBtn" style="display:none;margin-left:8px;">顯示全部</button>
         </div>
 
         <div style="margin-top:22px;">
@@ -838,9 +845,15 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.6';
-const APP_DATE = '2026-10-16';
+const APP_VERSION = 'v1.11.7';
+const APP_DATE = '2026-10-17';
 const CHANGELOG = [
+  { version:'v1.11.7', date:'2026-10-17', items:[
+    '修正：「最近登記」原本只列最新 100 筆，較早輸入的登記（例如紅包袋 1～61 號）看不到；現在可按「顯示更多」或「顯示全部」',
+    '「最近登記」上方新增搜尋欄：輸入紅包袋編號（例如 5）或範圍（例如 1-61，依編號排序）、姓名、項目或金額，可直接找到並編輯',
+    '線上登記不再限制最多讀取 1000 筆，資料再多統計也不會漏算',
+    '金額欄不再斷行',
+  ]},
   { version:'v1.11.6', date:'2026-10-16', items:[
     '收支明細查詢的搜尋欄，除了姓名、項目，也能搜尋網頁登記的備註、紅包袋編號，以及摘要裡的帳號數字，方便查出是誰匯款',
     '搜尋欄輸入純數字時，也會找出金額相同的資料（可含逗號，例如 3,000）',
@@ -1616,7 +1629,7 @@ function showLiveStatus(text){
 
 function subscribeEntries(){
   if(entriesUnsub) return; // 已經訂閱過，不要重複訂閱
-  entriesUnsub = fbDb.collection('entries').orderBy('createdAt','desc').limit(1000)
+  entriesUnsub = fbDb.collection('entries').orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       liveEntries = snap.docs
         .map(d=>({id:d.id, ...d.data()}))
@@ -2099,10 +2112,53 @@ function escapeHtmlText(t){
   return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// v1.11.7 最近登記：原本只列最新 100 筆，較早的登記看不到。改為可「顯示更多／全部」，並可直接搜尋紅包袋編號
+let liveEntryLimit = 100;
+function envNum(e){
+  const m = String(e.envelopeNo||'').match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+function filterLiveEntries(q){
+  q = (q||'').trim();
+  if(!q) return null;
+  const range = q.replace(/\s/g,'').match(/^(\d+)[-~～－到至](\d+)$/);
+  if(range){
+    const lo = Math.min(+range[1], +range[2]), hi = Math.max(+range[1], +range[2]);
+    return liveEntries.filter(e=>{ const n = envNum(e); return n!==null && n>=lo && n<=hi; })
+      .sort((a,b)=> envNum(a)-envNum(b));
+  }
+  const digits = q.replace(/[,，]/g,'');
+  if(/^\d+$/.test(digits)){
+    const n = Number(digits);
+    return liveEntries.filter(e=> envNum(e)===n || Math.round(e.amount)===n
+      || String(e.envelopeNo||'').trim()===q);
+  }
+  const k = q.toLowerCase();
+  return liveEntries.filter(e=>`${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.date||''}`.toLowerCase().includes(k));
+}
+function bindLiveEntryUi(){
+  const box = document.getElementById('liveEntrySearch');
+  if(!box || box.dataset.bound) return;
+  box.dataset.bound = '1';
+  box.addEventListener('input', renderLiveEntryTable);
+  document.getElementById('liveEntryMoreBtn').onclick = ()=>{ liveEntryLimit += 100; renderLiveEntryTable(); };
+  document.getElementById('liveEntryAllBtn').onclick = ()=>{ liveEntryLimit = Infinity; renderLiveEntryTable(); };
+}
+
 function renderLiveEntryTable(){
   const body = document.getElementById('liveEntryBody');
   if(!body) return;
-  const rows = liveEntries.slice(0, 100); // 最近100筆（已依登記時間新到舊排序）
+  bindLiveEntryUi();
+  const q = document.getElementById('liveEntrySearch').value;
+  const found = filterLiveEntries(q);
+  const rows = found ? found : liveEntries.slice(0, liveEntryLimit);
+  const info = document.getElementById('liveEntryInfo');
+  const more = !found && liveEntries.length > rows.length;
+  info.textContent = found
+    ? `找到 ${found.length} 筆，合計 ${moneyPlain(found.reduce((s,e)=>s+(e.amount||0),0))}`
+    : `顯示最新 ${rows.length} 筆，共 ${liveEntries.length} 筆`;
+  document.getElementById('liveEntryMoreBtn').style.display = more ? '' : 'none';
+  document.getElementById('liveEntryAllBtn').style.display = more ? '' : 'none';
   body.innerHTML = rows.map(e=>{
     const catLabel = (e.direction==='out' && e.account==='cash') ? (CAT_LABELS[e.category]||'未分類') : '';
     const nameOrCat = e.name
@@ -2122,7 +2178,7 @@ function renderLiveEntryTable(){
         <button class="row-del" onclick="deleteEntry('${e.id}')">刪除</button>
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="8" class="muted">尚無線上登記資料</td></tr>`;
+  }).join('') || `<tr><td colspan="8" class="muted">${found ? '查無符合資料' : '尚無線上登記資料'}</td></tr>`;
 }
 
 /* ================= 操作紀錄（v1.11.0）=================
