@@ -845,9 +845,14 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.7';
+const APP_VERSION = 'v1.11.8';
 const APP_DATE = '2026-10-17';
 const CHANGELOG = [
+  { version:'v1.11.8', date:'2026-10-17', items:[
+    '紅包袋編號重複時，按「新增登記」會跳出提醒，列出已經用過這個號碼的登記（日期、姓名、金額、項目）',
+    '按「取消」就不儲存，可回去改號碼；確定是同一號（例如不同法會重複編號）才按「確定」儲存',
+    '編號 001 和 1 視為同一號；編輯登記時不會把自己算成重複',
+  ]},
   { version:'v1.11.7', date:'2026-10-17', items:[
     '修正：「最近登記」原本只列最新 100 筆，較早輸入的登記（例如紅包袋 1～61 號）看不到；現在可按「顯示更多」或「顯示全部」',
     '「最近登記」上方新增搜尋欄：輸入紅包袋編號（例如 5）或範圍（例如 1-61，依編號排序）、姓名、項目或金額，可直接找到並編輯',
@@ -2023,6 +2028,20 @@ function clearEntryForm(){
   renderBalancePreview();
 }
 
+async function findEnvelopeDuplicates(envNo, excludeId){
+  if(!envNo) return [];
+  const m = envNo.match(/\d+/);
+  const n = m ? Number(m[0]) : null;
+  const plain = envNo.replace(/\s/g,'');
+  return liveEntries.filter(e=>{
+    if(e.id === excludeId || !e.envelopeNo) return false;
+    const other = String(e.envelopeNo).trim();
+    if(other.replace(/\s/g,'') === plain) return true;
+    // 只有數字的編號，001 和 1 視為同一號
+    return /^\d+$/.test(plain) && /^\d+$/.test(other) && Number(other) === n;
+  });
+}
+
 async function handleSubmitEntry(){
   const msg = document.getElementById('entryMsg');
   if(!currentUser){ msg.textContent = '請先登入'; return; }
@@ -2033,6 +2052,19 @@ async function handleSubmitEntry(){
   const amount = getEntryAmount();
   if(!amount || amount <= 0){ msg.textContent = '請輸入正確的金額'; return; }
   const {year, month} = gregorianToROC(dateStr);
+
+  // v1.11.8 紅包袋編號重複：列出已使用這個號碼的登記，確認後才儲存
+  const envInput = document.getElementById('entryEnvelope').value.trim();
+  const dups = findEnvelopeDuplicates(envInput, editingEntryId);
+  if(dups.length){
+    const list = dups.slice(0, 5).map(e=>`・${e.date}　${e.name||'（未填姓名）'}　${moneyPlain(e.amount)}　${joinLabel(e.activity, e.item)}`).join('\n');
+    const more = dups.length > 5 ? `\n…另有 ${dups.length-5} 筆` : '';
+    if(!confirm(`紅包袋編號「${envInput}」已經登記過 ${dups.length} 筆：\n${list}${more}\n\n請確認號碼是否打錯。\n確定仍要用這個號碼儲存嗎？`)){
+      msg.textContent = '已取消，請修改紅包袋編號';
+      document.getElementById('entryEnvelope').focus();
+      return;
+    }
+  }
 
   const entry = {
     date: dateStr, year, month, account, direction, amount,
