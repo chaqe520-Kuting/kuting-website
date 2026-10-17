@@ -922,7 +922,7 @@
         <div class="field-row" id="qaBuyunRow" style="display:none; margin-top:10px;">
           <div class="field">
             <label for="qaBuyunName">補運名稱</label>
-            <input type="text" id="qaBuyunName" placeholder="補運名稱">
+            <select id="qaBuyunName"><option value="">請選擇</option><option value="補運">補運</option><option value="補運+補財庫">補運+補財庫</option></select>
           </div>
           <div class="field" style="flex:1;">
             <label for="qaBuyunAddr">補運地址</label>
@@ -1152,8 +1152,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v93";
-  var APP_UPDATED = "2026-10-16";
+  var APP_VERSION = "v94";
+  var APP_UPDATED = "2026-10-17";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1163,6 +1163,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v94", date: "2026-10-17", changes: [
+      "補運名稱改成點選：「補運」或「補運+補財庫」，後台快速登記與登記清單編輯都一樣；之前打字填過的其他名稱仍會保留"
+    ]},
     { version: "v93", date: "2026-10-16", changes: [
       "補運欄的「補運姓名」改名為「補運名稱」，登記清單與預覽顯示「名稱：…　地址：…」；已填的資料不受影響"
     ]},
@@ -1966,6 +1969,15 @@
   function itemNeedsBuyun(catId, occ){ var it = findItem(catId, occ); return !!(it && it.needsBuyun); }
   // v92 — 補運欄分成「姓名」「地址」兩格（registrations.buyunName／buyunAddr）；
   // v91 舊的單一欄位 buyun 若有填過，仍附在後面顯示。
+  // v94 — 補運名稱改成下拉選擇；舊資料若是其他文字，編輯時仍保留為一個選項
+  var BUYUN_NAME_OPTIONS = ["補運", "補運+補財庫"];
+  function buyunNameOptionsHtml(cur){
+    var opts = BUYUN_NAME_OPTIONS.slice();
+    if(cur && opts.indexOf(cur) < 0) opts.push(cur);
+    return '<option value="">請選擇</option>' + opts.map(function(o){
+      return '<option value="' + escAttr(o) + '"' + (o === cur ? " selected" : "") + '>' + escHtml(o) + '</option>';
+    }).join("");
+  }
   function buyunParts(reg){
     var out = [];
     if(reg.buyunName) out.push("名稱：" + reg.buyunName);
@@ -6471,7 +6483,7 @@
               '<datalist id="editDedicateList-' + reg.id + '">' + dedicateNameOptions(occ) + '</datalist>' +
             '</div>' +
             '<div id="editBuyunWrap-' + reg.id + '" style="margin-top:6px;' + (itemNeedsBuyun(reg.catId, occ) ? '' : ' display:none;') + '">' +
-              '<input type="text" class="edit-input" id="editBuyunName-' + reg.id + '" value="' + escAttr(reg.buyunName || "") + '" placeholder="補運名稱" style="width:150px;">' +
+              '<select class="edit-input" id="editBuyunName-' + reg.id + '" style="width:150px;">' + buyunNameOptionsHtml(reg.buyunName || "") + '</select>' +
               '<input type="text" class="edit-input" id="editBuyunAddr-' + reg.id + '" value="' + escAttr(reg.buyunAddr || reg.buyun || "") + '" placeholder="補運地址" style="width:150px; margin-top:4px;">' +
             '</div></td>' +
           '<td><input type="number" min="0" step="0.01" class="edit-input" id="editQty-' + reg.id + '" value="' + reg.qty + '" style="width:76px;"></td>' +
