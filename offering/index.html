@@ -824,7 +824,7 @@
         <p class="pdesc">「項次」可直接作為快速登記與 LINE 訊息貼上的辨識關鍵字（例如輸入「3」即比對到 3 號品項）；修改「單價」「總量」「已贊助基準」會立即反映到「剩餘名額總覽」與關鍵字比對，「已贊助基準」是開放報名前既有的預訂數量，之後志工登記會在此基礎上累加。「總量」填 0 或留空代表這項供品不限量，畫面會顯示「不限量」，不會出現已額滿，登記時也不會被擋。</p>
         <div class="table-wrap">
           <table class="manage-table">
-            <thead><tr><th>項次</th><th>品項名稱</th><th>規格說明</th><th>單位</th><th>單價</th><th>總量</th><th>已贊助基準</th><th>剩餘</th><th title="勾選後信眾報名頁不顯示這個品項">不公開</th><th title="勾選後登記這個品項時多一格「補運」可填寫">補運欄</th><th>操作</th></tr></thead>
+            <thead><tr><th>項次</th><th>品項名稱</th><th>規格說明</th><th>單位</th><th>單價</th><th>總量</th><th>已贊助基準</th><th>剩餘</th><th title="勾選後信眾報名頁不顯示這個品項">不公開</th><th title="勾選後登記這個品項時多一格「補運」可填寫">補運欄</th><th title="現金品項：登記清單的數量欄改顯示金額">數量顯示金額</th><th>操作</th></tr></thead>
             <tbody id="itemManageBody"></tbody>
           </table>
         </div>
@@ -1178,7 +1178,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v96";
+  var APP_VERSION = "v97";
   var APP_UPDATED = "2026-10-19";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1189,6 +1189,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v97", date: "2026-10-19", changes: [
+      "現金品項（第 19 項師尊法船、第 20 項個人法船）的數量欄改顯示金額：登記清單、預覽、匯出登記清單 Excel 都一樣",
+      "品項管理多一欄「數量顯示金額」：有勾補運欄的品項預設勾選，其他品項要用金額顯示也可以自己勾"
+    ]},
     { version: "v96", date: "2026-10-19", changes: [
       "補運A4：個人戶工作表不再多出空白頁（每張 A4 一位）",
       "補運A4：地址、姓名依字數自動縮小字體，整段都放得進格子裡",
@@ -2167,9 +2171,19 @@
   // v91 — 品項可在「供品品項管理」勾選：
   //  hidden     不公開：信眾報名頁（剩餘名額清單、我要贊助的品項搜尋）不顯示，只有後台看得到、登記得到
   //  needsBuyun 補運欄：登記這個品項時多一格「補運」可填寫（後台快速登記、登記清單編輯）
-  var ITEM_SYNC_KEYS = ["id","no","name","spec","unit","price","total","hidden","needsBuyun"];
+  var ITEM_SYNC_KEYS = ["id","no","name","spec","unit","price","total","hidden","needsBuyun","qtyAsAmount"];
   function itemIsHidden(catId, occ){ var it = findItem(catId, occ); return !!(it && it.hidden); }
   function itemNeedsBuyun(catId, occ){ var it = findItem(catId, occ); return !!(it && it.needsBuyun); }
+  // v97 — qtyAsAmount「數量顯示金額」：現金品項（第 19、20 項法船）的數量欄改顯示金額。
+  // 還沒設定過的品項，有勾「補運欄」的就當作現金品項（法船都是），取消勾選後存成 false。
+  function itemQtyAsAmount(it){ return !!it && (it.qtyAsAmount === true || (it.qtyAsAmount == null && !!it.needsBuyun)); }
+  // 單價沒設（金額 0）時，數量欄打的就是現金，直接當金額
+  function regCashAmount(reg){ return Number(reg.amount) || Number(reg.qty) || 0; }
+  function regQtyText(reg, cat, donationText){
+    if(reg.type === "donation") return donationText;
+    if(itemQtyAsAmount(cat)) return fmt(regCashAmount(reg));
+    return reg.qty + (cat ? cat.unit : "");
+  }
   // v92 — 補運欄分成「姓名」「地址」兩格（registrations.buyunName／buyunAddr）；
   // v91 舊的單一欄位 buyun 若有填過，仍附在後面顯示。
   // v94 — 補運名稱改成下拉選擇；舊資料若是其他文字，編輯時仍保留為一個選項
@@ -4967,7 +4981,7 @@
     var rows = [header];
     occ.registrations.forEach(function(r){
       var cat = findCatalog(r.catId, occ);
-      var qtyDisplay = r.type === "donation" ? "" : (r.qty + (cat ? cat.unit : ""));
+      var qtyDisplay = r.type !== "donation" && itemQtyAsAmount(cat) ? Math.round(regCashAmount(r)).toLocaleString("zh-TW") : regQtyText(r, cat, "");
       // 「敬致仙佛／師尊」（目前只有「各師尊大壽金」這個品項會用到）直接併
       // 進「品項」這一欄裡顯示，不用另外加一欄。
       var label = r.label + (r.dedicateTo ? "－" + r.dedicateTo : "");
@@ -5326,6 +5340,7 @@
         '<td class="remaining-cell num">' + remainingText + '</td>' +
         '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="hidden"' + (it.hidden ? " checked" : "") + '></td>' +
         '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="needsBuyun"' + (it.needsBuyun ? " checked" : "") + '></td>' +
+        '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="qtyAsAmount"' + (itemQtyAsAmount(it) ? " checked" : "") + '></td>' +
         '<td><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
       itemManageBody.appendChild(tr);
     });
@@ -5816,7 +5831,7 @@
   function renderPubQaConfirmBody(reg){
     var occ = current();
     var cat = findCatalog(reg.catId, occ);
-    var qtyDisplay = reg.type === "donation" ? "—" : (reg.qty + (cat ? cat.unit : ""));
+    var qtyDisplay = regQtyText(reg, cat, "—");
     var rows = [
       ["姓名", escHtml(reg.name)],
       ["聯絡電話", escHtml(reg.phone || "未填寫")],
@@ -6725,7 +6740,7 @@
 
       var typeLabel = reg.type === "item" ? "供品" : (reg.type === "deity" ? "師尊迴向" : "隨喜祝壽金");
       var cat = findCatalog(reg.catId, occ);
-      var qtyDisplay = reg.type === "donation" ? "—" : (reg.qty + (cat ? cat.unit : ""));
+      var qtyDisplay = regQtyText(reg, cat, "—");
       tr.innerHTML =
         '<td><input type="checkbox" class="reg-select-chk" data-id="' + reg.id + '"' + (selectedRegIds[reg.id] ? " checked" : "") + '></td>' +
         '<td><button type="button" class="link-btn" data-act="preview" data-id="' + reg.id + '">' + escHtml(reg.name) + '</button></td>' +
@@ -6863,7 +6878,7 @@
     var totalAmount = 0, paidCount = 0;
     var html = regs.map(function(reg){
       var cat = findCatalog(reg.catId, occ);
-      var qtyDisplay = reg.type === "donation" ? "—" : (reg.qty + (cat ? cat.unit : ""));
+      var qtyDisplay = regQtyText(reg, cat, "—");
       totalAmount += reg.amount;
       if(reg.paid) paidCount++;
       var confirmRow = occ.confirmFieldName
@@ -6978,7 +6993,7 @@
     var occ = current();
     var cat = findCatalog(reg.catId, occ);
     var typeLabel = reg.type === "item" ? "供品" : (reg.type === "deity" ? "師尊迴向" : "隨喜祝壽金");
-    var qtyDisplay = reg.type === "donation" ? "—" : (reg.qty + (cat ? cat.unit : ""));
+    var qtyDisplay = regQtyText(reg, cat, "—");
     var rows = [
       ["姓名", escHtml(reg.name)],
       ["聯絡電話", escHtml(reg.phone || "未填寫")],
