@@ -845,9 +845,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.9';
-const APP_DATE = '2026-10-18';
+const APP_VERSION = 'v1.11.10';
+const APP_DATE = '2026-10-19';
 const CHANGELOG = [
+  { version:'v1.11.10', date:'2026-10-19', items:[
+    '匯出的 Excel（月份明細、收支明細各工作表）金額欄加千分位逗號，例如 12,345；仍是數字，可直接加總'
+  ]},
   { version:'v1.11.9', date:'2026-10-18', items:[
     '月份明細新增「期初餘額」欄位：等於上個月的月底餘額（每年第一個月用該年度期初結餘）',
     '原「累計餘額」改名為「月底餘額」，期初、月底都另外列出現金與銀行各自的餘額',
@@ -1241,6 +1244,16 @@ function renderTable(yearRows){
   }).join('');
 }
 
+// v1.11.10 — 匯出 Excel 的金額欄加千分位（數字格式 #,##0，仍是數字、可加總）
+function formatAmountCols(ws, cols){
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for(let R = 1; R <= range.e.r; R++){
+    cols.forEach(C=>{
+      const cell = ws[XLSX.utils.encode_cell({r:R, c:C})];
+      if(cell && cell.t === 'n') cell.z = '#,##0';
+    });
+  }
+}
 function exportMonthlyExcel(){
   if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
   const header = ['年月','期初餘額','期初現金','期初銀行','現金收入','現金支出','銀行收入','銀行支出','本月收支合計','月底餘額','月底現金','月底銀行','備註'];
@@ -1254,6 +1267,7 @@ function exportMonthlyExcel(){
   });
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
   ws['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:30}];
+  formatAmountCols(ws, [1,2,3,4,5,6,7,8,9,10,11]);
   const wb = XLSX.utils.book_new();
   const yearLabel = document.getElementById('yearPick').selectedOptions[0].textContent;
   XLSX.utils.book_append_sheet(wb, ws, '月份明細');
@@ -2580,18 +2594,19 @@ function exportDetailExcel(){
   if(total === 0){ msg.textContent = '這個範圍沒有資料可以匯出'; setTimeout(()=>{ msg.textContent=''; }, 3000); return; }
 
   const wb = XLSX.utils.book_new();
-  const addSheet = (name, header, rows, widths)=>{
+  const addSheet = (name, header, rows, widths, amountCols)=>{
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws['!cols'] = widths.map(w=>({wch:w}));
+    formatAmountCols(ws, amountCols);
     XLSX.utils.book_append_sheet(wb, ws, name);
   };
-  addSheet('現金收入明細', ['年','月','姓名','活動名稱','項目／摘要','金額'], incomeRows, [7,6,16,24,34,12]);
-  addSheet('銀行存款明細', ['年','月','姓名','項目／摘要','存入','支出'], bankRows, [7,6,16,36,12,12]);
+  addSheet('現金收入明細', ['年','月','姓名','活動名稱','項目／摘要','金額'], incomeRows, [7,6,16,24,34,12], [5]);
+  addSheet('銀行存款明細', ['年','月','姓名','項目／摘要','存入','支出'], bankRows, [7,6,16,36,12,12], [4,5]);
   addSheet('現金支出分類', ['年','月', ...catKeys.map(k=>CAT_LABELS[k]), '分類合計','現金支出總額','備註'], expenseRows,
-           [7,6, ...catKeys.map(()=>14), 12,14,36]);
-  addSheet('合併明細', ['年','月','來源','姓名','項目／摘要','收入','支出'], mergedRows, [7,6,8,16,36,12,12]);
+           [7,6, ...catKeys.map(()=>14), 12,14,36], catKeys.map((k,i)=>i+2).concat([catKeys.length+2, catKeys.length+3]));
+  addSheet('合併明細', ['年','月','來源','姓名','項目／摘要','收入','支出'], mergedRows, [7,6,8,16,36,12,12], [5,6]);
   addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','紅包袋編號','登記人','登記時間'], liveRows,
-           [12,8,8,16,20,14,30,12,20,12,12,24]);
+           [12,8,8,16,20,14,30,12,20,12,12,24], [7]);
 
   const ey = document.getElementById('exportYearPick').value;
   const em = document.getElementById('exportMonthPick').value;
