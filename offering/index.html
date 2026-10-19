@@ -1091,6 +1091,10 @@
       <label for="buyunA4Date">日期文字（直書在右下角）</label>
       <input type="text" id="buyunA4Date" placeholder="丙午年九月十九">
     </div>
+    <div class="field" style="margin-top:12px;">
+      <label>要匯出的品項（只勾需要印補運的品項）</label>
+      <div id="buyunA4Items"></div>
+    </div>
     <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:.9rem;">
       <input type="checkbox" id="buyunA4PaidOnly"> 只列出「已收款」的報名
     </label>
@@ -1174,7 +1178,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v95";
+  var APP_VERSION = "v96";
   var APP_UPDATED = "2026-10-19";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1185,6 +1189,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v96", date: "2026-10-19", changes: [
+      "補運A4：個人戶工作表不再多出空白頁（每張 A4 一位）",
+      "補運A4：地址、姓名依字數自動縮小字體，整段都放得進格子裡",
+      "補運A4：匯出前可勾選品項，預設只勾名稱有「個人」的品項（第 20 項個人法船），第 19 項師尊法船不列入；會記住上次的勾選"
+    ]},
     { version: "v95", date: "2026-10-19", changes: [
       "場次操作新增「匯出補運A4」：依報名資料產生補運 Excel（A4 直式），照古亭院補運紅紙工作表原格式",
       "補運名稱「補運」→「一戶-全部」工作表，一筆報名一張，多人名字放同一張；「補運+補財庫」→「個人戶」工作表，每個名字各一張",
@@ -1945,6 +1954,7 @@
   }
 
   // 依字數挑字級（原檔實際用過的大小：地址 22–36、一戶姓名 24–48、個人姓名 68–72）
+  // v96：Excel 直書每個字約佔字級 1.4 倍高，room 是格子可用高度（點）÷1.4，字多就縮小到放得下
   function fit(len, room, max, min){ return Math.max(min, Math.min(max, Math.floor(room / Math.max(len, 1)))); }
 
   // 一戶：多人名字排成 1～多行（原檔：2 人一行、3–4 人兩行、5–6 人「3＋2／3＋3」兩行）
@@ -1955,7 +1965,7 @@
     for(var i = 0; i < n; i += per) out.push(names.slice(i, i + per).join("、"));
     var longest = out.reduce(function(m, l){ return Math.max(m, l.length); }, 1);
     var byCount = n === 1 ? 48 : n === 2 ? 46 : n <= 4 ? 36 : n <= 6 ? 30 : Math.floor(80 / lines);
-    return { text: out.join("\n"), sz: Math.max(14, Math.min(byCount, Math.floor(460 / longest))) };
+    return { text: out.join("\n"), sz: Math.max(12, Math.min(byCount, Math.floor(340 / longest))) };
   }
 
   function buildBuyunA4XlsxBytes(data){
@@ -1964,7 +1974,7 @@
     // 「一戶-全部」：原檔第 1 組（A–E）的樣子
     var house = data.households.map(function(h){
       var nm = householdNames(h.names);
-      return { names: nm.text, nameS: st.sized(21, nm.sz), addr: h.addr, addrS: st.sized(18, fit(h.addr.length, 650, 36, 18)) };
+      return { names: nm.text, nameS: st.sized(21, nm.sz), addr: h.addr, addrS: st.sized(18, fit(h.addr.length, 560, 36, 12)) };
     });
     var houseXml = buildSheet({
       zoom: 55, defaultRowHeight: 29.5, selected: true,
@@ -1980,15 +1990,12 @@
       merges: [[1, 2, 6], [2, 3, 6], [3, 2, 6], [4, 2, 3], [5, 4, 6]],
       tail: '<printOptions horizontalCentered="1" verticalCentered="1"/><pageMargins left="0.23622047244094491" right="0.23622047244094491" top="0.35433070866141736" bottom="0.35433070866141736" header="0.31496062992125984" footer="0.31496062992125984"/><pageSetup paperSize="9" orientation="portrait"/>'
     }, house);
-    // 「個人戶」：原檔第 2 組（J–P）的樣子，最左邊一欄窄邊
+    // 「個人戶」：每頁都照原檔第 2 組（J–P）的欄寬；v96 拿掉最左邊的窄邊，Excel 第 1 頁才不會多出一張空白頁
     var people = data.persons.map(function(p){
-      return { name: p.name, nameS: st.sized(53, fit(p.name.length, 460, 72, 24)), addr: p.addr, addrS: st.sized(56, fit(p.addr.length, 600, 36, 16)) };
+      return { name: p.name, nameS: st.sized(53, fit(p.name.length, 340, 72, 20)), addr: p.addr, addrS: st.sized(56, fit(p.addr.length, 500, 36, 12)) };
     });
     var personXml = buildSheet({
       zoom: 40, defaultRowHeight: 12.5,
-      leadCols: [{ w: 3.453125, style: 46 }],
-      // 第一頁左邊多一條窄邊，欄寬照原檔第 1 組（B–H）才不會擠到第二頁
-      firstGroupCols: [{ w: 22.7265625, style: 45 }, { w: 24.1796875, style: 45 }, { w: 13.6328125, style: 45 }, { w: 7.54296875, style: 45 }, { w: 23.7265625, style: 45 }, { w: 6.1796875, style: 45 }, { w: 2.26953125, style: 45 }],
       groupCols: [{ w: 22.36328125, style: 45 }, { w: 23.81640625, style: 45 }, { w: 13.7265625, style: 45 }, { w: 6.6328125, style: 45 }, { w: 23.08984375, style: 45 }, { w: 8.7265625, style: 45 }, { w: 3, style: 45 }],
       rows: [
         { ht: 28, cells: [[1, 46], [2, 62, " 補運"], [3, 61], [4, 60], [5, 59, "古亭院"], [6, 46], [7, 46]] },
@@ -7168,13 +7175,28 @@
 
   /* ---------------- 匯出補運A4 Excel v95 ---------------- */
   // 有填補運名稱／地址，或品項有勾「補運欄」的報名才列入；名稱含「財庫」→ 個人戶，其餘 → 一戶
-  function buildBuyunA4Data(occ, dateText, paidOnly){
+  // v96：可勾選要匯出的品項（例如只要第 20 項個人法船，不要第 19 項師尊法船）
+  var BUYUN_A4_STORAGE_KEY = "gongpin_buyuna4_items_v1";
+  function buyunA4Items(occ){
+    var used = {};
+    occ.registrations.forEach(function(r){ if(r.buyunName || r.buyunAddr || r.buyun) used[r.catId] = true; });
+    return occ.items.map(function(it, i){ return { it: it, no: i + 1 }; })
+      .filter(function(x){ return x.it.needsBuyun || used[x.it.id]; });
+  }
+  function selectedBuyunA4ItemIds(){
+    var ids = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#buyunA4Items input[type="checkbox"]'), function(cb){ if(cb.checked) ids[cb.value] = true; });
+    return ids;
+  }
+
+  function buildBuyunA4Data(occ, dateText, paidOnly, itemIds){
     var households = [], persons = [];
     occ.registrations.forEach(function(r){
       if(paidOnly && !r.paid) return;
+      if(itemIds && !itemIds[r.catId]) return;
       var kind = String(r.buyunName || "").trim();
       var addr = String(r.buyunAddr || r.buyun || "").trim();
-      if(!kind && !addr && !itemNeedsBuyun(r.catId, occ)) return;
+      if(!itemIds && !kind && !addr && !itemNeedsBuyun(r.catId, occ)) return;
       var names = String(r.name || "").split(/[、,，;；\/\s]+/).map(function(n){ return n.trim(); }).filter(Boolean);
       if(!names.length) names = ["（未填姓名）"];
       if(/財庫/.test(kind)) names.forEach(function(n){ persons.push({ name: n, addr: addr }); });
@@ -7185,7 +7207,7 @@
 
   function updateBuyunA4Summary(){
     var occ = current();
-    var d = buildBuyunA4Data(occ, "", document.getElementById("buyunA4PaidOnly").checked);
+    var d = buildBuyunA4Data(occ, "", document.getElementById("buyunA4PaidOnly").checked, selectedBuyunA4ItemIds());
     document.getElementById("buyunA4Summary").textContent =
       "場次：" + occ.label + "。一戶（補運）" + d.households.length + " 張、個人戶（補運+補財庫）" + d.persons.length + " 張。";
   }
@@ -7194,6 +7216,16 @@
     var occ = current();
     document.getElementById("buyunA4Date").value = guessRedPaperDate(occ).replace(/日$/, "") || "丙午年九月十九";
     document.getElementById("buyunA4PaidOnly").checked = false;
+    // 預設勾上次選的品項；沒選過就勾名稱有「個人」的補運品項，都沒有就全勾
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(BUYUN_A4_STORAGE_KEY) || "null"); } catch(e){ saved = null; }
+    var list = buyunA4Items(occ);
+    var anySaved = saved && list.some(function(x){ return saved.indexOf(x.it.name) >= 0; });
+    var anyPersonal = list.some(function(x){ return /個人/.test(x.it.name || ""); });
+    document.getElementById("buyunA4Items").innerHTML = list.length ? list.map(function(x){
+      var on = anySaved ? saved.indexOf(x.it.name) >= 0 : anyPersonal ? /個人/.test(x.it.name || "") : true;
+      return '<label style="display:flex; align-items:center; gap:8px; margin-top:4px; font-size:.9rem;"><input type="checkbox" value="' + escAttr(x.it.id) + '"' + (on ? " checked" : "") + '> 第 ' + x.no + ' 項　' + escHtml(x.it.name || "") + '</label>';
+    }).join("") : '<div class="pdesc">這個場次沒有勾「補運欄」的品項。</div>';
     updateBuyunA4Summary();
     document.getElementById("buyunA4Overlay").style.display = "flex";
   }
@@ -7206,10 +7238,13 @@
     document.getElementById("buyunA4CancelBtn").addEventListener("click", close);
     overlay.addEventListener("click", function(e){ if(e.target === overlay) close(); });
     document.getElementById("buyunA4PaidOnly").addEventListener("change", updateBuyunA4Summary);
+    document.getElementById("buyunA4Items").addEventListener("change", updateBuyunA4Summary);
     document.addEventListener("keydown", function(e){ if(e.key === "Escape" && overlay.style.display !== "none") close(); });
     document.getElementById("buyunA4GoBtn").addEventListener("click", function(){
       var occ = current();
-      var d = buildBuyunA4Data(occ, document.getElementById("buyunA4Date").value.trim(), document.getElementById("buyunA4PaidOnly").checked);
+      var itemIds = selectedBuyunA4ItemIds();
+      try { localStorage.setItem(BUYUN_A4_STORAGE_KEY, JSON.stringify(occ.items.filter(function(it){ return itemIds[it.id]; }).map(function(it){ return it.name; }))); } catch(e){}
+      var d = buildBuyunA4Data(occ, document.getElementById("buyunA4Date").value.trim(), document.getElementById("buyunA4PaidOnly").checked, itemIds);
       if(!d.households.length && !d.persons.length){ showToast("這個場次沒有填補運的報名資料"); return; }
       try {
         var bytes = window.BuyunA4Xlsx.build(d);
