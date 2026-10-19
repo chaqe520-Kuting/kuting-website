@@ -1106,6 +1106,26 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="itemEditOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:460px;">
+    <div class="modal-head">
+      <h3>編輯品項</h3>
+      <button class="modal-close" id="itemEditCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <p class="pdesc">改完按「儲存」會立即同步；已贊助基準與已登記的資料不會被更動。</p>
+    <div class="field" style="margin-top:10px;"><label for="itemEditNo">項次</label><input type="text" id="itemEditNo"></div>
+    <div class="field" style="margin-top:10px;"><label for="itemEditName">品項名稱</label><input type="text" id="itemEditName"></div>
+    <div class="field" style="margin-top:10px;"><label for="itemEditSpec">規格說明</label><input type="text" id="itemEditSpec"></div>
+    <div class="field" style="margin-top:10px;"><label for="itemEditUnit">單位（現金品項請填「元」）</label><input type="text" id="itemEditUnit"></div>
+    <div class="field" style="margin-top:10px;"><label for="itemEditPrice">單價</label><input type="number" id="itemEditPrice" min="0"></div>
+    <div class="field" style="margin-top:10px;"><label for="itemEditTotal">總量（0＝不限量）</label><input type="number" id="itemEditTotal" min="0"></div>
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      <button class="add-btn" id="itemEditSaveBtn" type="button">儲存</button>
+      <button class="ghost-btn" id="itemEditCancelBtn" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="regPreviewOverlay" style="display:none;">
   <div class="modal-card" id="regPreviewCard">
     <div class="modal-head">
@@ -1178,7 +1198,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v98";
+  var APP_VERSION = "v99";
   var APP_UPDATED = "2026-10-19";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1189,6 +1209,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v99", date: "2026-10-19", changes: [
+      "品項管理每一列加「編輯」按鈕：開視窗修改項次、品項名稱、規格、單位、單價、總量，不會動到已贊助基準"
+    ]},
     { version: "v98", date: "2026-10-19", changes: [
       "第 19、20 項（法船）數量欄顯示「金額 元」，例如「1,200 元」",
       "拿掉品項管理的「數量顯示金額」欄：有勾補運欄或單位是「元」的品項自動用金額顯示"
@@ -5344,7 +5367,7 @@
         '<td class="remaining-cell num">' + remainingText + '</td>' +
         '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="hidden"' + (it.hidden ? " checked" : "") + '></td>' +
         '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="needsBuyun"' + (it.needsBuyun ? " checked" : "") + '></td>' +
-        '<td><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
+        '<td style="white-space:nowrap;"><button class="ghost-btn" data-act="edititem" data-id="' + it.id + '" style="padding:5px 10px; font-size:.75rem; margin-right:4px;">編輯</button><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
       itemManageBody.appendChild(tr);
     });
   }
@@ -5378,7 +5401,50 @@
     if(cell) cell.textContent = unlimited ? "不限量" : (remaining < 0 ? "超額 " + (-remaining) : "剩 " + remaining);
   });
 
+  // v99 — 小朱回報表格裡改不到單位：每列加「編輯」按鈕，開視窗改項次、名稱、規格、單位、單價、總量
+  // （不含已贊助基準，避免動到已登記的數量）。
+  var itemEditingId = null;
+  function openItemEditModal(id){
+    var it = findItem(id);
+    if(!it) return;
+    itemEditingId = id;
+    document.getElementById("itemEditNo").value = it.no || "";
+    document.getElementById("itemEditName").value = it.name || "";
+    document.getElementById("itemEditSpec").value = it.spec || "";
+    document.getElementById("itemEditUnit").value = it.unit || "";
+    document.getElementById("itemEditPrice").value = it.price || 0;
+    document.getElementById("itemEditTotal").value = it.total || 0;
+    document.getElementById("itemEditOverlay").style.display = "flex";
+  }
+  (function setupItemEditModal(){
+    var overlay = document.getElementById("itemEditOverlay");
+    function close(){ overlay.style.display = "none"; itemEditingId = null; }
+    document.getElementById("itemEditCloseBtn").addEventListener("click", close);
+    document.getElementById("itemEditCancelBtn").addEventListener("click", close);
+    overlay.addEventListener("click", function(e){ if(e.target === overlay) close(); });
+    document.getElementById("itemEditSaveBtn").addEventListener("click", function(){
+      var it = itemEditingId && findItem(itemEditingId);
+      if(!it){ close(); return; }
+      var name = document.getElementById("itemEditName").value.trim();
+      if(!name){ showToast("品項名稱不能空白"); return; }
+      it.no = document.getElementById("itemEditNo").value.trim();
+      it.name = name;
+      it.spec = document.getElementById("itemEditSpec").value.trim();
+      it.unit = document.getElementById("itemEditUnit").value.trim();
+      it.price = Math.max(0, parseFloat(document.getElementById("itemEditPrice").value) || 0);
+      it.total = Math.max(0, parseFloat(document.getElementById("itemEditTotal").value) || 0);
+      buildCatalog();
+      recompute();
+      scheduleItemFieldSync(current().id, it.id, false);
+      close();
+      renderAll();
+      showToast("已更新品項：" + it.name);
+    });
+  })();
+
   itemManageBody.addEventListener("click", function(e){
+    var editBtn = e.target.closest('[data-act="edititem"]');
+    if(editBtn){ openItemEditModal(editBtn.getAttribute("data-id")); return; }
     var btn = e.target.closest('[data-act="delitem"]');
     if(!btn) return;
     var id = btn.getAttribute("data-id");
