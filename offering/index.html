@@ -933,6 +933,26 @@
       </div>
     </div>
 
+    <div class="section" id="lineInboxSection">
+      <div class="section-head">
+        <h2><span class="tag"></span>LINE 小幫手待確認 <span class="badge open" id="lineInboxCount" style="display:none;"></span></h2>
+        <span class="hint">信眾在群組或私訊「古亭院報名小幫手」的報名訊息會自動出現在這裡，確認後才會正式登記</span>
+      </div>
+      <div class="panel">
+        <p class="pdesc" id="lineInboxMsg">尚未收到 LINE 訊息。</p>
+        <div class="table-wrap" id="lineInboxTableWrap" style="display:none;">
+          <table>
+            <thead><tr><th><input type="checkbox" id="lineInboxAllChk"></th><th>時間</th><th>來源</th><th>LINE 名稱</th><th>訊息內容</th><th>操作</th></tr></thead>
+            <tbody id="lineInboxBody"></tbody>
+          </table>
+        </div>
+        <div id="lineInboxActions" style="display:none; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          <button class="ghost-btn" id="lineInboxParseBtn">勾選的帶入下方解析</button>
+          <button class="ghost-btn" id="lineInboxSkipBtn">勾選的略過</button>
+        </div>
+      </div>
+    </div>
+
     <div class="section">
       <div class="section-head">
         <h2><span class="tag"></span>LINE 訊息貼上快速登記</h2>
@@ -1198,8 +1218,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v99";
-  var APP_UPDATED = "2026-10-19";
+  var APP_VERSION = "v100";
+  var APP_UPDATED = "2026-10-20";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1209,6 +1229,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v100", date: "2026-10-20", changes: [
+      "後台新增「LINE 小幫手待確認」：信眾在 LINE 群組或私訊「古亭院報名小幫手」的報名訊息會自動列出",
+      "勾選訊息按「帶入解析」，沿用 LINE 貼上快速登記的解析與額滿檢查；按「確認加入登記清單」後才正式登記",
+      "不是報名的訊息可按「略過」；單行訊息沒寫姓名時，自動用 LINE 名稱當姓名（預覽時可修改）"
+    ]},
     { version: "v99", date: "2026-10-19", changes: [
       "品項管理每一列加「編輯」按鈕：開視窗修改項次、品項名稱、規格、單位、單價、總量，不會動到已贊助基準"
     ]},
@@ -2385,6 +2410,7 @@
       ensureCurrentOccSubcollectionListeners();
     }
     updateAdminLockUI();
+    lineInboxSync();
     renderStaffAccounts();
     try { renderAll(); } catch(e){}
   }
@@ -6497,6 +6523,7 @@
   });
   bulkClearBtn.addEventListener("click", function(){
     bulkText.value = ""; previewRows = []; renderPreview();
+    lineInboxInPreview = []; renderLineInbox();
   });
 
   function renderPreview(){
@@ -6552,7 +6579,154 @@
     var msg = added ? ("已匯入 " + added + " 筆登記") : "沒有可匯入的項目，請確認比對結果";
     if(blocked) msg += "，另有 " + blocked + " 筆因超過贊助基準數量（已額滿）未匯入，請調整數量或改贊助其他品項";
     showToast(msg);
-    if(added){ bulkText.value = ""; previewRows = []; renderPreview(); }
+    if(added){ bulkText.value = ""; previewRows = []; renderPreview(); lineInboxMarkInPreview("done"); }
+  });
+
+  /* ---------------- v100 LINE 小幫手待確認 ----------------
+     LINE 官方帳號「古亭院報名小幫手」收到的群組／私訊報名訊息，由 Google Apps
+     Script 接收程式（kuting-platforms/linebot）寫進 Firestore 的 linePending
+     集合（status: "new"）。這裡只給啟用中的志工看：勾選後帶入上面的「LINE 訊息
+     貼上快速登記」解析，沿用同一套解析與額滿檢查；按「確認加入登記清單」成功
+     後才把這些訊息標成 done，略過的標成 skipped。信眾端不會讀這個集合。 */
+  var lineInboxUnsub = null;
+  var lineInboxDocs = [];
+  var lineInboxInPreview = [];
+  var lineInboxBody = document.getElementById("lineInboxBody");
+
+  function lineInboxSync(){
+    var want = !!(fsReady && fsDb && staffActive());
+    if(!want){
+      if(lineInboxUnsub){ lineInboxUnsub(); lineInboxUnsub = null; }
+      lineInboxDocs = []; lineInboxInPreview = [];
+      renderLineInbox();
+      return;
+    }
+    if(lineInboxUnsub) return;
+    lineInboxUnsub = fsDb.collection("linePending").where("status", "==", "new").onSnapshot(function(snap){
+      lineInboxDocs = [];
+      snap.forEach(function(d){ lineInboxDocs.push(Object.assign({ id: d.id }, d.data())); });
+      lineInboxDocs.sort(function(a, b){ return lineInboxMillis(a) - lineInboxMillis(b); });
+      renderLineInbox();
+    }, function(err){
+      console.error("linePending", err);
+      lineInboxUnsub = null;
+      lineInboxDocs = [];
+      renderLineInbox(err && err.code === "permission-denied" ? "LINE 小幫手尚未開通（資料庫規則還沒加入 linePending）。" : "LINE 待確認清單讀取失敗，請重新整理頁面。");
+    });
+  }
+
+  function lineInboxMillis(m){
+    var t = m.createdAt;
+    if(t && typeof t.toMillis === "function") return t.toMillis();
+    return +t || 0;
+  }
+
+  function renderLineInbox(errMsg){
+    var count = document.getElementById("lineInboxCount");
+    var msg = document.getElementById("lineInboxMsg");
+    var wrap = document.getElementById("lineInboxTableWrap");
+    var actions = document.getElementById("lineInboxActions");
+    count.style.display = lineInboxDocs.length ? "" : "none";
+    count.textContent = lineInboxDocs.length + " 則";
+    msg.style.display = lineInboxDocs.length ? "none" : "";
+    msg.textContent = errMsg || "目前沒有待確認的 LINE 訊息。";
+    wrap.style.display = lineInboxDocs.length ? "" : "none";
+    actions.style.display = lineInboxDocs.length ? "flex" : "none";
+    document.getElementById("lineInboxAllChk").checked = false;
+    lineInboxBody.innerHTML = lineInboxDocs.map(function(m){
+      var d = new Date(lineInboxMillis(m));
+      var when = isNaN(d.getTime()) || !lineInboxMillis(m) ? "—" : (pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()));
+      var src = m.sourceType === "group" ? ("群組" + (m.groupName ? "：" + m.groupName : "")) : (m.sourceType === "room" ? "多人聊天" : "私訊");
+      var inPrev = lineInboxInPreview.indexOf(m.id) >= 0;
+      return '<tr>' +
+        '<td><input type="checkbox" class="line-inbox-chk" data-id="' + escAttr(m.id) + '"></td>' +
+        '<td>' + when + '</td>' +
+        '<td>' + escHtml(src) + '</td>' +
+        '<td>' + escHtml(m.displayName || "（未知）") + '</td>' +
+        '<td style="white-space:pre-wrap; min-width:180px;">' + escHtml(m.text || "") + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>' +
+        '<td style="white-space:nowrap;"><button class="ghost-btn" type="button" data-line-act="parse" data-id="' + escAttr(m.id) + '">帶入解析</button> ' +
+        '<button class="ghost-btn" type="button" data-line-act="skip" data-id="' + escAttr(m.id) + '">略過</button></td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  // 單行訊息如果解析不到姓名（例如只寫「壽桃 2」），用 LINE 名稱當姓名，志工仍可在預覽表格修改
+  function lineInboxTextFor(m){
+    var lines = String(m.text || "").split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+    if(lines.length === 1 && m.displayName){
+      var one = normalizeLine(lines[0]);
+      if(one.indexOf(",") < 0 && one.indexOf("，") < 0){
+        var r = parseLine(one);
+        if(r.name === "(未填姓名)") lines[0] = m.displayName + " " + lines[0];
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function lineInboxParse(ids){
+    var docs = lineInboxDocs.filter(function(m){ return ids.indexOf(m.id) >= 0; });
+    if(!docs.length){ showToast("請先勾選要帶入的 LINE 訊息"); return; }
+    lineInboxInPreview = docs.map(function(m){ return m.id; });
+    // 每則訊息各自解析（有人用逗號格式、有人用「姓名 品項 數量」，混在一起會讓解析判斷錯格式），
+    // 再合併成一份預覽，最後整批重算額滿
+    var texts = docs.map(lineInboxTextFor);
+    var rows = [];
+    texts.forEach(function(t){
+      bulkText.value = t;
+      previewRows = [];
+      bulkParseBtn.click();
+      rows = rows.concat(previewRows);
+    });
+    bulkText.value = texts.join("\n");
+    previewRows = annotateRowsWithCapacity(rows);
+    renderPreview();
+    renderLineInbox();
+    bulkText.scrollIntoView({ behavior: "smooth", block: "center" });
+    showToast("已帶入 " + docs.length + " 則 LINE 訊息，請核對下方解析結果後按「確認加入登記清單」");
+  }
+
+  function lineInboxSetStatus(ids, status){
+    if(!fsDb || !ids.length) return;
+    var batch = fsDb.batch();
+    ids.forEach(function(id){
+      batch.update(fsDb.collection("linePending").doc(id), {
+        status: status,
+        handledAt: firebase.firestore.FieldValue.serverTimestamp(),
+        handledBy: (staff && staff.name) || ""
+      });
+    });
+    batch.commit().catch(function(e){ console.error("linePending update", e); showToast("LINE 訊息狀態更新失敗：" + (e && e.message || "")); });
+  }
+
+  function lineInboxMarkInPreview(status){
+    var ids = lineInboxInPreview.slice();
+    lineInboxInPreview = [];
+    if(ids.length) lineInboxSetStatus(ids, status);
+  }
+
+  function lineInboxCheckedIds(){
+    return Array.prototype.map.call(lineInboxBody.querySelectorAll(".line-inbox-chk:checked"), function(c){ return c.getAttribute("data-id"); });
+  }
+
+  lineInboxBody.addEventListener("click", function(e){
+    var btn = e.target.closest("[data-line-act]");
+    if(!btn) return;
+    var id = btn.getAttribute("data-id");
+    if(btn.getAttribute("data-line-act") === "parse"){ lineInboxParse([id]); return; }
+    if(!confirm("略過這則 LINE 訊息？略過後不會登記，也不會再出現在待確認清單。")) return;
+    lineInboxInPreview = lineInboxInPreview.filter(function(x){ return x !== id; });
+    lineInboxSetStatus([id], "skipped");
+  });
+  document.getElementById("lineInboxAllChk").addEventListener("change", function(e){
+    lineInboxBody.querySelectorAll(".line-inbox-chk").forEach(function(c){ c.checked = e.target.checked; });
+  });
+  document.getElementById("lineInboxParseBtn").addEventListener("click", function(){ lineInboxParse(lineInboxCheckedIds()); });
+  document.getElementById("lineInboxSkipBtn").addEventListener("click", function(){
+    var ids = lineInboxCheckedIds();
+    if(!ids.length){ showToast("請先勾選要略過的 LINE 訊息"); return; }
+    if(!confirm("略過勾選的 " + ids.length + " 則 LINE 訊息？")) return;
+    lineInboxInPreview = lineInboxInPreview.filter(function(x){ return ids.indexOf(x) < 0; });
+    lineInboxSetStatus(ids, "skipped");
   });
 
   /* ---------------- registrations table ---------------- */
