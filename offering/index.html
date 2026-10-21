@@ -1240,7 +1240,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v103";
+  var APP_VERSION = "v104";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1251,6 +1251,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v104", date: "2026-10-21", changes: [
+      "LINE 訊息貼上快速登記的預覽表：品項改成下拉選單、數量改成可直接輸入，姓名欄加寬",
+      "修改品項或數量後自動重算金額與額滿狀態；取消勾選的列在重算後仍保持不勾"
+    ]},
     { version: "v103", date: "2026-10-21", changes: [
       "LINE 小幫手待確認可收照片報名（手寫紅包袋、紙條、截圖）：顯示照片縮圖，點一下放大",
       "照片由 AI 先讀出「姓名,品項,數量」填在可修改的欄位，志工對照照片改正後再帶入解析、確認登記",
@@ -6565,23 +6569,27 @@
   function renderPreview(){
     bulkPreviewWrap.style.display = previewRows.length ? "block" : "none";
     bulkPreviewBody.innerHTML = "";
+    var occ = current();
     previewRows.forEach(function(row, idx){
       var tr = document.createElement("tr");
-      var matchedLabel = row.matched ? row.matched.label : "（未比對到品項，請手動修正）";
-      var qtyLabel = row.matched && row.matched.type === "donation" ? row.qty + " 元" : row.qty + (row.matched ? row.matched.unit : "");
+      var unit = row.matched ? (row.matched.type === "donation" ? "元" : (row.matched.unit || "")) : "";
       var checkable = row.matched && !row.overCapacity;
       var statusBadge = row.overCapacity
         ? '<span class="badge full" title="' + (row.overCapacityMsg || "").replace(/"/g,"&quot;") + '">超額，不予匯入</span>'
         : (row.matched ? '<span class="badge open">已比對</span>' : '<span class="badge full">需確認</span>');
+      // v104 — 品項改下拉、數量改輸入框，AI 或解析對錯時可以直接在這裡改
+      var itemOpts = '<option value="">（未比對到，請選擇）</option>' + occ.catalog.map(function(c){
+        return '<option value="' + escAttr(c.catId) + '"' + (row.matched && row.matched.catId === c.catId ? " selected" : "") + '>' + escHtml(c.label) + '</option>';
+      }).join("");
 
       tr.innerHTML =
-        '<td><input type="checkbox" class="preview-check" ' + (checkable ? "checked" : "") + (row.overCapacity ? " disabled" : "") + ' data-idx="' + idx + '" data-role="check"></td>' +
-        '<td><input type="text" value="' + row.name.replace(/"/g,"&quot;") + '" data-idx="' + idx + '" data-role="name" style="width:110px;"></td>' +
-        '<td>' + matchedLabel + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') + '</td>' +
+        '<td><input type="checkbox" class="preview-check" ' + (checkable && !row.unchecked ? "checked" : "") + (row.overCapacity ? " disabled" : "") + ' data-idx="' + idx + '" data-role="check"></td>' +
+        '<td><input type="text" value="' + row.name.replace(/"/g,"&quot;") + '" data-idx="' + idx + '" data-role="name" style="width:170px;"></td>' +
+        '<td><select data-idx="' + idx + '" data-role="item" style="max-width:220px;">' + itemOpts + '</select>' + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') + '</td>' +
         '<td>' + (row.matched && itemNeedsDedication(row.matched.catId)
           ? '<input type="text" value="' + (row.dedicateTo || "").replace(/"/g,"&quot;") + '" placeholder="仙佛名稱" data-idx="' + idx + '" data-role="dedicate" style="width:110px;">'
           : '<span class="type-tag">—</span>') + '</td>' +
-        '<td class="num">' + qtyLabel + '</td>' +
+        '<td class="num" style="white-space:nowrap;"><input type="text" inputmode="decimal" value="' + escAttr(row.qty) + '" data-idx="' + idx + '" data-role="qty" style="width:80px; text-align:right;"> ' + escHtml(unit) + '</td>' +
         '<td>' + statusBadge + '</td>';
       bulkPreviewBody.appendChild(tr);
     });
@@ -6591,6 +6599,31 @@
     bulkPreviewBody.querySelectorAll('[data-role="dedicate"]').forEach(function(inp){
       inp.addEventListener("input", function(){ previewRows[+inp.getAttribute("data-idx")].dedicateTo = inp.value; });
     });
+    bulkPreviewBody.querySelectorAll('[data-role="check"]').forEach(function(chk){
+      chk.addEventListener("change", function(){ previewRows[+chk.getAttribute("data-idx")].unchecked = !chk.checked; });
+    });
+    bulkPreviewBody.querySelectorAll('[data-role="item"]').forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var row = previewRows[+sel.getAttribute("data-idx")];
+        row.matched = current().catalog.filter(function(c){ return String(c.catId) === sel.value; })[0] || null;
+        refreshPreviewRow(row);
+      });
+    });
+    bulkPreviewBody.querySelectorAll('[data-role="qty"]').forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var row = previewRows[+inp.getAttribute("data-idx")];
+        var n = parseFloat(String(inp.value).replace(/[,，]/g, ""));
+        row.qty = isNaN(n) || n <= 0 ? 1 : n;
+        refreshPreviewRow(row);
+      });
+    });
+  }
+
+  // 改過品項或數量：重算金額，整批重新檢查額滿（前面的列會影響後面的剩餘名額）
+  function refreshPreviewRow(row){
+    row.amount = row.matched ? (row.matched.type === "donation" ? row.qty : row.qty * row.matched.price) : 0;
+    annotateRowsWithCapacity(previewRows);
+    renderPreview();
   }
 
   bulkConfirmBtn.addEventListener("click", function(){
