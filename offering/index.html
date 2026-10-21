@@ -991,6 +991,7 @@
       <div class="reg-toolbar">
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="ghost-btn" id="regMergedPreviewBtn" disabled>合併預覽已選取（<span id="regSelectedCount">0</span>）</button>
+          <button class="ghost-btn" id="regNoticeBtn" disabled>📷 報名成功圖</button>
           <button class="ghost-btn" id="regBulkPaidBtn" disabled>標記已收款（<span id="regSelectedCountPaid">0</span>）</button>
           <button class="danger-btn" id="regBulkDeleteBtn" disabled>刪除已選取</button>
           <button class="ghost-btn" id="regClearSelectBtn" disabled>清除已選</button>
@@ -1166,6 +1167,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="regNoticeOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-head">
+      <h3>報名成功圖</h3>
+      <button class="modal-close" id="regNoticeCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦會改成下載圖片，再到 LINE 選圖片傳送。</p>
+    <div id="regNoticeBody"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="itemRegPreviewOverlay" style="display:none;">
   <div class="modal-card" id="itemRegPreviewCard" style="max-width:520px;">
     <div class="modal-head">
@@ -1218,8 +1230,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v100";
-  var APP_UPDATED = "2026-10-20";
+  var APP_VERSION = "v101";
+  var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1229,6 +1241,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v101", date: "2026-10-21", changes: [
+      "新增「報名成功圖」：LINE 貼上快速登記確認後，自動依姓名產生報名成功圖片（場次、品項、數量、金額）供預覽",
+      "按「傳到 LINE」會打開手機的分享畫面，選 LINE 再點信徒名字即可傳送；電腦則下載圖片",
+      "登記清單勾選後也可按「報名成功圖」重新產生"
+    ]},
     { version: "v100", date: "2026-10-20", changes: [
       "後台新增「LINE 小幫手待確認」：信眾在 LINE 群組或私訊「古亭院報名小幫手」的報名訊息會自動列出",
       "勾選訊息按「帶入解析」，沿用 LINE 貼上快速登記的解析與額滿檢查；按「確認加入登記清單」後才正式登記",
@@ -6559,7 +6576,7 @@
 
   bulkConfirmBtn.addEventListener("click", function(){
     var checks = bulkPreviewBody.querySelectorAll('[data-role="check"]');
-    var added = 0, blocked = 0;
+    var added = 0, blocked = 0, addedRegs = [];
     checks.forEach(function(chk){
       var idx = +chk.getAttribute("data-idx");
       var row = previewRows[idx];
@@ -6567,19 +6584,19 @@
       // 這裡再檢查一次是防呆，避免資料在解析預覽之後、按下確認之前才變動額滿狀態。
       if(row.matched && row.overCapacity){ blocked++; return; }
       if(chk.checked && row.matched){
-        addRegistration({
+        addedRegs.push(addRegistration({
           name: row.name, phone: "", catId: row.matched.catId, label: row.matched.label, type: row.matched.type,
           qty: row.qty, unitPrice: row.matched.price,
           amount: row.matched.type === "donation" ? row.qty : row.qty * row.matched.price,
           dedicateTo: itemNeedsDedication(row.matched.catId) ? String(row.dedicateTo || "").trim() : ""
-        });
+        }));
         added++;
       }
     });
     var msg = added ? ("已匯入 " + added + " 筆登記") : "沒有可匯入的項目，請確認比對結果";
     if(blocked) msg += "，另有 " + blocked + " 筆因超過贊助基準數量（已額滿）未匯入，請調整數量或改贊助其他品項";
     showToast(msg);
-    if(added){ bulkText.value = ""; previewRows = []; renderPreview(); lineInboxMarkInPreview("done"); }
+    if(added){ bulkText.value = ""; previewRows = []; renderPreview(); lineInboxMarkInPreview("done"); openRegNotice(addedRegs); }
   });
 
   /* ---------------- v100 LINE 小幫手待確認 ----------------
@@ -6899,6 +6916,7 @@
     document.getElementById("regSelectedCount").textContent = count;
     document.getElementById("regSelectedCountPaid").textContent = count;
     document.getElementById("regMergedPreviewBtn").disabled = count < 1;
+    document.getElementById("regNoticeBtn").disabled = count < 1;
     document.getElementById("regBulkPaidBtn").disabled = count < 1;
     var bulkDeleteBtn = document.getElementById("regBulkDeleteBtn");
     bulkDeleteBtn.disabled = count < 1;
@@ -7223,6 +7241,165 @@
       toggleRegConfirmed(id);
       renderRegMergedPreviewBody();
     }
+  });
+
+
+  /* ---------------- v101 報名成功圖 ----------------
+     確認登記後依姓名分組，每人畫一張報名成功圖（canvas → PNG）。手機用 Web Share
+     分享檔案（可選 LINE → 點信徒名字），不支援分享檔案的瀏覽器（多半是電腦）改下載。
+     圖上不放電話、地址等個資，只放姓名、品項、數量、金額。 */
+  var regNoticeOverlay = document.getElementById("regNoticeOverlay");
+  var regNoticeBody = document.getElementById("regNoticeBody");
+  var regNoticeCards = [];
+
+  function regNoticeGroups(regs){
+    var groups = [], byName = {};
+    regs.forEach(function(r){
+      if(!r) return;
+      var key = String(r.name || "").trim() || "（未填姓名）";
+      if(!byName[key]){ byName[key] = { name: key, regs: [] }; groups.push(byName[key]); }
+      byName[key].regs.push(r);
+    });
+    return groups;
+  }
+
+  function wrapCanvasText(ctx, text, maxWidth){
+    var lines = [], line = "";
+    Array.from(String(text)).forEach(function(ch){
+      if(ctx.measureText(line + ch).width > maxWidth && line){ lines.push(line); line = ch; }
+      else line += ch;
+    });
+    if(line) lines.push(line);
+    return lines.length ? lines : [""];
+  }
+
+  function drawRegNotice(group, occ){
+    var W = 720, PAD = 48, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
+    var measure = document.createElement("canvas").getContext("2d");
+    measure.font = "600 28px " + serif;
+    var rows = group.regs.map(function(reg){
+      var cat = findCatalog(reg.catId, occ);
+      var label = reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : "");
+      var extra = reg.buyunName ? "補運：" + reg.buyunName : "";
+      return { lines: wrapCanvasText(measure, label, W - PAD * 2 - 250), qty: regQtyText(reg, cat, "隨喜"), amount: reg.amount, extra: extra };
+    });
+    var total = group.regs.reduce(function(s, r){ return s + (Number(r.amount) || 0); }, 0);
+    var bodyH = rows.reduce(function(h, r){ return h + r.lines.length * 38 + (r.extra ? 32 : 0) + 22; }, 0);
+    var H = 360 + bodyH + 190;
+
+    var c = document.createElement("canvas");
+    var scale = 2;
+    c.width = W * scale; c.height = H * scale;
+    var ctx = c.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#faf5ea"; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "#b8872f"; ctx.lineWidth = 4; ctx.strokeRect(14, 14, W - 28, H - 28);
+    ctx.lineWidth = 1.5; ctx.strokeRect(24, 24, W - 48, H - 48);
+    ctx.fillStyle = "#9e2b25"; ctx.fillRect(24, 24, W - 48, 120);
+
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#e3c581"; ctx.font = "700 24px " + serif;
+    ctx.fillText("古亭院．昇龍觀世音菩薩", W / 2, 62);
+    ctx.fillStyle = "#ffffff"; ctx.font = "900 40px " + serif;
+    ctx.fillText("報名成功", W / 2, 108);
+
+    ctx.fillStyle = "#6b5c4d"; ctx.font = "600 24px " + serif;
+    var occLines = wrapCanvasText(ctx, occ.label || "", W - PAD * 2);
+    var y = 180;
+    occLines.slice(0, 2).forEach(function(l){ ctx.fillText(l, W / 2, y); y += 32; });
+    ctx.fillStyle = "#7a231f"; ctx.font = "900 38px " + serif;
+    ctx.fillText(group.name + "　師兄姐", W / 2, y + 22);
+    y += 70;
+    ctx.strokeStyle = "#e6d9c2"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+    y += 30;
+
+    ctx.textBaseline = "middle";
+    rows.forEach(function(r){
+      ctx.textAlign = "left"; ctx.fillStyle = "#2b211a"; ctx.font = "600 28px " + serif;
+      r.lines.forEach(function(l, i){ ctx.fillText(l, PAD, y + i * 38); });
+      ctx.textAlign = "right"; ctx.font = "700 26px " + serif;
+      ctx.fillText(r.qty, W - PAD - 130, y);
+      ctx.fillStyle = "#7a231f";
+      ctx.fillText(fmt(r.amount), W - PAD, y);
+      y += r.lines.length * 38;
+      if(r.extra){ ctx.textAlign = "left"; ctx.fillStyle = "#6b5c4d"; ctx.font = "500 22px " + serif; ctx.fillText(r.extra, PAD + 8, y); y += 32; }
+      y += 22;
+    });
+
+    ctx.strokeStyle = "#e6d9c2"; ctx.beginPath(); ctx.moveTo(PAD, y - 8); ctx.lineTo(W - PAD, y - 8); ctx.stroke();
+    ctx.textAlign = "right"; ctx.fillStyle = "#7a231f"; ctx.font = "900 30px " + serif;
+    ctx.fillText("合計 " + fmt(total), W - PAD, y + 30);
+    ctx.textAlign = "center"; ctx.fillStyle = "#b8872f"; ctx.font = "700 26px " + serif;
+    ctx.fillText("感謝護持　功德無量　🙏", W / 2, y + 96);
+    ctx.fillStyle = "#6b5c4d"; ctx.font = "500 18px " + serif;
+    ctx.fillText("登記時間 " + formatRegTime(group.regs[0].time), W / 2, y + 132);
+    return c;
+  }
+
+  function renderRegNotice(){
+    regNoticeBody.innerHTML = regNoticeCards.map(function(card, i){
+      return '<div class="merged-preview-card" style="text-align:center;">' +
+        '<div class="merged-preview-name">' + escHtml(card.name) + '</div>' +
+        '<img src="' + card.url + '" alt="' + escAttr(card.name) + ' 的報名成功圖" style="width:100%; max-width:360px; border-radius:8px; border:1px solid var(--border);">' +
+        '<div style="display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap;">' +
+          '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
+          '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載圖片</button>' +
+        '</div></div>';
+    }).join("");
+  }
+
+  function openRegNotice(regs){
+    var occ = current();
+    var groups = regNoticeGroups(regs);
+    if(!groups.length) return;
+    var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    ready.then(function(){
+      regNoticeCards = groups.map(function(g){
+        var canvas = drawRegNotice(g, occ);
+        return { name: g.name, canvas: canvas, url: canvas.toDataURL("image/png") };
+      });
+      renderRegNotice();
+      regNoticeOverlay.style.display = "flex";
+    });
+  }
+
+  function regNoticeFile(card){
+    return new Promise(function(resolve){
+      card.canvas.toBlob(function(blob){
+        resolve(new File([blob], "報名成功_" + card.name.replace(/[\\/:*?"<>|\s]/g, "") + ".png", { type: "image/png" }));
+      }, "image/png");
+    });
+  }
+
+  regNoticeBody.addEventListener("click", function(e){
+    var btn = e.target.closest("button");
+    if(!btn) return;
+    var card = regNoticeCards[+btn.getAttribute("data-i")];
+    if(!card) return;
+    var act = btn.getAttribute("data-act");
+    regNoticeFile(card).then(function(file){
+      if(act === "share" && navigator.canShare && navigator.canShare({ files: [file] })){
+        navigator.share({ files: [file] }).catch(function(err){
+          if(err && err.name !== "AbortError") showToast("分享失敗，請改用「下載圖片」");
+        });
+        return;
+      }
+      triggerBrowserDownload(file.name, file, "image/png");
+      showToast(act === "share" ? "這台裝置不能直接分享，已下載圖片，請到 LINE 選圖片傳送" : "已下載圖片");
+    });
+  });
+
+  document.getElementById("regNoticeBtn").addEventListener("click", function(){
+    var occ = current();
+    var regs = occ.registrations.filter(function(r){ return selectedRegIds[r.id]; });
+    openRegNotice(regs);
+  });
+  function closeRegNotice(){ regNoticeOverlay.style.display = "none"; }
+  document.getElementById("regNoticeCloseBtn").addEventListener("click", closeRegNotice);
+  regNoticeOverlay.addEventListener("click", function(e){ if(e.target === regNoticeOverlay) closeRegNotice(); });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && regNoticeOverlay.style.display !== "none") closeRegNotice();
   });
 
   /* ---------------- registration preview modal (比照法會報名平台：點選姓名查詢) ---------------- */
