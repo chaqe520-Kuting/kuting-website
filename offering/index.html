@@ -1183,7 +1183,7 @@
       <h3>報名成功圖</h3>
       <button class="modal-close" id="regNoticeCloseBtn" type="button" aria-label="關閉">×</button>
     </div>
-    <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦按「傳到 LINE」會複製圖片，到 LINE 電腦版打開信徒的聊天視窗，按 Ctrl+V 貼上再送出。</p>
+    <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦按「傳到 LINE」會複製圖片，到 LINE 電腦版打開信徒的聊天視窗，按 Ctrl+V 貼上再送出。從 LINE 小幫手登記的報名，可以直接按「📨 小幫手私訊」。</p>
     <div id="regNoticeBody"></div>
   </div>
 </div>
@@ -1240,7 +1240,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v105";
+  var APP_VERSION = "v106";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1251,6 +1251,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v106", date: "2026-10-21", changes: [
+      "報名成功圖加「📨 小幫手私訊」：從 LINE 小幫手待確認登記的報名，可在電腦上直接由小幫手把報名成功通知傳給當初傳訊息的人（需小幫手 v1.6）",
+      "從 LINE 小幫手帶入的登記會記住來源訊息（lineMsgId、lineName，只有志工看得到），之後在登記清單勾選再開報名成功圖也能私訊"
+    ]},
     { version: "v105", date: "2026-10-21", changes: [
       "LINE 訊息貼上快速登記的預覽表：有勾「補運欄」的品項（例如第 20 項個人的法船）可選「補運／補運+補財庫」並填補運地址，確認後一起寫入登記"
     ]},
@@ -6655,7 +6659,8 @@
           amount: row.matched.type === "donation" ? row.qty : row.qty * row.matched.price,
           dedicateTo: itemNeedsDedication(row.matched.catId) ? String(row.dedicateTo || "").trim() : "",
           buyunName: itemNeedsBuyun(row.matched.catId) ? String(row.buyunName || "").trim() : "",
-          buyunAddr: itemNeedsBuyun(row.matched.catId) ? String(row.buyunAddr || "").trim() : ""
+          buyunAddr: itemNeedsBuyun(row.matched.catId) ? String(row.buyunAddr || "").trim() : "",
+          lineMsgId: row.lineMsgId || "", lineName: row.lineName || ""
         }));
         added++;
       }
@@ -6783,10 +6788,12 @@
     // 再合併成一份預覽，最後整批重算額滿
     var texts = docs.map(lineInboxTextFor);
     var rows = [];
-    texts.forEach(function(t){
+    texts.forEach(function(t, i){
       bulkText.value = t;
       previewRows = [];
       bulkParseBtn.click();
+      // v106 — 記住每一列來自哪則 LINE 訊息，確認後報名成功圖可以由小幫手私訊給傳訊息的人
+      previewRows.forEach(function(r){ r.lineMsgId = docs[i].id; r.lineName = docs[i].displayName || ""; });
       rows = rows.concat(previewRows);
     });
     bulkText.value = texts.join("\n");
@@ -6900,6 +6907,7 @@
       buyunAddr: data.buyunAddr || "",
       time: nowTimeStr()
     };
+    if(data.lineMsgId){ reg.lineMsgId = data.lineMsgId; reg.lineName = data.lineName || ""; } // v106 LINE 小幫手來源（registrations 只有志工讀得到）
     occ.registrations.push(reg);
     var incItem = null;
     if(reg.type === "item"){
@@ -7443,7 +7451,12 @@
           '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
           '<button type="button" class="ghost-btn" data-act="copy" data-i="' + i + '">複製圖片</button>' +
           '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載圖片</button>' +
-        '</div></div>';
+        '</div>' +
+        (card.lineMsgId
+          ? '<div style="margin-top:8px;"><button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.pushed ? " disabled" : "") + '>' +
+              (card.pushed ? "✓ 已由小幫手私訊" : "📨 小幫手私訊給 LINE「" + escHtml(card.lineName || "傳訊息的人") + "」") + '</button></div>'
+          : '') +
+        '</div>';
     }).join("");
   }
 
@@ -7455,7 +7468,9 @@
     ready.then(function(){
       regNoticeCards = groups.map(function(g){
         var canvas = drawRegNotice(g, occ);
-        return { name: g.name, canvas: canvas, url: canvas.toDataURL("image/png") };
+        var src = g.regs.filter(function(r){ return r.lineMsgId; })[0];
+        return { name: g.name, canvas: canvas, url: canvas.toDataURL("image/png"), group: g,
+          lineMsgId: src ? src.lineMsgId : "", lineName: src ? (src.lineName || "") : "" };
       });
       // 先備好檔案：手機分享必須在點按當下同步呼叫，等 toBlob 會被瀏覽器擋掉
       regNoticeCards.forEach(function(card){ regNoticeFile(card).then(function(f){ card.file = f; }); });
@@ -7496,6 +7511,7 @@
     if(!card) return;
     var act = btn.getAttribute("data-act");
     if(act === "download"){ regNoticeDownload(card, "已下載圖片"); return; }
+    if(act === "push"){ regNoticePush(card, btn); return; }
     if(act === "share" && regNoticeIsMobile && navigator.canShare){
       if(!card.file){ showToast("圖片準備中，請再按一次"); return; }
       if(!navigator.canShare({ files: [card.file] })){ regNoticeDownload(card, "這台手機不能直接分享，已下載圖片，請到 LINE 選圖片傳送"); return; }
@@ -7510,6 +7526,62 @@
       regNoticeDownload(card, "這個瀏覽器不能複製圖片，已改下載，請到 LINE 選圖片傳送");
     });
   });
+
+  // v106 — 小幫手私訊：把報名成功通知送給小幫手（Apps Script），由小幫手推播 LINE 卡片給
+  // 當初傳訊息的人。網址存在這台電腦的瀏覽器；請求帶志工的登入憑證，小幫手驗證後才傳。
+  var LINEBOT_URL_KEY = "gongpin_linebot_url";
+  function linebotUrl(ask){
+    var url = "";
+    try { url = localStorage.getItem(LINEBOT_URL_KEY) || ""; } catch(e){}
+    if(url && !ask) return url;
+    var input = prompt("第一次使用：請貼上小幫手的網址（LINE Developers 的 Webhook URL，或 Apps Script 部署的網頁應用程式網址）", url);
+    if(input == null) return "";
+    url = String(input).trim().split("?")[0];
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
+      alert("網址格式不對，應該像 https://script.google.com/macros/s/……/exec");
+      return "";
+    }
+    try { localStorage.setItem(LINEBOT_URL_KEY, url); } catch(e){}
+    return url;
+  }
+  function regNoticeCardData(card){
+    var occ = current();
+    var g = card.group;
+    var total = g.regs.reduce(function(s, r){ return s + (Number(r.amount) || 0); }, 0);
+    return {
+      name: g.name, occasion: occ.label || "",
+      rows: g.regs.map(function(reg){
+        var cat = findCatalog(reg.catId, occ);
+        return { label: reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : ""), qty: regQtyText(reg, cat, "隨喜"),
+          amount: fmt(reg.amount), extra: reg.buyunName ? "補運：" + reg.buyunName : "" };
+      }),
+      total: fmt(total), time: formatRegTime(g.regs[0].time)
+    };
+  }
+  function regNoticePush(card, btn){
+    if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
+    if(!confirm("由小幫手把「" + card.name + "」的報名成功通知私訊給 LINE「" + (card.lineName || "傳訊息的人") + "」？\n（推播會用到 LINE 官方帳號每月的免費訊息則數）")) return;
+    var url = linebotUrl(false);
+    if(!url) return;
+    btn.disabled = true; btn.textContent = "傳送中…";
+    fsAuth.currentUser.getIdToken().then(function(idToken){
+      // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "notify", idToken: idToken, msgId: card.lineMsgId, card: regNoticeCardData(card) }) });
+    }).then(function(res){ return res.json(); }).then(function(out){
+      if(out && out.ok){
+        card.pushed = true;
+        renderRegNotice();
+        showToast("已由小幫手私訊給 LINE「" + (out.to || card.lineName || "") + "」");
+      } else {
+        btn.disabled = false; btn.textContent = "📨 再試一次";
+        alert((out && out.error) || "傳送失敗");
+      }
+    }).catch(function(err){
+      console.error("linebot notify", err);
+      btn.disabled = false; btn.textContent = "📨 再試一次";
+      if(confirm("連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.6）。要重新輸入小幫手網址嗎？")) linebotUrl(true);
+    });
+  }
 
   document.getElementById("regNoticeBtn").addEventListener("click", function(){
     var occ = current();
