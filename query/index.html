@@ -95,6 +95,7 @@
     color:var(--vermilion); border-radius:6px; cursor:pointer; font-weight:600;
   }
   .export-bar button:hover{ background:var(--vermilion); color:#fff; }
+  .record-asm{ margin-bottom:4px; font-size:12.5px; font-weight:700; color:var(--vermilion); }
   .source-tag{ font-size:10.5px; padding:1px 6px; border-radius:8px; background:var(--gold-soft); color:#5c4319; margin-left:6px; }
 
   footer{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:40px; }
@@ -643,12 +644,28 @@ function buildLiveRecords(events, regDocs){
           '照片': payload.confirmed ? '已確認' : '',
           '編號': seq,
           '_來源': '線上報名平台',
+          '_eventId': eventId,
+          '_狀態': ev.active === false ? '已結束' : (ev.draft ? '準備中' : '報名中'),
           '_time': typeof payload.createdAt === 'number' ? payload.createdAt : 0
         });
       });
     });
   });
   return out;
+}
+
+/* v2.4：更新線上報名資料時，法會報名平台已經沒有的場次（例如被刪除），保留上次同步的紀錄，不讓它從查詢裡消失 */
+function keepMissingLive(events){
+  const ids = new Set((events || []).map(ev => ev.id));
+  const keys = new Set((events || []).map(ev => (ev.name || '') + '|' + extractYear(ev.date)));
+  return ALL.filter(r => r['_來源'] === '線上報名平台' &&
+      (r['_eventId'] ? !ids.has(r['_eventId']) : !keys.has((r['法會名稱'] || '') + '|' + r['年度'])))
+    .map(r => ({ ...r, '_狀態': '已結束' }));
+}
+function liveSummary(recs){
+  const evs = {};
+  recs.forEach(r => { if(r['_狀態'] === '已結束') evs[(r['法會名稱'] || '') + '|' + r['年度']] = 1; });
+  return Object.keys(evs).length;
 }
 
 /* =====================================================================
@@ -733,8 +750,9 @@ document.getElementById('liveFileBtn').addEventListener('click', async () => {
     if(!Array.isArray(data.events) || !data.regs) throw new Error('這不是法會報名平台的資料備份檔');
     const regDocs = [];
     Object.keys(data.regs).forEach(eventId => (data.regs[eventId] || []).forEach(p => regDocs.push({ eventId, payload: p })));
-    const recs = buildLiveRecords(data.events, regDocs);
-    if(!confirm(`備份檔內有 ${regDocs.length} 筆報名（轉成 ${recs.length} 筆查詢紀錄）。確定要匯入嗎？這會取代目前全部的線上報名資料。`)) return;
+    const kept = keepMissingLive(data.events);
+    const recs = buildLiveRecords(data.events, regDocs).concat(kept);
+    if(!confirm(`備份檔內有 ${regDocs.length} 筆報名（轉成 ${recs.length - kept.length} 筆查詢紀錄）${kept.length ? `，另保留 ${kept.length} 筆備份檔裡已沒有的舊場次紀錄` : ''}。確定要匯入嗎？`)) return;
     msg.className = 'msg-ok'; msg.textContent = '匯入中，請稍候…';
     await replaceDataset('live', recs);
     msg.textContent = `匯入成功並驗證通過：共 ${recs.length} 筆線上報名資料。`;
@@ -801,13 +819,16 @@ document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
     if(!Array.isArray(events) || !events.length) throw new Error('法會報名平台目前沒有任何場次');
     const ids = new Set(events.map(ev => ev.id));
     regDocs = regDocs.filter(r => ids.has(r.eventId));   // 跟「匯出資料備份」一樣，只取現有場次的報名
-    const recs = buildLiveRecords(events, regDocs);
-    if(!confirm(`法會報名平台目前有 ${events.length} 個場次、${regDocs.length} 筆報名（轉成 ${recs.length} 筆查詢紀錄）。確定要更新嗎？這會取代目前全部的線上報名資料。`)){
+    const kept = keepMissingLive(events);
+    const recs = buildLiveRecords(events, regDocs).concat(kept);
+    const closedN = events.filter(ev => ev.active === false).length;
+    if(!confirm(`法會報名平台目前有 ${events.length} 個場次（其中已結束 ${closedN} 場）、${regDocs.length} 筆報名，轉成 ${recs.length - kept.length} 筆查詢紀錄。` +
+        (kept.length ? `\n另外保留 ${kept.length} 筆法會報名平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？`)){
       msg.textContent = '已取消，資料沒有變動'; return;
     }
     msg.textContent = '更新中，請稍候…';
     await replaceDataset('live', recs);
-    msg.textContent = `更新成功並驗證通過：共 ${recs.length} 筆線上報名資料（${new Date().toLocaleString('zh-TW', {hour12:false})}）。`;
+    msg.textContent = `更新成功並驗證通過：共 ${recs.length} 筆線上報名資料，含已結束場次 ${liveSummary(recs)} 場（${new Date().toLocaleString('zh-TW', {hour12:false})}）。`;
   }catch(e){
     console.error(e); msg.className = 'msg-err'; msg.textContent = '更新失敗：' + (e.message || e);
   }finally{
@@ -897,14 +918,15 @@ function renderResults(matches){
     Object.keys(byYear).sort().reverse().forEach(year => {
       const group = document.createElement('div');
       group.className = 'year-group';
-      const first = byYear[year][0];
-      group.innerHTML = `<div class="year-title"><span class="yr">民國 ${escapeHtml(year)} 年</span><span class="assembly">${escapeHtml(first['法會名稱'] || '')}</span></div>`;
+      const asmNames = [...new Set(byYear[year].map(r => r['法會名稱'] || '').filter(Boolean))];
+      group.innerHTML = `<div class="year-title"><span class="yr">民國 ${escapeHtml(year)} 年</span><span class="assembly">${asmNames.map(escapeHtml).join('、')}</span></div>`;
       byYear[year].forEach(r => {
         const card = document.createElement('div');
         card.className = 'record-card';
         card.innerHTML = `
+          ${asmNames.length > 1 ? `<div class="record-asm">${escapeHtml(r['法會名稱'] || '')}</div>` : ''}
           <div class="record-row">
-            <div class="record-item">姓氏祖先：${escapeHtml(r['項目'] || '（未填項目說明）')}${r['_來源'] ? `<span class="source-tag">${escapeHtml(r['_來源'])}</span>` : ''}</div>
+            <div class="record-item">姓氏祖先：${escapeHtml(r['項目'] || '（未填項目說明）')}${r['_來源'] ? `<span class="source-tag">${escapeHtml(r['_來源'])}</span>` : ''}${r['_狀態'] === '已結束' ? `<span class="source-tag">已結束</span>` : ''}</div>
             <div class="record-fee">${r['費用'] ? 'NT$ ' + escapeHtml(r['費用']) : ''}</div>
           </div>
           <div class="record-detail">
@@ -939,8 +961,13 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.3';
+const APP_VERSION = 'v2.4';
 const CHANGELOG = [
+  { version:'v2.4', date:'2026-10-21', items:[
+    '「從法會報名平台更新」會一併同步已結束（已關閉報名）的場次，完成訊息顯示含幾場已結束場次；查詢結果的已結束場次加上「已結束」標籤',
+    '法會報名平台已刪除的場次，更新時保留上次同步的紀錄，不會因為更新而從查詢裡消失',
+    '同一年度有多場法會時，年度標題列出全部法會名稱，每筆紀錄也標示所屬法會（以前只顯示第一場的名稱）',
+  ]},
   { version:'v2.3', date:'2026-10-08', items:[
     '線上報名資料不用再手動下載、匯入備份檔：管理員在「資料管理 → 二」輸入法會報名平台的姓名與密碼，按「從法會報名平台更新」就會直接抓取最新報名資料（密碼不儲存，抓完自動登出法會報名平台）',
     '原本「匯入備份檔」的方式保留，作為備用',
