@@ -974,7 +974,7 @@
         <div id="bulkPreviewWrap" style="margin-top:14px; display:none;">
           <div class="table-wrap">
             <table>
-              <thead><tr><th></th><th>姓名</th><th>比對品項</th><th>敬致仙佛</th><th>數量/金額</th><th>狀態</th></tr></thead>
+              <thead><tr><th></th><th>姓名</th><th>比對品項</th><th>敬致仙佛／補運</th><th>數量/金額</th><th>狀態</th></tr></thead>
               <tbody id="bulkPreviewBody"></tbody>
             </table>
           </div>
@@ -1240,7 +1240,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v104";
+  var APP_VERSION = "v105";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1251,6 +1251,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v105", date: "2026-10-21", changes: [
+      "LINE 訊息貼上快速登記的預覽表：有勾「補運欄」的品項（例如第 20 項個人的法船）可選「補運／補運+補財庫」並填補運地址，確認後一起寫入登記"
+    ]},
     { version: "v104", date: "2026-10-21", changes: [
       "LINE 訊息貼上快速登記的預覽表：品項改成下拉選單、數量改成可直接輸入，姓名欄加寬",
       "修改品項或數量後自動重算金額與額滿狀態；取消勾選的列在重算後仍保持不勾"
@@ -6588,7 +6591,11 @@
         '<td><select data-idx="' + idx + '" data-role="item" style="max-width:220px;">' + itemOpts + '</select>' + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') + '</td>' +
         '<td>' + (row.matched && itemNeedsDedication(row.matched.catId)
           ? '<input type="text" value="' + (row.dedicateTo || "").replace(/"/g,"&quot;") + '" placeholder="仙佛名稱" data-idx="' + idx + '" data-role="dedicate" style="width:110px;">'
-          : '<span class="type-tag">—</span>') + '</td>' +
+          : (row.matched && itemNeedsBuyun(row.matched.catId)
+            // v105 — 補運品項（第 19、20 項法船）在預覽就能選補運種類、填地址
+            ? '<select data-idx="' + idx + '" data-role="buyunName" style="width:140px;">' + buyunNameOptionsHtml(row.buyunName || "") + '</select>' +
+              '<input type="text" value="' + escAttr(row.buyunAddr || "") + '" placeholder="補運地址" data-idx="' + idx + '" data-role="buyunAddr" style="width:140px; margin-top:4px; display:block;">'
+            : '<span class="type-tag">—</span>')) + '</td>' +
         '<td class="num" style="white-space:nowrap;"><input type="text" inputmode="decimal" value="' + escAttr(row.qty) + '" data-idx="' + idx + '" data-role="qty" style="width:80px; text-align:right;"> ' + escHtml(unit) + '</td>' +
         '<td>' + statusBadge + '</td>';
       bulkPreviewBody.appendChild(tr);
@@ -6598,6 +6605,12 @@
     });
     bulkPreviewBody.querySelectorAll('[data-role="dedicate"]').forEach(function(inp){
       inp.addEventListener("input", function(){ previewRows[+inp.getAttribute("data-idx")].dedicateTo = inp.value; });
+    });
+    bulkPreviewBody.querySelectorAll('[data-role="buyunName"]').forEach(function(sel){
+      sel.addEventListener("change", function(){ previewRows[+sel.getAttribute("data-idx")].buyunName = sel.value; });
+    });
+    bulkPreviewBody.querySelectorAll('[data-role="buyunAddr"]').forEach(function(inp){
+      inp.addEventListener("input", function(){ previewRows[+inp.getAttribute("data-idx")].buyunAddr = inp.value; });
     });
     bulkPreviewBody.querySelectorAll('[data-role="check"]').forEach(function(chk){
       chk.addEventListener("change", function(){ previewRows[+chk.getAttribute("data-idx")].unchecked = !chk.checked; });
@@ -6640,7 +6653,9 @@
           name: row.name, phone: "", catId: row.matched.catId, label: row.matched.label, type: row.matched.type,
           qty: row.qty, unitPrice: row.matched.price,
           amount: row.matched.type === "donation" ? row.qty : row.qty * row.matched.price,
-          dedicateTo: itemNeedsDedication(row.matched.catId) ? String(row.dedicateTo || "").trim() : ""
+          dedicateTo: itemNeedsDedication(row.matched.catId) ? String(row.dedicateTo || "").trim() : "",
+          buyunName: itemNeedsBuyun(row.matched.catId) ? String(row.buyunName || "").trim() : "",
+          buyunAddr: itemNeedsBuyun(row.matched.catId) ? String(row.buyunAddr || "").trim() : ""
         }));
         added++;
       }
