@@ -1185,6 +1185,10 @@
     </div>
     <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦按「傳到 LINE」會複製圖片，到 LINE 電腦版打開信徒的聊天視窗，按 Ctrl+V 貼上再送出。從 LINE 小幫手登記的報名，可以直接按「📨 小幫手私訊」。</p>
     <div id="regNoticeBody"></div>
+    <div id="regNoticeAll" style="display:none; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
+      <button type="button" class="add-btn" id="regNoticeShareAllBtn">全部傳到 LINE</button>
+      <button type="button" class="ghost-btn" id="regNoticeDownloadAllBtn">全部下載</button>
+    </div>
   </div>
 </div>
 
@@ -1240,7 +1244,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v107";
+  var APP_VERSION = "v108";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1251,6 +1255,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v108", date: "2026-10-21", changes: [
+      "報名成功圖一次開多位時，最下面加「全部傳到 LINE」：手機一次分享全部圖片，電腦則一次下載全部；另有「全部下載」"
+    ]},
     { version: "v107", date: "2026-10-21", changes: [
       "報名成功圖：v106 之前登記、或用貼上方式登記的報名，會依姓名到 LINE 小幫手已處理的訊息裡找傳訊息的人，找到就顯示「📨 小幫手私訊」",
       "找不到對應 LINE 訊息時，在圖下方說明原因"
@@ -7447,6 +7454,10 @@
   }
 
   function renderRegNotice(){
+    // v108 — 多位報名者時，最下面可一次傳送／下載全部圖片
+    var allBar = document.getElementById("regNoticeAll");
+    allBar.style.display = regNoticeCards.length > 1 ? "flex" : "none";
+    document.getElementById("regNoticeShareAllBtn").textContent = "全部傳到 LINE（" + regNoticeCards.length + " 張）";
     regNoticeBody.innerHTML = regNoticeCards.map(function(card, i){
       return '<div class="merged-preview-card" style="text-align:center;">' +
         '<div class="merged-preview-name">' + escHtml(card.name) + '</div>' +
@@ -7612,6 +7623,30 @@
       if(confirm("連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.6）。要重新輸入小幫手網址嗎？")) linebotUrl(true);
     });
   }
+
+  function regNoticeDownloadAll(msg){
+    var cards = regNoticeCards.slice();
+    Promise.all(cards.map(regNoticeFile)).then(function(files){
+      // 瀏覽器連續下載太快會被擋，間隔一下
+      files.forEach(function(f, i){ setTimeout(function(){ triggerBrowserDownload(f.name, f, "image/png"); }, i * 400); });
+      showToast(msg || ("已下載 " + files.length + " 張報名成功圖"));
+    });
+  }
+  document.getElementById("regNoticeShareAllBtn").addEventListener("click", function(){
+    var cards = regNoticeCards.slice();
+    if(regNoticeIsMobile && navigator.canShare){
+      var files = cards.map(function(c){ return c.file; });
+      if(files.some(function(f){ return !f; })){ showToast("圖片準備中，請再按一次"); return; }
+      if(!navigator.canShare({ files: files })){ regNoticeDownloadAll("這台手機不能一次分享多張，已下載全部圖片，請到 LINE 選圖片傳送"); return; }
+      navigator.share({ files: files }).catch(function(err){
+        if(err && err.name !== "AbortError") showToast("分享失敗，請改用「全部下載」");
+      });
+      return;
+    }
+    // 電腦的剪貼簿一次只能放一張圖，改成全部下載，再到 LINE 電腦版一次選取多張傳送
+    regNoticeDownloadAll("已下載 " + cards.length + " 張報名成功圖，到 LINE 電腦版聊天視窗按迴紋針（傳送檔案）一次選取多張，或直接拖進聊天視窗");
+  });
+  document.getElementById("regNoticeDownloadAllBtn").addEventListener("click", function(){ regNoticeDownloadAll(); });
 
   document.getElementById("regNoticeBtn").addEventListener("click", function(){
     var occ = current();
