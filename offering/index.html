@@ -1247,7 +1247,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v112";
+  var APP_VERSION = "v113";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1258,6 +1258,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v113", date: "2026-10-21", changes: [
+      "報名成功圖合計左邊加上大字收款狀態：已收款（綠底）、待收款（紅底）、部分收款",
+      "報名成功圖視窗裡每位姓名旁也顯示收款狀態"
+    ]},
     { version: "v112", date: "2026-10-21", changes: [
       "標成已收款卻沒有詢問收款確認時，畫面會說明原因（例如這個姓名還沒用小幫手私訊過、這台裝置沒設定小幫手網址）",
       "報名成功圖：已收款的報名可以按「💰 傳收款確認」手動私訊收款確認卡片",
@@ -7470,11 +7474,30 @@
     ctx.strokeStyle = "#e6d9c2"; ctx.beginPath(); ctx.moveTo(PAD, y - 8); ctx.lineTo(W - PAD, y - 8); ctx.stroke();
     ctx.textAlign = "right"; ctx.fillStyle = "#7a231f"; ctx.font = "900 30px " + serif;
     ctx.fillText("合計 " + fmt(total), W - PAD, y + 30);
+    // v113 — 收款狀態大字標示（合計左邊的色塊）
+    var payState = regNoticePayState(group);
+    ctx.font = "900 30px " + serif;
+    var payW = ctx.measureText(payState.text).width + 36;
+    ctx.fillStyle = payState.bg; roundRectPath(ctx, PAD, y + 8, payW, 46, 23); ctx.fill();
+    ctx.textAlign = "left"; ctx.fillStyle = payState.fg; ctx.fillText(payState.text, PAD + 18, y + 31);
     ctx.textAlign = "center"; ctx.fillStyle = "#b8872f"; ctx.font = "700 26px " + serif;
     ctx.fillText("感謝護持　功德無量　🙏", W / 2, y + 96);
     ctx.fillStyle = "#6b5c4d"; ctx.font = "500 18px " + serif;
     ctx.fillText("登記時間 " + formatRegTime(group.regs[0].time), W / 2, y + 132);
     return c;
+  }
+
+  function regNoticePayState(group){
+    var regs = group.regs || [];
+    var paid = regs.filter(function(r){ return r.paid; }).length;
+    if(regs.length && paid === regs.length) return { paid: true, text: "✔ 已收款", fg: "#ffffff", bg: "#2e7d32", css: "background:#2e7d32; color:#fff;" };
+    if(paid) return { paid: false, text: "部分收款（" + paid + "/" + regs.length + "）", fg: "#ffffff", bg: "#b26a00", css: "background:#b26a00; color:#fff;" };
+    return { paid: false, text: "待收款", fg: "#ffffff", bg: "#c0281f", css: "background:#c0281f; color:#fff;" };
+  }
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r); ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
   }
 
   function renderRegNotice(){
@@ -7488,7 +7511,8 @@
     pushAll.textContent = "📨 全部用小幫手私訊（" + pushable + " 位）";
     regNoticeBody.innerHTML = regNoticeCards.map(function(card, i){
       return '<div class="merged-preview-card" style="text-align:center;">' +
-        '<div class="merged-preview-name">' + escHtml(card.name) + '</div>' +
+        '<div class="merged-preview-name">' + escHtml(card.name) +
+          ' <span style="display:inline-block; margin-left:6px; padding:3px 12px; border-radius:999px; font-size:1rem; font-weight:900; ' + regNoticePayState(card.group).css + '">' + escHtml(regNoticePayState(card.group).text) + '</span></div>' +
         '<img src="' + card.url + '" alt="' + escAttr(card.name) + ' 的報名成功圖" style="width:100%; max-width:360px; border-radius:8px; border:1px solid var(--border);">' +
         '<div style="display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap;">' +
           '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
