@@ -1184,7 +1184,7 @@
       <button class="modal-close" id="regNoticeCloseBtn" type="button" aria-label="關閉">×</button>
     </div>
     <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦按「傳到 LINE」會複製圖片，到 LINE 電腦版打開信徒的聊天視窗，按 Ctrl+V 貼上再送出。從 LINE 小幫手登記的報名，可以直接按「📨 小幫手私訊」。</p>
-    <div class="type-tag" id="regNoticeQuota" style="display:none; margin-bottom:8px;"></div>
+    <div id="regNoticeQuota" style="display:none; margin-bottom:10px; padding:7px 12px; border-radius:8px; font-weight:700; font-size:.92rem; background:var(--success-bg); color:var(--success);"></div>
     <div id="regNoticeBody"></div>
     <div id="regNoticeAll" style="display:none; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
       <button type="button" class="add-btn" id="regNoticePushAllBtn" style="display:none;">📨 全部用小幫手私訊</button>
@@ -1247,7 +1247,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v111";
+  var APP_VERSION = "v112";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1258,6 +1258,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v112", date: "2026-10-21", changes: [
+      "標成已收款卻沒有詢問收款確認時，畫面會說明原因（例如這個姓名還沒用小幫手私訊過、這台裝置沒設定小幫手網址）",
+      "報名成功圖：已收款的報名可以按「💰 傳收款確認」手動私訊收款確認卡片",
+      "本月 LINE 訊息用量改成較明顯的綠底粗體"
+    ]},
     { version: "v111", date: "2026-10-21", changes: [
       "報名成功圖：多位報名者時加「全部用小幫手私訊」，已選好 LINE 好友的一次傳完",
       "報名成功圖上方顯示本月 LINE 訊息用量（已用／免費則數）",
@@ -7521,7 +7526,11 @@
   // 3. LINE 名稱就是報名姓名的好友 4.（v107）小幫手已處理的訊息裡，文字含這個姓名的傳送者
   var regNoticeLineUsers = null; // null＝讀不到名單（規則未更新或未登入）
   function regNoticeLineHtml(card, i){
-    if(card.pushed) return '<div class="type-tag" style="margin-top:8px;">✓ 已由小幫手私訊給 LINE「' + escHtml(card.lineName || "") + '」</div>';
+    var allPaid = card.group && card.group.regs.length && card.group.regs.every(function(r){ return r.paid; });
+    // v112 — 已收款的報名可手動補傳「收款確認」卡片
+    var paidBtn = allPaid && card.lineUserId ? '<button type="button" class="ghost-btn" data-act="paidpush" data-i="' + i + '"' + (card.paidPushed ? " disabled" : "") + '>' + (card.paidPushed ? "✓ 已傳收款確認" : "💰 傳收款確認") + '</button>' : "";
+    if(card.pushed) return '<div class="type-tag" style="margin-top:8px;">✓ 已由小幫手私訊給 LINE「' + escHtml(card.lineName || "") + '」</div>' +
+      (paidBtn ? '<div style="margin-top:6px; text-align:center;">' + paidBtn + '</div>' : '');
     if(!card.lineLookupDone) return "";
     var users = (regNoticeLineUsers || []).filter(function(u){ return u.friend !== false; });
     if(card.lineUserId && !users.some(function(u){ return u.id === card.lineUserId; })){
@@ -7539,7 +7548,7 @@
       : (card.lineHow === "guess" || card.lineHow === "display" ? "依姓名自動帶出，請確認是報名者本人" : "");
     return '<div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; align-items:center;">' +
         '<select data-line-user="' + i + '" style="max-width:240px;">' + opts + '</select>' +
-        '<button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.lineUserId ? "" : " disabled") + '>📨 小幫手私訊</button>' +
+        '<button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.lineUserId ? "" : " disabled") + '>📨 小幫手私訊</button>' + paidBtn +
       '</div>' + (hint && card.lineUserId ? '<div class="type-tag">' + hint + '</div>' : '');
   }
 
@@ -7633,6 +7642,7 @@
     var act = btn.getAttribute("data-act");
     if(act === "download"){ regNoticeDownload(card, "已下載圖片"); return; }
     if(act === "push"){ regNoticePush(card, btn); return; }
+    if(act === "paidpush"){ regNoticePaidPush(card, btn); return; }
     if(act === "share" && regNoticeIsMobile && navigator.canShare){
       if(!card.file){ showToast("圖片準備中，請再按一次"); return; }
       if(!navigator.canShare({ files: [card.file] })){ regNoticeDownload(card, "這台手機不能直接分享，已下載圖片，請到 LINE 選圖片傳送"); return; }
@@ -7723,6 +7733,19 @@
     });
   }
 
+  function regNoticePaidPush(card, btn){
+    if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
+    if(!confirm("由小幫手把「" + card.name + "」的收款確認（已收到您的護持）私訊給 LINE「" + (card.lineName || "這位好友") + "」？\n（會用到每月的免費訊息則數）")) return;
+    var url = linebotUrl(false);
+    if(!url) return;
+    btn.disabled = true; btn.textContent = "傳送中…";
+    var c = Object.assign({}, card, { group: { name: card.group.name, regs: card.group.regs.map(function(r){ return Object.assign({}, r, { time: nowTimeStr() }); }) } });
+    linebotSend(c, "paid", url).then(function(out){
+      if(out.ok){ card.paidPushed = true; renderRegNotice(); linebotQuota(); showToast("已傳收款確認給 LINE「" + (out.to || card.lineName || "") + "」"); }
+      else { btn.disabled = false; btn.textContent = "💰 再試一次"; alert(out.error || "傳送失敗"); }
+    }).catch(function(err){ btn.disabled = false; btn.textContent = "💰 再試一次"; linebotUnreachable(err); });
+  }
+
   // v111 — 全部用小幫手私訊：已選好 LINE 好友、還沒傳過的卡片，問一次後依序傳
   document.getElementById("regNoticePushAllBtn").addEventListener("click", function(){
     if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
@@ -7768,7 +7791,9 @@
       if(!(out && out.ok)){ el.style.display = "none"; return; }
       var left = out.limit != null ? Math.max(0, out.limit - out.used) : null;
       el.textContent = "本月 LINE 小幫手私訊：已用 " + out.used + " 則" + (out.limit != null ? "／免費 " + out.limit + " 則（剩 " + left + " 則）" : "（不限則數）");
-      el.style.color = left != null && left <= 20 ? "var(--full-text)" : "";
+      var low = left != null && left <= 20;
+      el.style.color = low ? "var(--full-text)" : "var(--success)";
+      el.style.background = low ? "var(--full-bg)" : "var(--success-bg)";
       el.style.display = "";
     }).catch(function(){ el.style.display = "none"; });
   }
@@ -7778,7 +7803,9 @@
     var url = "";
     try { url = localStorage.getItem(LINEBOT_URL_KEY) || ""; } catch(e){}
     regs = regs.filter(function(r){ return r && r.paid; });
-    if(!url || !regs.length || !(fsReady && fsDb && staffActive() && fsAuth && fsAuth.currentUser)) return;
+    if(!regs.length || !(fsReady && fsDb && staffActive() && fsAuth && fsAuth.currentUser)) return;
+    // v112 — 不再默默略過：說明為什麼沒有詢問收款確認
+    if(!url){ setTimeout(function(){ showToast("這台裝置還沒設定小幫手網址，所以沒有詢問收款確認（先在這台按一次「📨 小幫手私訊」就會記住）"); }, 1200); return; }
     fsDb.collection("lineUsers").get().then(function(snap){
       var users = [];
       snap.forEach(function(d){ var u = d.data(); if(u.friend !== false) users.push(Object.assign({ id: d.id }, u)); });
@@ -7786,7 +7813,10 @@
         var u = users.filter(function(x){ return (x.names || []).indexOf(String(g.name).trim()) >= 0; })[0];
         return u ? { name: g.name, group: { name: g.name, regs: g.regs.map(function(r){ return Object.assign({}, r, { time: nowTimeStr() }); }) }, lineUserId: u.id, lineName: u.displayName || "" } : null;
       }).filter(Boolean);
-      if(!cards.length) return;
+      if(!cards.length){
+        setTimeout(function(){ showToast("沒有詢問收款確認：" + regNoticeGroups(regs).map(function(g){ return g.name; }).join("、") + " 還沒用小幫手私訊過報名成功通知，小幫手不知道是哪位 LINE 好友"); }, 1200);
+        return;
+      }
       if(!confirm("已標成已收款。要用小幫手私訊「收款確認」給：\n" + cards.map(function(c){ return c.name + " → LINE「" + c.lineName + "」"; }).join("\n") + "\n\n（會用到每月的免費訊息則數）")) return;
       var ok = 0, fail = [];
       cards.reduce(function(p, c){
@@ -7795,7 +7825,7 @@
         showToast("已用小幫手私訊收款確認 " + ok + " 位");
         if(fail.length) alert("以下沒有傳成功：\n" + fail.join("\n"));
       }).catch(linebotUnreachable);
-    }).catch(function(e){ console.warn("lineUsers", e && e.code); });
+    }).catch(function(e){ console.warn("lineUsers", e && e.code); showToast("讀不到 LINE 好友名單，沒有詢問收款確認"); });
   }
 
   function regNoticeDownloadAll(msg){
