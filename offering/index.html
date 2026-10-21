@@ -1247,7 +1247,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v114";
+  var APP_VERSION = "v115";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1258,6 +1258,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v115", date: "2026-10-21", changes: [
+      "報名成功圖「選擇要傳給哪位 LINE 好友」只顯示 LINE 名稱，不再列出報名姓名",
+      "報名成功圖多人姓名太長時自動縮小字級，不會超出邊框"
+    ]},
     { version: "v114", date: "2026-10-21", changes: [
       "「📨 小幫手私訊」傳到 LINE 的報名成功卡片也顯示已收款／待收款（需小幫手 v1.11）"
     ]},
@@ -7454,8 +7458,12 @@
     var occLines = wrapCanvasText(ctx, occ.label || "", W - PAD * 2);
     var y = 180;
     occLines.slice(0, 2).forEach(function(l){ ctx.fillText(l, W / 2, y); y += 32; });
-    ctx.fillStyle = "#7a231f"; ctx.font = "900 38px " + serif;
-    ctx.fillText(group.name + "　師兄姐", W / 2, y + 22);
+    // v115 — 多人姓名太長時縮小字級，不超出邊框
+    var nameText = group.name + "　師兄姐", nameSize = 38;
+    ctx.font = "900 " + nameSize + "px " + serif;
+    while(nameSize > 22 && ctx.measureText(nameText).width > W - PAD * 2){ nameSize -= 2; ctx.font = "900 " + nameSize + "px " + serif; }
+    ctx.fillStyle = "#7a231f";
+    ctx.fillText(nameText, W / 2, y + 22, W - PAD * 2);
     y += 70;
     ctx.strokeStyle = "#e6d9c2"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
@@ -7567,9 +7575,9 @@
       return '<div class="type-tag" style="margin-top:8px;">LINE 好友名單還沒有人，請報名者先加小幫手好友（或傳一句話給小幫手）；目前請用「傳到 LINE／複製圖片」</div>';
     }
     var opts = '<option value="">選擇要傳給哪位 LINE 好友</option>' + users.map(function(u){
-      var names = (u.names || []).slice(0, 3).join("、");
+      // v115 — 小朱要求只顯示 LINE 名稱，不列出對應的報名姓名
       return '<option value="' + escAttr(u.id) + '"' + (u.id === card.lineUserId ? " selected" : "") + '>' +
-        escHtml((u.displayName || "（未知名稱）") + (names ? "（" + names + "）" : "")) + '</option>';
+        escHtml(u.displayName || "（未知名稱）") + '</option>';
     }).join("");
     var hint = card.lineHow === "msg" ? "這位是傳訊息給小幫手的人；如果是您幫忙轉傳，請改選報名者本人"
       : (card.lineHow === "guess" || card.lineHow === "display" ? "依姓名自動帶出，請確認是報名者本人" : "");
