@@ -1187,6 +1187,7 @@
     <div id="regNoticeBody"></div>
     <div id="regNoticeAll" style="display:none; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
       <button type="button" class="add-btn" id="regNoticeShareAllBtn">全部傳到 LINE</button>
+      <button type="button" class="ghost-btn" id="regNoticeCopyAllBtn">全部複製（合併成一張）</button>
       <button type="button" class="ghost-btn" id="regNoticeDownloadAllBtn">全部下載</button>
     </div>
   </div>
@@ -1244,7 +1245,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v108";
+  var APP_VERSION = "v109";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1255,6 +1256,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v109", date: "2026-10-21", changes: [
+      "報名成功圖「全部傳到 LINE」在電腦上改成把全部圖片合併成一張再複製，到 LINE 電腦版按 Ctrl+V 貼上即可；另加「全部複製（合併成一張）」按鈕"
+    ]},
     { version: "v108", date: "2026-10-21", changes: [
       "報名成功圖一次開多位時，最下面加「全部傳到 LINE」：手機一次分享全部圖片，電腦則一次下載全部；另有「全部下載」"
     ]},
@@ -7643,9 +7647,47 @@
       });
       return;
     }
-    // 電腦的剪貼簿一次只能放一張圖，改成全部下載，再到 LINE 電腦版一次選取多張傳送
-    regNoticeDownloadAll("已下載 " + cards.length + " 張報名成功圖，到 LINE 電腦版聊天視窗按迴紋針（傳送檔案）一次選取多張，或直接拖進聊天視窗");
+    // 電腦的剪貼簿一次只能放一張圖：v109 改成合併成一張再複製
+    regNoticeCopyAll();
   });
+  document.getElementById("regNoticeCopyAllBtn").addEventListener("click", function(){ regNoticeCopyAll(); });
+
+  // v109 — 把所有報名成功圖排成格子合併成一張（2 張並排、3～4 張 2 欄、更多 3 欄）
+  function regNoticeCombined(){
+    var cards = regNoticeCards.slice();
+    var cols = cards.length <= 2 ? cards.length : (cards.length <= 4 ? 2 : 3);
+    var W = 720, GAP = 24;
+    var rowsH = [];
+    cards.forEach(function(c, i){
+      var h = c.canvas.height * (W / c.canvas.width);
+      var r = Math.floor(i / cols);
+      rowsH[r] = Math.max(rowsH[r] || 0, h);
+    });
+    var out = document.createElement("canvas");
+    out.width = cols * W + (cols + 1) * GAP;
+    out.height = rowsH.reduce(function(s, h){ return s + h; }, 0) + (rowsH.length + 1) * GAP;
+    var ctx = out.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, out.width, out.height);
+    var y = GAP;
+    rowsH.forEach(function(rh, r){
+      for(var k = 0; k < cols; k++){
+        var c = cards[r * cols + k];
+        if(!c) break;
+        ctx.drawImage(c.canvas, GAP + k * (W + GAP), y, W, c.canvas.height * (W / c.canvas.width));
+      }
+      y += rh + GAP;
+    });
+    return out;
+  }
+  function regNoticeCopyAll(){
+    var n = regNoticeCards.length;
+    var combo = { name: "全部" + n + "位", canvas: regNoticeCombined() };
+    regNoticeCopy(combo).then(function(){
+      showToast("已把 " + n + " 張報名成功圖合併成一張並複製，到 LINE 打開聊天視窗按 Ctrl+V 貼上再送出");
+    }).catch(function(){
+      regNoticeDownload(combo, "這個瀏覽器不能複製圖片，已改下載合併後的圖片，請到 LINE 選圖片傳送");
+    });
+  }
   document.getElementById("regNoticeDownloadAllBtn").addEventListener("click", function(){ regNoticeDownloadAll(); });
 
   document.getElementById("regNoticeBtn").addEventListener("click", function(){
