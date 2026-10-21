@@ -1240,7 +1240,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v106";
+  var APP_VERSION = "v107";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1251,6 +1251,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v107", date: "2026-10-21", changes: [
+      "報名成功圖：v106 之前登記、或用貼上方式登記的報名，會依姓名到 LINE 小幫手已處理的訊息裡找傳訊息的人，找到就顯示「📨 小幫手私訊」",
+      "找不到對應 LINE 訊息時，在圖下方說明原因"
+    ]},
     { version: "v106", date: "2026-10-21", changes: [
       "報名成功圖加「📨 小幫手私訊」：從 LINE 小幫手待確認登記的報名，可在電腦上直接由小幫手把報名成功通知傳給當初傳訊息的人（需小幫手 v1.6）",
       "從 LINE 小幫手帶入的登記會記住來源訊息（lineMsgId、lineName，只有志工看得到），之後在登記清單勾選再開報名成功圖也能私訊"
@@ -7454,8 +7458,9 @@
         '</div>' +
         (card.lineMsgId
           ? '<div style="margin-top:8px;"><button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.pushed ? " disabled" : "") + '>' +
-              (card.pushed ? "✓ 已由小幫手私訊" : "📨 小幫手私訊給 LINE「" + escHtml(card.lineName || "傳訊息的人") + "」") + '</button></div>'
-          : '') +
+              (card.pushed ? "✓ 已由小幫手私訊" : "📨 小幫手私訊給 LINE「" + escHtml(card.lineName || "傳訊息的人") + "」") + '</button>' +
+              (card.lineGuessed && !card.pushed ? '<div class="type-tag">依姓名找到的 LINE 訊息，請確認 LINE 名稱是報名者本人</div>' : '') + '</div>'
+          : (card.lineLookupDone ? '<div class="type-tag" style="margin-top:8px;">找不到這位報名者傳給 LINE 小幫手的訊息，無法用小幫手私訊，請用「傳到 LINE／複製圖片」</div>' : '')) +
         '</div>';
     }).join("");
   }
@@ -7476,6 +7481,31 @@
       regNoticeCards.forEach(function(card){ regNoticeFile(card).then(function(f){ card.file = f; }); });
       renderRegNotice();
       regNoticeOverlay.style.display = "flex";
+      regNoticeFindLine(regNoticeCards);
+    });
+  }
+
+  // v107 — 沒有記錄來源的報名（v106 之前登記、或手動貼上），依姓名到小幫手已處理的訊息裡找：
+  // 訊息文字含報名者姓名、或 LINE 名稱就是報名者姓名，取最新的一則
+  function regNoticeFindLine(cards){
+    var need = cards.filter(function(c){ return !c.lineMsgId; });
+    if(!need.length) return;
+    if(!(fsReady && fsDb && staffActive())){ need.forEach(function(c){ c.lineLookupDone = true; }); renderRegNotice(); return; }
+    fsDb.collection("linePending").where("status", "==", "done").get().then(function(snap){
+      var docs = [];
+      snap.forEach(function(d){ var m = d.data(); if(m.userId) docs.push(Object.assign({ id: d.id }, m)); });
+      docs.sort(function(a, b){ return lineInboxMillis(b) - lineInboxMillis(a); });
+      need.forEach(function(c){
+        var nm = String(c.name || "").trim();
+        var hit = nm.length >= 2 ? docs.filter(function(m){ return String(m.text || "").indexOf(nm) >= 0 || String(m.displayName || "").trim() === nm; })[0] : null;
+        if(hit){ c.lineMsgId = hit.id; c.lineName = hit.displayName || ""; c.lineGuessed = true; }
+        c.lineLookupDone = true;
+      });
+      if(regNoticeCards === cards) renderRegNotice();
+    }).catch(function(e){
+      console.error("linePending lookup", e);
+      need.forEach(function(c){ c.lineLookupDone = true; });
+      if(regNoticeCards === cards) renderRegNotice();
     });
   }
 
