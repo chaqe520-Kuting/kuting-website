@@ -1245,7 +1245,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v109";
+  var APP_VERSION = "v110";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1256,6 +1256,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v110", date: "2026-10-21", changes: [
+      "報名成功圖的「📨 小幫手私訊」改成先選 LINE 好友：名單來自加過小幫手好友或傳過訊息給小幫手的人（lineUsers，需小幫手 v1.7 與新的資料庫規則）",
+      "傳送成功後會記住「報名姓名 ↔ LINE 好友」，下次同一個姓名自動帶出；信徒把報名傳到志工個人 LINE、再轉給小幫手時，也能傳回給信徒本人"
+    ]},
     { version: "v109", date: "2026-10-21", changes: [
       "報名成功圖「全部傳到 LINE」在電腦上改成把全部圖片合併成一張再複製，到 LINE 電腦版按 Ctrl+V 貼上即可；另加「全部複製（合併成一張）」按鈕"
     ]},
@@ -7471,11 +7475,7 @@
           '<button type="button" class="ghost-btn" data-act="copy" data-i="' + i + '">複製圖片</button>' +
           '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載圖片</button>' +
         '</div>' +
-        (card.lineMsgId
-          ? '<div style="margin-top:8px;"><button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.pushed ? " disabled" : "") + '>' +
-              (card.pushed ? "✓ 已由小幫手私訊" : "📨 小幫手私訊給 LINE「" + escHtml(card.lineName || "傳訊息的人") + "」") + '</button>' +
-              (card.lineGuessed && !card.pushed ? '<div class="type-tag">依姓名找到的 LINE 訊息，請確認 LINE 名稱是報名者本人</div>' : '') + '</div>'
-          : (card.lineLookupDone ? '<div class="type-tag" style="margin-top:8px;">找不到這位報名者傳給 LINE 小幫手的訊息，無法用小幫手私訊，請用「傳到 LINE／複製圖片」</div>' : '')) +
+        regNoticeLineHtml(card, i) +
         '</div>';
     }).join("");
   }
@@ -7500,29 +7500,89 @@
     });
   }
 
-  // v107 — 沒有記錄來源的報名（v106 之前登記、或手動貼上），依姓名到小幫手已處理的訊息裡找：
-  // 訊息文字含報名者姓名、或 LINE 名稱就是報名者姓名，取最新的一則
+  // v110 — 小幫手私訊的收件人：從 LINE 好友名單（lineUsers）選。自動帶出的順序：
+  // 1. 以前傳給過這個報名姓名的好友（names）2. 這筆報名來源 LINE 訊息的傳送者
+  // 3. LINE 名稱就是報名姓名的好友 4.（v107）小幫手已處理的訊息裡，文字含這個姓名的傳送者
+  var regNoticeLineUsers = null; // null＝讀不到名單（規則未更新或未登入）
+  function regNoticeLineHtml(card, i){
+    if(card.pushed) return '<div class="type-tag" style="margin-top:8px;">✓ 已由小幫手私訊給 LINE「' + escHtml(card.lineName || "") + '」</div>';
+    if(!card.lineLookupDone) return "";
+    var users = (regNoticeLineUsers || []).filter(function(u){ return u.friend !== false; });
+    if(card.lineUserId && !users.some(function(u){ return u.id === card.lineUserId; })){
+      users = [{ id: card.lineUserId, displayName: card.lineName || "傳訊息的人", names: [] }].concat(users);
+    }
+    if(!users.length){
+      return '<div class="type-tag" style="margin-top:8px;">LINE 好友名單還沒有人，請報名者先加小幫手好友（或傳一句話給小幫手）；目前請用「傳到 LINE／複製圖片」</div>';
+    }
+    var opts = '<option value="">選擇要傳給哪位 LINE 好友</option>' + users.map(function(u){
+      var names = (u.names || []).slice(0, 3).join("、");
+      return '<option value="' + escAttr(u.id) + '"' + (u.id === card.lineUserId ? " selected" : "") + '>' +
+        escHtml((u.displayName || "（未知名稱）") + (names ? "（" + names + "）" : "")) + '</option>';
+    }).join("");
+    var hint = card.lineHow === "msg" ? "這位是傳訊息給小幫手的人；如果是您幫忙轉傳，請改選報名者本人"
+      : (card.lineHow === "guess" || card.lineHow === "display" ? "依姓名自動帶出，請確認是報名者本人" : "");
+    return '<div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; align-items:center;">' +
+        '<select data-line-user="' + i + '" style="max-width:240px;">' + opts + '</select>' +
+        '<button type="button" class="add-btn" data-act="push" data-i="' + i + '"' + (card.lineUserId ? "" : " disabled") + '>📨 小幫手私訊</button>' +
+      '</div>' + (hint && card.lineUserId ? '<div class="type-tag">' + hint + '</div>' : '');
+  }
+
   function regNoticeFindLine(cards){
-    var need = cards.filter(function(c){ return !c.lineMsgId; });
-    if(!need.length) return;
-    if(!(fsReady && fsDb && staffActive())){ need.forEach(function(c){ c.lineLookupDone = true; }); renderRegNotice(); return; }
-    fsDb.collection("linePending").where("status", "==", "done").get().then(function(snap){
+    var done = function(){ cards.forEach(function(c){ c.lineLookupDone = true; }); if(regNoticeCards === cards) renderRegNotice(); };
+    if(!(fsReady && fsDb && staffActive())){ regNoticeLineUsers = null; done(); return; }
+    var pUsers = fsDb.collection("lineUsers").get().then(function(snap){
+      var list = [];
+      snap.forEach(function(d){ list.push(Object.assign({ id: d.id }, d.data())); });
+      list.sort(function(a, b){ return lineInboxMillis({ createdAt: b.lastSeen }) - lineInboxMillis({ createdAt: a.lastSeen }); });
+      return list;
+    }).catch(function(e){ console.warn("lineUsers", e && e.code); return null; });
+    var pDone = fsDb.collection("linePending").where("status", "==", "done").get().then(function(snap){
       var docs = [];
       snap.forEach(function(d){ var m = d.data(); if(m.userId) docs.push(Object.assign({ id: d.id }, m)); });
       docs.sort(function(a, b){ return lineInboxMillis(b) - lineInboxMillis(a); });
-      need.forEach(function(c){
-        var nm = String(c.name || "").trim();
-        var hit = nm.length >= 2 ? docs.filter(function(m){ return String(m.text || "").indexOf(nm) >= 0 || String(m.displayName || "").trim() === nm; })[0] : null;
-        if(hit){ c.lineMsgId = hit.id; c.lineName = hit.displayName || ""; c.lineGuessed = true; }
-        c.lineLookupDone = true;
+      return docs;
+    }).catch(function(){ return []; });
+    Promise.all([pUsers, pDone]).then(function(r){
+      regNoticeLineUsers = r[0];
+      var users = r[0] || [], docs = r[1];
+      var byId = {};
+      docs.forEach(function(m){ byId[m.id] = m; });
+      var needMsg = cards.filter(function(c){ return c.lineMsgId && !byId[c.lineMsgId]; });
+      return Promise.all(needMsg.map(function(c){
+        return fsDb.collection("linePending").doc(c.lineMsgId).get().then(function(d){ if(d.exists) byId[d.id] = Object.assign({ id: d.id }, d.data()); }).catch(function(){});
+      })).then(function(){
+        cards.forEach(function(c){
+          var nm = String(c.name || "").trim();
+          var pick = null, how = "";
+          var named = users.filter(function(u){ return (u.names || []).indexOf(nm) >= 0; })[0];
+          var msg = c.lineMsgId ? byId[c.lineMsgId] : null;
+          if(named){ pick = { id: named.id, name: named.displayName }; how = "names"; }
+          else if(msg && msg.userId){ pick = { id: msg.userId, name: msg.displayName }; how = "msg"; }
+          else {
+            var disp = nm.length >= 2 ? users.filter(function(u){ return String(u.displayName || "").trim() === nm; })[0] : null;
+            if(disp){ pick = { id: disp.id, name: disp.displayName }; how = "display"; }
+            else {
+              var hit = nm.length >= 2 ? docs.filter(function(m){ return String(m.text || "").indexOf(nm) >= 0; })[0] : null;
+              if(hit){ pick = { id: hit.userId, name: hit.displayName }; how = "guess"; }
+            }
+          }
+          if(pick){ c.lineUserId = pick.id; c.lineName = pick.name || ""; c.lineHow = how; }
+        });
       });
-      if(regNoticeCards === cards) renderRegNotice();
-    }).catch(function(e){
-      console.error("linePending lookup", e);
-      need.forEach(function(c){ c.lineLookupDone = true; });
-      if(regNoticeCards === cards) renderRegNotice();
-    });
+    }).then(done, function(e){ console.error("line lookup", e); done(); });
   }
+
+  regNoticeBody.addEventListener("change", function(e){
+    var i = e.target.getAttribute && e.target.getAttribute("data-line-user");
+    if(i == null) return;
+    var card = regNoticeCards[+i];
+    if(!card) return;
+    card.lineUserId = e.target.value;
+    var u = (regNoticeLineUsers || []).filter(function(x){ return x.id === card.lineUserId; })[0];
+    card.lineName = u ? (u.displayName || "") : (card.lineUserId ? card.lineName : "");
+    card.lineHow = "manual";
+    renderRegNotice();
+  });
 
   function regNoticeFile(card){
     return new Promise(function(resolve){
@@ -7605,16 +7665,20 @@
   }
   function regNoticePush(card, btn){
     if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
-    if(!confirm("由小幫手把「" + card.name + "」的報名成功通知私訊給 LINE「" + (card.lineName || "傳訊息的人") + "」？\n（推播會用到 LINE 官方帳號每月的免費訊息則數）")) return;
+    if(!card.lineUserId){ showToast("請先選擇要傳給哪位 LINE 好友"); return; }
+    if(!confirm("由小幫手把「" + card.name + "」的報名成功通知私訊給 LINE「" + (card.lineName || "這位好友") + "」？\n（推播會用到 LINE 官方帳號每月的免費訊息則數）")) return;
     var url = linebotUrl(false);
     if(!url) return;
     btn.disabled = true; btn.textContent = "傳送中…";
     fsAuth.currentUser.getIdToken().then(function(idToken){
       // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
-      return fetch(url, { method: "POST", body: JSON.stringify({ action: "notify", idToken: idToken, msgId: card.lineMsgId, card: regNoticeCardData(card) }) });
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "notify", idToken: idToken, msgId: card.lineMsgId || "", lineUserId: card.lineUserId, card: regNoticeCardData(card) }) });
     }).then(function(res){ return res.json(); }).then(function(out){
       if(out && out.ok){
         card.pushed = true;
+        if(out.to) card.lineName = out.to;
+        // 名單上記住這個姓名（小幫手端也已寫入），這次開著的視窗馬上生效
+        (regNoticeLineUsers || []).forEach(function(u){ if(u.id === card.lineUserId){ u.names = (u.names || []).concat([card.name]); } });
         renderRegNotice();
         showToast("已由小幫手私訊給 LINE「" + (out.to || card.lineName || "") + "」");
       } else {
@@ -7624,7 +7688,7 @@
     }).catch(function(err){
       console.error("linebot notify", err);
       btn.disabled = false; btn.textContent = "📨 再試一次";
-      if(confirm("連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.6）。要重新輸入小幫手網址嗎？")) linebotUrl(true);
+      if(confirm("連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.7）。要重新輸入小幫手網址嗎？")) linebotUrl(true);
     });
   }
 
