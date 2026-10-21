@@ -1173,7 +1173,7 @@
       <h3>報名成功圖</h3>
       <button class="modal-close" id="regNoticeCloseBtn" type="button" aria-label="關閉">×</button>
     </div>
-    <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦會改成下載圖片，再到 LINE 選圖片傳送。</p>
+    <p class="pdesc" id="regNoticeHint">手機按「傳到 LINE」會打開分享畫面，選 LINE 再點信徒的名字即可傳送；電腦按「傳到 LINE」會複製圖片，到 LINE 電腦版打開信徒的聊天視窗，按 Ctrl+V 貼上再送出。</p>
     <div id="regNoticeBody"></div>
   </div>
 </div>
@@ -1230,7 +1230,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v101";
+  var APP_VERSION = "v102";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1241,6 +1241,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v102", date: "2026-10-21", changes: [
+      "報名成功圖：電腦按「傳到 LINE」改成複製圖片，到 LINE 電腦版打開信徒聊天按 Ctrl+V 貼上即可傳送",
+      "另加「複製圖片」按鈕；手機仍是打開分享畫面選 LINE"
+    ]},
     { version: "v101", date: "2026-10-21", changes: [
       "新增「報名成功圖」：LINE 貼上快速登記確認後，自動依姓名產生報名成功圖片（場次、品項、數量、金額）供預覽",
       "按「傳到 LINE」會打開手機的分享畫面，選 LINE 再點信徒名字即可傳送；電腦則下載圖片",
@@ -7344,6 +7348,7 @@
         '<img src="' + card.url + '" alt="' + escAttr(card.name) + ' 的報名成功圖" style="width:100%; max-width:360px; border-radius:8px; border:1px solid var(--border);">' +
         '<div style="display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap;">' +
           '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
+          '<button type="button" class="ghost-btn" data-act="copy" data-i="' + i + '">複製圖片</button>' +
           '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載圖片</button>' +
         '</div></div>';
     }).join("");
@@ -7359,6 +7364,8 @@
         var canvas = drawRegNotice(g, occ);
         return { name: g.name, canvas: canvas, url: canvas.toDataURL("image/png") };
       });
+      // 先備好檔案：手機分享必須在點按當下同步呼叫，等 toBlob 會被瀏覽器擋掉
+      regNoticeCards.forEach(function(card){ regNoticeFile(card).then(function(f){ card.file = f; }); });
       renderRegNotice();
       regNoticeOverlay.style.display = "flex";
     });
@@ -7372,21 +7379,42 @@
     });
   }
 
+  // 手機（觸控為主）才用系統分享；電腦的分享視窗通常沒有 LINE，改成複製圖片到剪貼簿，
+  // 在 LINE 電腦版聊天視窗按 Ctrl+V 貼上。剪貼簿寫圖片要 https 與較新的 Chrome／Edge／Safari。
+  var regNoticeIsMobile = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
+  function regNoticeCopy(card){
+    if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)) return Promise.reject(new Error("no clipboard"));
+    var blobPromise = new Promise(function(resolve){ card.canvas.toBlob(resolve, "image/png"); });
+    return navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
+  }
+
+  function regNoticeDownload(card, msg){
+    regNoticeFile(card).then(function(file){
+      triggerBrowserDownload(file.name, file, "image/png");
+      showToast(msg);
+    });
+  }
+
   regNoticeBody.addEventListener("click", function(e){
     var btn = e.target.closest("button");
     if(!btn) return;
     var card = regNoticeCards[+btn.getAttribute("data-i")];
     if(!card) return;
     var act = btn.getAttribute("data-act");
-    regNoticeFile(card).then(function(file){
-      if(act === "share" && navigator.canShare && navigator.canShare({ files: [file] })){
-        navigator.share({ files: [file] }).catch(function(err){
-          if(err && err.name !== "AbortError") showToast("分享失敗，請改用「下載圖片」");
-        });
-        return;
-      }
-      triggerBrowserDownload(file.name, file, "image/png");
-      showToast(act === "share" ? "這台裝置不能直接分享，已下載圖片，請到 LINE 選圖片傳送" : "已下載圖片");
+    if(act === "download"){ regNoticeDownload(card, "已下載圖片"); return; }
+    if(act === "share" && regNoticeIsMobile && navigator.canShare){
+      if(!card.file){ showToast("圖片準備中，請再按一次"); return; }
+      if(!navigator.canShare({ files: [card.file] })){ regNoticeDownload(card, "這台手機不能直接分享，已下載圖片，請到 LINE 選圖片傳送"); return; }
+      navigator.share({ files: [card.file] }).catch(function(err){
+        if(err && err.name !== "AbortError") showToast("分享失敗，請改用「下載圖片」");
+      });
+      return;
+    }
+    regNoticeCopy(card).then(function(){
+      showToast("已複製「" + card.name + "」的報名成功圖，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
+    }).catch(function(){
+      regNoticeDownload(card, "這個瀏覽器不能複製圖片，已改下載，請到 LINE 選圖片傳送");
     });
   });
 
