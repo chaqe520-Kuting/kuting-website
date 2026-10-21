@@ -1167,6 +1167,16 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="lineImgOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:720px;">
+    <div class="modal-head">
+      <h3>LINE 報名照片</h3>
+      <button class="modal-close" id="lineImgCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <img id="lineImgFull" alt="LINE 報名照片" style="width:100%; max-height:75vh; object-fit:contain; border-radius:8px;">
+  </div>
+</div>
+
 <div class="modal-overlay" id="regNoticeOverlay" style="display:none;">
   <div class="modal-card" style="max-width:520px;">
     <div class="modal-head">
@@ -1230,7 +1240,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v102";
+  var APP_VERSION = "v103";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1241,6 +1251,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v103", date: "2026-10-21", changes: [
+      "LINE 小幫手待確認可收照片報名（手寫紅包袋、紙條、截圖）：顯示照片縮圖，點一下放大",
+      "照片由 AI 先讀出「姓名,品項,數量」填在可修改的欄位，志工對照照片改正後再帶入解析、確認登記",
+      "AI 讀到的原文顯示在欄位下方，方便核對"
+    ]},
     { version: "v102", date: "2026-10-21", changes: [
       "報名成功圖：電腦按「傳到 LINE」改成複製圖片，到 LINE 電腦版打開信徒聊天按 Ctrl+V 貼上即可傳送",
       "另加「複製圖片」按鈕；手機仍是打開分享畫面選 LINE"
@@ -6612,6 +6627,8 @@
   var lineInboxUnsub = null;
   var lineInboxDocs = [];
   var lineInboxInPreview = [];
+  // v103 照片報名：志工在待確認表格修改的 AI 結果先記在這裡（雲端快照重畫表格時不會被蓋掉）
+  var lineInboxEdits = {};
   var lineInboxBody = document.getElementById("lineInboxBody");
 
   function lineInboxSync(){
@@ -6654,6 +6671,8 @@
     wrap.style.display = lineInboxDocs.length ? "" : "none";
     actions.style.display = lineInboxDocs.length ? "flex" : "none";
     document.getElementById("lineInboxAllChk").checked = false;
+    var focused = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute("data-line-edit");
+    var selStart = focused ? document.activeElement.selectionStart : 0;
     lineInboxBody.innerHTML = lineInboxDocs.map(function(m){
       var d = new Date(lineInboxMillis(m));
       var when = isNaN(d.getTime()) || !lineInboxMillis(m) ? "—" : (pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()));
@@ -6664,16 +6683,40 @@
         '<td>' + when + '</td>' +
         '<td>' + escHtml(src) + '</td>' +
         '<td>' + escHtml(m.displayName || "（未知）") + '</td>' +
-        '<td style="white-space:pre-wrap; min-width:180px;">' + escHtml(m.text || "") + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>' +
+        (m.image
+          ? '<td style="min-width:220px;"><div style="display:flex; gap:8px; align-items:flex-start;">' +
+              '<img src="' + escAttr(m.image) + '" alt="報名照片" data-line-img="' + escAttr(m.id) + '" title="點一下放大" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border); cursor:zoom-in; flex:none;">' +
+              '<div style="flex:1;"><textarea data-line-edit="' + escAttr(m.id) + '" rows="3" placeholder="看照片輸入：姓名,品項,數量（每行一筆）" style="width:100%; min-height:64px; font-size:.9rem;">' + escHtml(lineInboxEdits[m.id] != null ? lineInboxEdits[m.id] : (m.text || "")) + '</textarea>' +
+              (m.aiRaw ? '<div class="type-tag" style="white-space:pre-wrap;">AI 讀到：' + escHtml(m.aiRaw) + '</div>' : '') +
+              '</div></div>' + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>'
+          : '<td style="white-space:pre-wrap; min-width:180px;">' + escHtml(m.text || "") + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>') +
         '<td style="white-space:nowrap;"><button class="ghost-btn" type="button" data-line-act="parse" data-id="' + escAttr(m.id) + '">帶入解析</button> ' +
         '<button class="ghost-btn" type="button" data-line-act="skip" data-id="' + escAttr(m.id) + '">略過</button></td>' +
         '</tr>';
     }).join("");
+    if(focused){
+      var ta = lineInboxBody.querySelector('[data-line-edit="' + focused + '"]');
+      if(ta){ ta.focus(); try { ta.setSelectionRange(selStart, selStart); } catch(e){} }
+    }
   }
+
+  lineInboxBody.addEventListener("input", function(e){
+    var id = e.target.getAttribute && e.target.getAttribute("data-line-edit");
+    if(id) lineInboxEdits[id] = e.target.value;
+  });
+
+  var lineImgOverlay = document.getElementById("lineImgOverlay");
+  function closeLineImg(){ lineImgOverlay.style.display = "none"; }
+  document.getElementById("lineImgCloseBtn").addEventListener("click", closeLineImg);
+  lineImgOverlay.addEventListener("click", function(e){ if(e.target === lineImgOverlay) closeLineImg(); });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && lineImgOverlay.style.display !== "none") closeLineImg();
+  });
 
   // 單行訊息如果解析不到姓名（例如只寫「壽桃 2」），用 LINE 名稱當姓名，志工仍可在預覽表格修改
   function lineInboxTextFor(m){
-    var lines = String(m.text || "").split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+    var raw = lineInboxEdits[m.id] != null ? lineInboxEdits[m.id] : m.text;
+    var lines = String(raw || "").split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
     if(lines.length === 1 && m.displayName){
       var one = normalizeLine(lines[0]);
       if(one.indexOf(",") < 0 && one.indexOf("，") < 0){
@@ -6730,6 +6773,8 @@
   }
 
   lineInboxBody.addEventListener("click", function(e){
+    var img = e.target.closest("[data-line-img]");
+    if(img){ document.getElementById("lineImgFull").src = img.src; lineImgOverlay.style.display = "flex"; return; }
     var btn = e.target.closest("[data-line-act]");
     if(!btn) return;
     var id = btn.getAttribute("data-id");
