@@ -1127,6 +1127,23 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="copyOccOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:460px;">
+    <div class="modal-head">
+      <h3>複製成新場次</h3>
+      <button class="modal-close" id="copyOccCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <p class="pdesc">以「<b id="copyOccSrcLabel"></b>」為範本，複製品項（項次、名稱、規格、單位、單價、總量、不公開、補運欄）、場次說明與確認欄位名稱。<b>報名資料、收款、已贊助數量都不會複製。</b>新場次先是「準備中」，信眾不能報名，檢查好再按「✅ 開放報名」。</p>
+    <div class="field" style="margin-top:10px;"><label for="copyOccName">新場次名稱</label><input type="text" id="copyOccName"></div>
+    <div class="field" style="margin-top:10px;"><label for="copyOccDate">日期</label><input type="text" id="copyOccDate" placeholder="例如：116/6/19（農曆）"></div>
+    <label id="copyOccPosterRow" style="display:flex; gap:8px; align-items:center; margin-top:10px; font-size:.9rem;"><input type="checkbox" id="copyOccPoster"> 海報圖片也一起複製（新法會通常要換新海報，預設不複製）</label>
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      <button class="add-btn" id="copyOccSaveBtn" type="button">建立準備中場次</button>
+      <button class="ghost-btn" id="copyOccCancelBtn" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="itemEditOverlay" style="display:none;">
   <div class="modal-card" style="max-width:460px;">
     <div class="modal-head">
@@ -1247,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v115";
+  var APP_VERSION = "v116";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1258,6 +1275,12 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v116", date: "2026-10-21", changes: [
+      "場次操作加「📋 複製成新場次」：用現有場次當範本，品項（項次、名稱、規格、單位、單價、總量、不公開、補運欄）、場次說明、確認欄位名稱、LINE 連結都複製過去，只要改名稱和日期",
+      "複製時報名資料、收款、已贊助數量都不帶過去（已贊助基準歸 0），海報圖片可選擇要不要一起複製",
+      "場次加「準備中」狀態：複製出來的場次先是準備中，信眾報名頁不能送出、LINE 小幫手也不會收進這場，可以提前建好，時間到再按「✅ 開放報名」；開放中的場次也能「改回準備中」",
+      "修正：按「關閉報名／重新開放報名」後立即同步到雲端（以前要等改了其他場次設定才會寫回）"
+    ]},
     { version: "v115", date: "2026-10-21", changes: [
       "報名成功圖「選擇要傳給哪位 LINE 好友」只顯示 LINE 名稱，不再列出報名姓名",
       "報名成功圖多人姓名太長時自動縮小字級，不會超出邊框"
@@ -2211,7 +2234,7 @@
     return {
       id: uid("occ"),
       label: label || "新法會場次",
-      status: "open", // "open" | "closed"
+      status: "open", // "open" | "closed" | "draft"（v116：準備中，信眾不能報名）
       date: "",
       notes: "",
       confirmFieldName: "",
@@ -3768,7 +3791,7 @@
       // 場次本身的狀態也以雲端上最新的為準：志工在後台按了「關閉報名」之後，
       // 還停在舊畫面上的信眾再按送出，要被擋下。
       return tx.get(fsGetOccRef(occId)).then(function(occSnap){
-        if(occSnap.exists && occSnap.data() && occSnap.data().status === "closed"){
+        if(occSnap.exists && occSnap.data() && (occSnap.data().status || "open") !== "open"){
           var ce = new Error("occasion-closed");
           ce.code = "occasion-closed";
           throw ce;
@@ -4184,7 +4207,8 @@
     // v74 — 目前選取的場次不在這份快照裡（例如第一次打開網頁、本機只有示範
     // 場次的信眾）時，優先挑「開放報名中」的場次，而不是單純取清單第一個
     // （雲端清單是依文件 id 排序，第一個可能剛好是已經關閉的舊場次）。
-    var openFallback = occasions.filter(function(o){ return o.status !== "closed"; })[0];
+    // v116 — 準備中（draft）的場次不能報名，信眾第一次打開時優先停在開放中、其次已關閉的場次
+    var openFallback = occasions.filter(function(o){ return o.status === "open"; })[0] || occasions.filter(function(o){ return o.status !== "draft"; })[0];
     var resolvedId = occasions.some(function(o){ return o.id === keepId; }) ? keepId : (openFallback || occasions[0]).id;
     var occasionChanged = resolvedId !== currentOccasionId;
     // currentOccasionId itself is always updated synchronously — current(),
@@ -4778,7 +4802,7 @@
     document.getElementById("publicOccDate").textContent = occ.date ? ("日期：" + occ.date) : "";
     var badge = document.getElementById("publicOccStatus");
     var open = occ.status === "open";
-    badge.textContent = open ? "開放報名中" : "已關閉報名";
+    badge.textContent = open ? "開放報名中" : (occ.status === "draft" ? "準備中，尚未開放報名" : "已關閉報名");
     badge.className = "badge " + (open ? "open" : "full");
     // v74 — 後台「關閉報名」過去只會把這個徽章改成「已關閉報名」，公開報名表單
     // 其實照樣能送出——志工以為已經停止收件，信眾卻還能繼續報名。
@@ -5032,9 +5056,9 @@
     occasions.forEach(function(o){
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "occ-chip" + (o.status === "closed" ? " closed" : "");
+      b.className = "occ-chip" + (o.status !== "open" ? " closed" : "");
       b.setAttribute("aria-pressed", o.id === currentOccasionId ? "true" : "false");
-      b.textContent = o.label + (o.status === "closed" ? "（已關閉）" : "");
+      b.textContent = o.label + (o.status === "closed" ? "（已關閉）" : o.status === "draft" ? "（準備中）" : "");
       b.addEventListener("click", function(){ setOccasion(o.id); });
       occChipRow.appendChild(b);
     });
@@ -5051,9 +5075,14 @@
   function renderOccActions(){
     var occ = current();
     occActionRow.innerHTML =
+      (occ.status === "draft" ? '<p class="pdesc" style="width:100%;margin:0 0 6px;color:var(--cinnabar);">這場還在準備中，信眾不能報名、LINE 小幫手也不會收進這場。品項與場次資料都確認好，再按「✅ 開放報名」。</p>' : '') +
       '<button class="occ-action-btn" data-act="editFields">編輯報名欄位／費用</button>' +
       '<button class="occ-action-btn" data-act="editInfo">編輯場次資料</button>' +
-      '<button class="occ-action-btn" data-act="toggleStatus">' + (occ.status === "open" ? "關閉報名" : "重新開放報名") + '</button>' +
+      (occ.status === "draft"
+        ? '<button class="occ-action-btn" data-act="publish">✅ 開放報名</button>'
+        : '<button class="occ-action-btn" data-act="toggleStatus">' + (occ.status === "open" ? "關閉報名" : "重新開放報名") + '</button>') +
+      (occ.status === "open" ? '<button class="occ-action-btn" data-act="unpublish">改回準備中</button>' : '') +
+      '<button class="occ-action-btn" data-act="copyOcc">📋 複製成新場次</button>' +
       '<button class="occ-action-btn" data-act="export">匯出 Excel</button>' +
       '<button class="occ-action-btn" data-act="redPaper">匯出紅紙（A3）</button>' +
       '<button class="occ-action-btn" data-act="buyunA4">匯出補運A4</button>' +
@@ -5075,7 +5104,26 @@
       occ.status = occ.status === "open" ? "closed" : "open";
       renderOccasionChips();
       renderPublicOccasionStatus();
+      scheduleMetaSync();
       showToast(occ.status === "open" ? "已重新開放報名" : "已關閉此場次報名");
+    } else if(act === "publish"){
+      armConfirm(btn, function(){
+        occ.status = "open";
+        renderOccasionChips();
+        renderPublicOccasionStatus();
+        scheduleMetaSync();
+        showToast("已開放報名，信眾可以開始報名了");
+      }, "再按一次確認開放報名");
+    } else if(act === "unpublish"){
+      armConfirm(btn, function(){
+        occ.status = "draft";
+        renderOccasionChips();
+        renderPublicOccasionStatus();
+        scheduleMetaSync();
+        showToast("已改回準備中，信眾暫時不能報名；已登記的資料都保留");
+      }, "再按一次確認改回準備中");
+    } else if(act === "copyOcc"){
+      openCopyOccModal();
     } else if(act === "export"){
       exportOccasionExcel(occ);
     } else if(act === "buyunA4"){
@@ -5202,6 +5250,54 @@
     layoutNameInput.focus();
     layoutNameInput.select();
   }
+
+  // v116 — 用目前場次當範本複製成新場次：品項設定、場次說明、banner 文字、
+  // 確認欄位名稱都帶過去；報名資料（registrations 子集合）不複製、已贊助
+  // 基準（sponsored）與 baseDeityQty／baseDonationAmt 歸 0、regSeq 從 1 開始。
+  // 新場次一律是「準備中」（draft），信眾頁不能送出、LINE 小幫手也只收 open 的場次。
+  var copyOccOverlay = document.getElementById("copyOccOverlay");
+  function openCopyOccModal(){
+    var src = current();
+    document.getElementById("copyOccSrcLabel").textContent = src.label;
+    document.getElementById("copyOccName").value = src.label + "（複製）";
+    document.getElementById("copyOccDate").value = "";
+    var posters = (src.banner && src.banner.posterImages) || [];
+    document.getElementById("copyOccPosterRow").style.display = posters.length ? "flex" : "none";
+    document.getElementById("copyOccPoster").checked = false;
+    copyOccOverlay.style.display = "flex";
+    var nameInp = document.getElementById("copyOccName");
+    setTimeout(function(){ nameInp.focus(); nameInp.select(); }, 30);
+  }
+  function closeCopyOccModal(){ copyOccOverlay.style.display = "none"; }
+  document.getElementById("copyOccCloseBtn").addEventListener("click", closeCopyOccModal);
+  document.getElementById("copyOccCancelBtn").addEventListener("click", closeCopyOccModal);
+  document.getElementById("copyOccSaveBtn").addEventListener("click", function(){
+    var src = current();
+    var label = document.getElementById("copyOccName").value.trim();
+    if(!label){ showToast("請輸入新場次名稱"); return; }
+    var o = makeDefaultOccasion(label);
+    o.status = "draft";
+    o.date = document.getElementById("copyOccDate").value.trim();
+    o.notes = src.notes || "";
+    o.confirmFieldName = src.confirmFieldName || "";
+    o.banner = JSON.parse(JSON.stringify(src.banner || o.banner));
+    if(!document.getElementById("copyOccPoster").checked) o.banner.posterImages = [];
+    o.items = (src.items || []).map(function(it){
+      var copy = JSON.parse(JSON.stringify(it));
+      copy.sponsored = 0;
+      return copy;
+    });
+    o.deities = JSON.parse(JSON.stringify(src.deities || []));
+    o.deityPrice = src.deityPrice || 0;
+    o.itemIdSeq = src.itemIdSeq || (o.items.length + 1);
+    buildCatalog(o);
+    occasions.push(o);
+    fsEnsureOccasionDoc(o);
+    setOccasion(o.id);
+    closeCopyOccModal();
+    showToast("已複製成新場次「" + label + "」（準備中，共 " + o.items.length + " 個品項），檢查好再按「✅ 開放報名」");
+    scrollFlash(document.getElementById("occInfoSection"));
+  });
 
   function setOccasion(id){
     currentOccasionId = id;
@@ -5956,8 +6052,8 @@
 
   function updatePubQaPreview(){
     pubQaQtyLabel.textContent = (pubQaSelected && pubQaSelected.type === "donation") ? "金額(元) *" : "數量 *";
-    if(current().status === "closed"){
-      pubQaFullWarning.textContent = "本場次已關閉報名，目前無法線上登記，謝謝。";
+    if(current().status !== "open"){
+      pubQaFullWarning.textContent = current().status === "draft" ? "本場次準備中，尚未開放報名，謝謝。" : "本場次已關閉報名，目前無法線上登記，謝謝。";
       pubQaFullWarning.style.display = "block";
       pubQaAddBtn.disabled = true;
       return;
@@ -6113,9 +6209,9 @@
     if(!pubQaSelected) return;
     var q = parseFloat(pubQaQty.value) || 0;
     if(q <= 0 || !pubQaName.value.trim()) return;
-    if(current().status === "closed"){
+    if(current().status !== "open"){
       updatePubQaPreview();
-      showToast("本場次已關閉報名，您的報名沒有送出，謝謝。");
+      showToast(current().status === "draft" ? "本場次準備中，尚未開放報名，您的報名沒有送出，謝謝。" : "本場次已關閉報名，您的報名沒有送出，謝謝。");
       return;
     }
 

@@ -284,8 +284,13 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.31 ・ 2026-10-12（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.32 ・ 2026-10-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.32（2026-10-21）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>場次管理加「📋 複製成新場次」：用現有場次（例如渡祖先法會）當範本，報名欄位、費用／供品項目、填寫說明都複製過去，只要改名稱和日期；報名資料、收款、照片不會複製</li>
+        <li>複製出來的場次先是「準備中」，報名網站看不到，可以提前建好，時間到再按「✅ 開放報名」；海報圖片可選擇要不要一起複製</li>
+      </ul>
       <b>v4.31（2026-10-12）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>法會場次加「準備中」狀態：新增的場次一律先是準備中，報名網站看不到，等欄位、費用、場次資料都編輯好，再按「✅ 開放報名」才會出現在報名網站</li>
@@ -1932,6 +1937,7 @@ function renderEventManager(){
       <button class="btn btn-ghost btn-sm" id="editEventInfoBtn">編輯場次資料</button>
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
+      <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
       <button class="btn btn-ghost btn-sm" id="exportBtn">匯出 Excel</button>
       <button class="btn btn-danger btn-sm" id="deleteEventBtn">刪除此場次</button>
     </div>`;
@@ -3181,6 +3187,8 @@ function bindEvents(){
 
   const newBtn = document.getElementById('newEventBtn');
   if(newBtn) newBtn.onclick = openNewEventModal;
+  const copyEventBtn = document.getElementById('copyEventBtn');
+  if(copyEventBtn) copyEventBtn.onclick = ()=>openCopyEventModal(adminSelectedEvent);
 
   const editFieldsBtn = document.getElementById('editFieldsBtn');
   if(editFieldsBtn) editFieldsBtn.onclick = ()=>openFieldEditor(adminSelectedEvent);
@@ -3725,6 +3733,58 @@ function openNewEventModal(){
     bg.remove();
     render();
     showToast('已建立法會場次（準備中，編輯好再按「開放報名」）', 3500);
+  };
+}
+
+// v4.32：用現有場次當範本，複製報名欄位、費用／供品項目、說明，產生新的準備中場次。
+// 報名資料（regs）、收款、照片傳送都以場次 ID 另外存放，新場次是新 ID，所以不會帶過去。
+function openCopyEventModal(eventId){
+  const src = events.find(e=>e.id===eventId);
+  if(!src) return;
+  const hasPoster = !!((src.posterImages && src.posterImages.length) || src.posterImage);
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 6px;">複製成新場次</h2>
+    <p class="hint" style="margin:0 0 14px;">以「${escHtml(src.name)}」為範本，複製報名欄位、費用／供品項目、確認欄位名稱、填寫說明。<b>報名資料、收款、照片都不會複製。</b>新場次先是「準備中」，報名網站看不到，編輯好再按「✅ 開放報名」。</p>
+    <div class="field"><label>新場次名稱</label><input type="text" id="cp_name"></div>
+    <div class="grid2">
+      <div class="field"><label>日期</label><input type="text" id="cp_date" placeholder="例：116/8/16（農曆七月初四）"></div>
+      <div class="field"><label>備註</label><input type="text" id="cp_note" placeholder="選填"></div>
+    </div>
+    ${hasPoster ? `<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0 10px;"><input type="checkbox" id="cp_poster"> 海報圖片也一起複製（新法會通常要換新海報，預設不複製）</label>` : ''}
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" id="cp_save">建立準備中場次</button>
+      <button class="btn btn-ghost" id="cp_cancel">取消</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const nameInp = bg.querySelector('#cp_name');
+  nameInp.value = src.name + '（複製）';
+  bg.querySelector('#cp_date').value = '';
+  bg.querySelector('#cp_note').value = src.note || '';
+  setTimeout(()=>{ nameInp.focus(); nameInp.select(); }, 30);
+  bg.querySelector('#cp_cancel').onclick = ()=>bg.remove();
+  bg.querySelector('#cp_save').onclick = async ()=>{
+    const name = nameInp.value.trim();
+    if(!name){ showToast('請輸入新場次名稱'); return; }
+    if(events.some(e=>String(e.name).trim()===name) && !(await showConfirm(`已經有叫「${escHtml(name)}」的場次，還是要建立嗎？`))) return;
+    const copy = JSON.parse(JSON.stringify(src));
+    copy.id = uid();
+    copy.name = name;
+    copy.date = bg.querySelector('#cp_date').value.trim();
+    copy.note = bg.querySelector('#cp_note').value.trim();
+    copy.active = true;
+    copy.draft = true;
+    const posterChk = bg.querySelector('#cp_poster');
+    if(!(posterChk && posterChk.checked)){ delete copy.posterImages; delete copy.posterImage; }
+    events.push(copy);
+    const ok = await saveEvents();
+    if(!ok){ events = events.filter(e=>e.id!==copy.id); return; }
+    adminSelectedEvent = copy.id;
+    bg.remove();
+    render();
+    showToast('已複製成新場次（準備中），請檢查欄位、費用、日期後再按「開放報名」', 4000);
   };
 }
 
