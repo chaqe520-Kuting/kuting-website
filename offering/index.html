@@ -1247,7 +1247,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v113";
+  var APP_VERSION = "v114";
   var APP_UPDATED = "2026-10-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1258,6 +1258,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v114", date: "2026-10-21", changes: [
+      "「📨 小幫手私訊」傳到 LINE 的報名成功卡片也顯示已收款／待收款（需小幫手 v1.11）"
+    ]},
     { version: "v113", date: "2026-10-21", changes: [
       "報名成功圖合計左邊加上大字收款狀態：已收款（綠底）、待收款（紅底）、部分收款",
       "報名成功圖視窗裡每位姓名旁也顯示收款狀態"
@@ -7710,7 +7713,9 @@
         return { label: reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : ""), qty: regQtyText(reg, cat, "隨喜"),
           amount: fmt(reg.amount), extra: reg.buyunName ? "補運：" + reg.buyunName : "" };
       }),
-      total: fmt(total), time: formatRegTime(g.regs[0].time)
+      total: fmt(total), time: formatRegTime(g.regs[0].time),
+      // v114 — 小幫手私訊卡片也顯示收款狀態（需小幫手 v1.11）
+      payStatus: regNoticePayState(g).text, payColor: regNoticePayState(g).bg
     };
   }
   // v111 — 送一張卡片給小幫手推播；kind: "" 報名成功、"paid" 收款確認。回傳 Promise<{ok, to, error}>
