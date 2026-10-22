@@ -1264,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v119";
+  var APP_VERSION = "v120";
   var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1275,6 +1275,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v120", date: "2026-10-22", changes: [
+      "匯出紅紙（A3）：各供品品項名稱改成靠上對齊，字平均分配排滿整個品名格（兩種格式都適用）"
+    ]},
     { version: "v119", date: "2026-10-22", changes: [
       "匯出紅紙（A3）「佛號分列」：「共 N 捆」不再和「各大師尊大壽金」寫在同一行，改成標題下面另起一行單獨列出"
     ]},
@@ -1858,6 +1861,20 @@
   // 品名直書在最上面：3 個字以內的品名字距拉開（「壽 桃」「祝 壽 金」），比較像手寫版
   function headName(n){ n = String(n); return chars(n) <= 3 ? Array.prototype.slice.call(n).join(" ") : n; }
 
+  // v120 — 品名靠上對齊，字平均分配在整個品名格裡：用全形空白把字距撐開
+  // （直書時一個全形空白佔一個字高），第一個字在最上面、最後一個字貼近格子底部
+  function spreadName(n, boxPt, pt){
+    var cs = Array.prototype.slice.call(String(n).replace(/\s+/g, ""));
+    var slots = Math.floor((boxPt - 8) / (pt * STEP));
+    if(cs.length < 2 || slots <= cs.length) return cs.join("");
+    var gaps = slots - cs.length, k = cs.length - 1, out = "";
+    for(var i = 0; i < cs.length; i++){
+      out += cs[i];
+      if(i < k){ var g = Math.floor(gaps * (i + 1) / k) - Math.floor(gaps * i / k); out += new Array(g + 1).join("　"); }
+    }
+    return out;
+  }
+
   // 把一個品項的登記排進「欄」：每欄固定 R 格；人多就往左多開幾欄，每欄人數盡量平均、由上往下排。
   // 回傳欄的陣列（第 0 欄在最右邊），每欄是 [{text, qty, span, slot}]
   // 一格放 3 個字高。3 字以內照常；剛好 4 個字的姓名（例如「蔡黃玉英」）字縮小成 3/4 仍放進同一格，
@@ -1991,10 +2008,12 @@
 
     p.items.forEach(function(pi, idx){
       var cc = itemCols[idx], it = pi.item;
-      var nm = headName(it.name);
-      var hf = p.fontFor(chars(nm));
+      var hf = p.fontFor(chars(headName(it.name)));
       // 沒有群組的品項，品名往上併用群組標題那一列
-      putMerged(it.group ? 1 + G : 1, cc.c1, 1 + G, cc.c2, nm, { font: f(hf), h: "center", v: "center", rot: 255, border: B });
+      var nmTop = it.group ? 1 + G : 1;
+      var nmBoxH = 0; for(var hr = nmTop; hr <= 1 + G; hr++) nmBoxH += sh.rowHeights[hr] || 0;
+      var nm = spreadName(it.name, nmBoxH, hf);
+      putMerged(nmTop, cc.c1, 1 + G, cc.c2, nm, { font: f(hf), h: "center", v: "top", rot: 255, border: B });
       putMerged(2 + G, cc.c1, 2 + G, cc.c2, it.total > 0 ? it.total : null, { font: f(qtyPt + 2), h: "center", v: "center", border: B, numFmt: 3, shrink: true });
       putMerged(3 + G, cc.c1, 3 + G, cc.c2, it.unit || "", { font: f(qtyPt), h: "center", v: "center", border: B, shrink: true });
       pi.cols.forEach(function(colEntries, ci){
