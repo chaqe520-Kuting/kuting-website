@@ -890,9 +890,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.12.0';
+const APP_VERSION = 'v1.12.1';
 const APP_DATE = '2026-10-22';
 const CHANGELOG = [
+  { version:'v1.12.1', date:'2026-10-22', items:[
+    '銀行截圖讀取中顯示已等幾秒；超過 120 秒、小幫手回應錯誤或小幫手還是舊版本時，會跳出說明，不會一直停在「讀取中」',
+  ]},
   { version:'v1.12.0', date:'2026-10-22', items:[
     '新增「📷 銀行截圖快速登記」：選京城銀行 App 的入帳／出帳截圖或信眾的轉帳成功畫面（可多張、可 Ctrl+V 貼上），由報名小幫手的 AI 讀出每筆日期、收支、金額、餘額、摘要與匯款人帳號後 5 碼，核對修改後勾選存成銀行收支',
     '防重複：同一筆交易（日期＋時間＋金額＋餘額）已登記過會標紅色、不預先勾選；同日同金額的銀行登記、歷史銀行帳已有的月份會標黃色提醒；兩張截圖重疊的交易自動合併',
@@ -2415,17 +2418,31 @@ async function readBankshots(){
   let failed = 0;
   try{
     for(let i=0; i<bankshotImages.length; i++){
-      msg.textContent = `AI 讀取中（第 ${i+1}／${bankshotImages.length} 張，每張約 5～20 秒）…`;
-      const idToken = await fbAuth.currentUser.getIdToken();
+      const label = `AI 讀取中（第 ${i+1}／${bankshotImages.length} 張，每張約 5～30 秒）`;
+      const t0 = Date.now();
+      msg.textContent = label + '…';
+      // v1.12.1 顯示已等幾秒；超過 120 秒就停止並說明，不會一直卡在「讀取中」
+      const tick = setInterval(()=>{ msg.textContent = `${label}… 已等 ${Math.round((Date.now()-t0)/1000)} 秒`; }, 1000);
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = setTimeout(()=>{ if(ctrl) ctrl.abort(); }, 120000);
       let out;
       try{
+        const idToken = await fbAuth.currentUser.getIdToken();
         // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
-        const res = await fetch(url, { method:'POST', body: JSON.stringify({ action:'bankshot', idToken, image:{ mime:'image/jpeg', base64:bankshotImages[i].base64 } }) });
-        out = await res.json();
+        const res = await fetch(url, { method:'POST', signal: ctrl ? ctrl.signal : undefined, body: JSON.stringify({ action:'bankshot', idToken, image:{ mime:'image/jpeg', base64:bankshotImages[i].base64 } }) });
+        const text = await res.text();
+        try{ out = JSON.parse(text); }
+        catch(_){ console.error('bankshot 回應', res.status, text.slice(0, 500)); out = { ok:false, error:`小幫手回應不是資料（HTTP ${res.status}）。請確認小幫手已部署 v1.12 新版本、存取權是「所有人」` }; }
       }catch(e){
         console.error('bankshot', e);
-        out = { ok:false, error:'連不到小幫手（網址不對，或小幫手還沒更新到 v1.12）' };
+        out = { ok:false, error: e && e.name === 'AbortError'
+          ? '等了 120 秒小幫手都沒回應。請到 Apps Script 左邊「執行項目」看 doPost 有沒有錯誤，或稍後再試'
+          : '連不到小幫手（網址不對，或小幫手還沒更新到 v1.12）' };
+      } finally {
+        clearInterval(tick); clearTimeout(timer);
       }
+      // 舊版小幫手（v1.11 以前）不認得 bankshot，會回 {ok:true} 但沒有 rows
+      if(out && out.ok && !Array.isArray(out.rows)) out = { ok:false, error:'小幫手還是舊版本：請在 Apps Script 貼上 v1.12 的 Code.gs 後，「部署」→「管理部署作業」→ 編輯 → 版本選「新版本」→ 部署' };
       if(!out || !out.ok){
         failed++;
         alert(`第 ${i+1} 張讀取失敗：${(out && out.error) || '不明原因'}`);
