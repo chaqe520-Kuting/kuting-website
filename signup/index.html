@@ -295,8 +295,12 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.33 ・ 2026-10-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.34 ・ 2026-10-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.34（2026-10-22）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>內建範本單價改用上次的價格：「一般法會」一戶 6000 元（比照 115 年中元普渡）＋隨喜功德；「補運」每位 1000 元（比照 115/2/7 補運）。價格有變動時，建立場次後在「編輯報名欄位／費用」修改即可</li>
+      </ul>
       <b>v4.33（2026-10-22）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>報名欄位可設定得更細：每個欄位可加「填寫說明」（顯示在欄位名稱下方）、新增「單選按鈕」「電話」「數字」類型、勾「僅後台」的欄位信眾看不到（例如工作人員備註）</li>
@@ -712,7 +716,7 @@ const TEMPLATES = {
     ],
     mode: 'items',
   },
-  // v4.33：常用範本庫新增「一般法會」「補運」（費用單價先留 0，建立後再依當年金額修改）
+  // v4.33：常用範本庫新增「一般法會」「補運」；v4.34：單價用上次的價格（一般法會比照 115 中元普渡一戶 6000、補運比照 115/2/7 補運個人 1000）
   general: {
     label: '一般法會',
     fields: [
@@ -723,8 +727,8 @@ const TEMPLATES = {
       {k:'note', label:'備註', type:'textarea', keywords:['備註']},
     ],
     fees: [
-      {k:'person', label:'參加費（每位）', price:0, mode:'qty', keywords:['參加']},
-      {k:'amount', label:'隨喜功德金', price:0, mode:'amount', keywords:['隨喜','功德']},
+      {k:'person', label:'一戶', price:6000, mode:'qty', keywords:['一戶']},
+      {k:'amount', label:'隨喜功德', price:0, mode:'amount', keywords:['隨喜','功德']},
     ],
   },
   buyun: {
@@ -739,7 +743,7 @@ const TEMPLATES = {
       {k:'note', label:'備註', type:'textarea', keywords:['備註']},
     ],
     fees: [
-      {k:'buyunFee', label:'補運（每位）', price:0, mode:'qty', keywords:['補運費']},
+      {k:'buyunFee', label:'補運（每位）', price:1000, mode:'qty', keywords:['補運費']},
     ],
   },
   donation: {
@@ -3843,8 +3847,8 @@ async function openNewEventModal(){
   const builtinOpts = [
     ['ancestor','祭拜祖先（一戶/倒房/地基主/金紙）'],
     ['liang','梁皇寶懺（主蓮位/副蓮位）'],
-    ['general','一般法會（參加者姓名、電話、隨喜）'],
-    ['buyun','補運（補運／補運+補財庫、地址、生日）'],
+    ['general','一般法會（一戶 6000、隨喜功德）'],
+    ['buyun','補運（每位 1000，補運／補運+補財庫）'],
     ['donation','隨喜/樂捐登記（單純金額贊助，如普渡功德金）'],
     ['blank','空白樣板（自行從零設計欄位）'],
   ];
