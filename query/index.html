@@ -144,6 +144,18 @@
   .tool-block p{ margin:0 0 8px; color:var(--ink-soft); line-height:1.6; }
   .tool-block input[type="text"]{ width:100%; padding:8px 10px; font-size:13px; border:1.5px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; }
   .tool-block button{ padding:7px 14px; font-size:13px; border:1px solid var(--vermilion); background:#fff; color:var(--vermilion); border-radius:6px; cursor:pointer; font-weight:600; margin-right:6px; }
+  .dup-group{ border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin:8px 0; background:#fffdf7; }
+  .dup-group.on{ border-color:var(--vermilion); background:#fff6f2; }
+  .dup-head{ font-weight:600; margin-bottom:4px; }
+  .dup-head label{ font-weight:600; color:var(--vermilion); margin-left:6px; cursor:pointer; white-space:nowrap; }
+  .dup-row{ display:flex; gap:6px; align-items:flex-start; padding:3px 0; border-top:1px dotted var(--line); line-height:1.5; }
+  .dup-row:first-of-type{ border-top:none; }
+  .dup-row .tag{ flex:none; min-width:4.2em; font-weight:600; }
+  .dup-row.del .txt{ text-decoration:line-through; color:#9b2c1f; }
+  .dup-row.del .tag{ color:#9b2c1f; }
+  .dup-bar{ position:sticky; bottom:0; background:#fffaf0; padding:8px 0; border-top:1px dashed var(--line); margin-top:8px; }
+  .tool-block button.dup-del{ background:var(--vermilion); color:#fff; }
+  .tool-block button.dup-del:disabled{ opacity:.45; cursor:not-allowed; }
   .tool-block code{ background:#f1e9d4; padding:1px 5px; border-radius:4px; word-break:break-all; }
   .data-note{ font-size:12px; color:var(--ink-soft); margin:8px 2px 0; }
 </style>
@@ -278,9 +290,10 @@
 
       <div class="tool-block">
         <h3>四、檢查目前資料是否重複</h3>
-        <p>檢查資料庫裡現有的全部資料：同一來源完全相同的紀錄，以及不同來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名都有紀錄的情況。只檢查、不會改動資料。</p>
+        <p>檢查資料庫裡現有的全部資料：同一來源完全相同的紀錄，以及不同來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名都有紀錄的情況。按「檢查重複資料」只會列出，不會改動資料。</p>
+        <p>要刪除多餘的<b>歷史資料</b>：在每組勾選「刪除多餘的」並選要保留哪一筆（或在跨來源的組勾選要刪的歷史資料），再按下方紅色按鈕。刪除前會先自動下載目前全部歷史資料的 Excel 備份（可用「一、方式 B」匯回還原），並再跳出確認。法會報名平台、供品贊助平台的重複請到原平台刪除，否則下次更新會再出現。</p>
         <button type="button" id="dupCheckBtn">檢查重複資料</button>
-        <pre id="dupResult" style="white-space:pre-wrap;font-size:13px;margin:8px 0 0;"></pre>
+        <div id="dupResult" style="font-size:13px;margin:8px 0 0;"></div>
       </div>
 
       <div class="tool-block">
@@ -1031,17 +1044,143 @@ document.getElementById('gpSyncBtn').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('dupCheckBtn').addEventListener('click', () => {
-  const out = document.getElementById('dupResult');
-  const srcs = ['歷史資料', SOURCE_OF.live, SOURCE_OF.gp];
-  const parts = [];
-  srcs.forEach((src, i) => {
-    const mine = ALL.filter(r => dupSrc(r) === src);
-    const others = ALL.filter(r => srcs.indexOf(dupSrc(r)) > i);   // 跨來源每一對只比一次
-    const t = dupText(findDuplicates(mine, others), 30);
-    if(t) parts.push(`【${src}】\n${t}`);
+/* v2.7：重複資料可勾選刪除（只刪歷史資料；線上報名與供品贊助每次同步會重新抓取，要到原平台刪除） */
+let DUP_GROUPS = [];
+const DUP_SHOW = ['電話','陽上人','項目','地址','費用','備註','收款狀態','編號'];
+function dupDetail(r){
+  return DUP_SHOW.filter(c => r[c] !== '' && r[c] != null).map(c => `${c}：${r[c]}`).join('　') || '（無其他內容）';
+}
+// 預設保留內容最完整的一筆（已收款、有備註等優先）
+function dupBestIdx(recs){
+  let best = 0, score = -1;
+  recs.forEach((r, i) => {
+    const sc = DUP_SHOW.filter(c => r[c] !== '' && r[c] != null).length + (r['收款狀態'] ? 5 : 0);
+    if(sc > score){ score = sc; best = i; }
   });
-  out.textContent = parts.length ? parts.join('\n\n') : `沒有發現重複資料（共檢查 ${ALL.length} 筆）。`;
+  return best;
+}
+function buildDupGroups(){
+  const groups = [];
+  const srcs = ['歷史資料', SOURCE_OF.live, SOURCE_OF.gp];
+  srcs.forEach((src, i) => {
+    const mine = ALL.filter(r => dupSrc(r) === src && String(r['報名者姓名'] || '').trim());
+    const byKey = {};
+    mine.forEach(r => { const k = dupExactKey(r); (byKey[k] = byKey[k] || []).push(r); });
+    Object.keys(byKey).forEach(k => {
+      if(byKey[k].length > 1) groups.push({ type: 'exact', src, recs: byKey[k], keep: dupBestIdx(byKey[k]), on: false });
+    });
+  });
+  // 跨來源：同年度、同法會、同姓名在兩個以上來源都有紀錄
+  const byPerson = {};
+  ALL.forEach(r => {
+    if(!String(r['報名者姓名'] || '').trim()) return;
+    const k = dupPersonKey(r);
+    (byPerson[k] = byPerson[k] || []).push(r);
+  });
+  Object.keys(byPerson).forEach(k => {
+    const recs = byPerson[k];
+    if(new Set(recs.map(dupSrc)).size < 2) return;
+    recs.sort((a, b) => srcs.indexOf(dupSrc(a)) - srcs.indexOf(dupSrc(b)));
+    groups.push({ type: 'cross', recs, del: new Set() });
+  });
+  return groups;
+}
+function dupToDelete(){
+  const del = new Set();
+  DUP_GROUPS.forEach(g => {
+    if(g.type === 'exact' && g.on && g.src === '歷史資料') g.recs.forEach((r, i) => { if(i !== g.keep) del.add(r); });
+    if(g.type === 'cross') g.del.forEach(r => del.add(r));
+  });
+  // 至少要留一筆：同一組跨來源全部勾掉的情況不會發生（只有歷史資料能勾，另一來源一定還在）
+  return del;
+}
+function renderDupGroups(){
+  const out = document.getElementById('dupResult');
+  if(!DUP_GROUPS.length){ out.innerHTML = `<p>沒有發現重複資料（共檢查 ${ALL.length} 筆）。</p>`; return; }
+  const exactN = DUP_GROUPS.filter(g => g.type === 'exact').length;
+  const histExact = DUP_GROUPS.filter(g => g.type === 'exact' && g.src === '歷史資料').length;
+  const crossN = DUP_GROUPS.length - exactN;
+  const del = dupToDelete();
+  let h = `<p><b>完全相同 ${exactN} 組</b>（歷史資料 ${histExact} 組可刪）、<b>跨來源同年度同法會同姓名 ${crossN} 組</b>。`;
+  if(histExact) h += ` <button type="button" data-dupall="1">歷史資料完全相同的全部勾選</button><button type="button" data-dupall="0">全部取消</button>`;
+  h += `</p>`;
+  DUP_GROUPS.forEach((g, gi) => {
+    const r0 = g.recs[0];
+    if(g.type === 'exact'){
+      const can = g.src === '歷史資料';
+      h += `<div class="dup-group${g.on ? ' on' : ''}"><div class="dup-head">【${escapeHtml(g.src)}】完全相同 × ${g.recs.length} 筆：${escapeHtml(dupLabel(r0))}` +
+        (can ? `<label><input type="checkbox" data-dupon="${gi}"${g.on ? ' checked' : ''}> 刪除多餘的，只保留勾選的一筆</label>`
+             : `<span style="font-weight:400;color:var(--ink-soft);">（請到${escapeHtml(g.src)}刪除）</span>`) + `</div>`;
+      g.recs.forEach((r, i) => {
+        const isDel = can && g.on && i !== g.keep;
+        h += `<div class="dup-row${isDel ? ' del' : ''}">` +
+          (can ? `<label class="tag"><input type="radio" name="dupkeep${gi}" data-dupkeep="${gi}:${i}"${i === g.keep ? ' checked' : ''}${g.on ? '' : ' disabled'}> ${isDel ? '刪除' : (g.on ? '保留' : '第' + (i + 1) + '筆')}</label>`
+               : `<span class="tag">第${i + 1}筆</span>`) +
+          `<span class="txt">${escapeHtml(dupDetail(r))}</span></div>`;
+      });
+      h += `</div>`;
+    }else{
+      const on = g.del.size > 0;
+      h += `<div class="dup-group${on ? ' on' : ''}"><div class="dup-head">【跨來源】${escapeHtml(dupLabel(r0))}（${escapeHtml([...new Set(g.recs.map(dupSrc))].join('、'))}）</div>`;
+      g.recs.forEach((r, i) => {
+        const hist = dupSrc(r) === '歷史資料', isDel = g.del.has(r);
+        h += `<div class="dup-row${isDel ? ' del' : ''}">` +
+          (hist ? `<label class="tag"><input type="checkbox" data-dupx="${gi}:${i}"${isDel ? ' checked' : ''}> 刪除</label>` : `<span class="tag"></span>`) +
+          `<span class="txt"><b>${escapeHtml(dupSrc(r))}</b>　${escapeHtml(dupDetail(r))}</span></div>`;
+      });
+      h += `</div>`;
+    }
+  });
+  h += `<div class="dup-bar"><button type="button" class="dup-del" id="dupDelBtn"${del.size ? '' : ' disabled'}>刪除勾選的歷史資料（${del.size} 筆）</button><span id="dupDelMsg"></span></div>`;
+  out.innerHTML = h;
+}
+document.getElementById('dupCheckBtn').addEventListener('click', () => {
+  DUP_GROUPS = buildDupGroups();
+  renderDupGroups();
+});
+document.getElementById('dupResult').addEventListener('change', e => {
+  const t = e.target;
+  if(t.dataset.dupon != null){ DUP_GROUPS[+t.dataset.dupon].on = t.checked; }
+  else if(t.dataset.dupkeep){ const [gi, i] = t.dataset.dupkeep.split(':').map(Number); DUP_GROUPS[gi].keep = i; }
+  else if(t.dataset.dupx){
+    const [gi, i] = t.dataset.dupx.split(':').map(Number), g = DUP_GROUPS[gi], r = g.recs[i];
+    if(t.checked) g.del.add(r); else g.del.delete(r);
+  }else return;
+  renderDupGroups();
+});
+document.getElementById('dupResult').addEventListener('click', async e => {
+  const t = e.target;
+  if(t.dataset.dupall != null){
+    DUP_GROUPS.forEach(g => { if(g.type === 'exact' && g.src === '歷史資料') g.on = t.dataset.dupall === '1'; });
+    renderDupGroups(); return;
+  }
+  if(t.id !== 'dupDelBtn') return;
+  const del = dupToDelete();
+  if(!del.size) return;
+  const hist = ALL.filter(r => dupSrc(r) === '歷史資料');
+  // 檢查之後資料若被重新載入（別的匯入／更新），勾選的紀錄就對不上了，要重新檢查
+  const histSet = new Set(hist);
+  if([...del].some(r => !histSet.has(r))){ alert('資料在檢查之後已更新過，請重新按「檢查重複資料」再勾選。'); return; }
+  const keep = hist.filter(r => !del.has(r));
+  const list = [...del].slice(0, 15).map(r => `・${dupLabel(r)}（${String(r['項目'] || '').slice(0, 20)}）`).join('\n');
+  if(!confirm(`即將刪除 ${del.size} 筆歷史資料（目前 ${hist.length} 筆 → 刪除後 ${keep.length} 筆）：\n${list}${del.size > 15 ? `\n…另有 ${del.size - 15} 筆` : ''}\n\n按「確定」會先下載目前全部歷史資料的 Excel 備份，再進行刪除。`)) return;
+  const msg = document.getElementById('dupDelMsg');
+  const btn = t; btn.disabled = true;
+  try{
+    // 刪除前先下載備份（欄位與「一、方式 B」相同，可直接匯回還原）
+    const ws = XLSX.utils.aoa_to_sheet([COLS, ...hist.map(r => COLS.map(c => r[c] == null ? '' : r[c]))]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '歷史資料');
+    XLSX.writeFile(wb, `信徒查詢_歷史資料備份_刪重複前_${new Date().toLocaleString('sv-SE').slice(0,16).replace(/[-: ]/g, '')}.xlsx`);
+    if(!confirm(`備份檔已下載（檔名「信徒查詢_歷史資料備份_刪重複前_…」），請確認下載資料夾裡有這個檔案。\n\n最後確認：確定刪除這 ${del.size} 筆歷史資料嗎？`)){ msg.textContent = '　已取消，資料沒有變動'; btn.disabled = false; return; }
+    msg.textContent = '　刪除中，請稍候…';
+    await replaceDataset('hist', keep);
+    DUP_GROUPS = buildDupGroups();
+    renderDupGroups();
+    document.getElementById('dupResult').insertAdjacentHTML('afterbegin', `<p class="msg-ok">已刪除 ${del.size} 筆並驗證通過，歷史資料現有 ${keep.length} 筆。</p>`);
+  }catch(err){
+    console.error(err); msg.textContent = '　刪除失敗：' + (err.message || err) + '（原有資料不會遺失，請重新整理後再試）'; btn.disabled = false;
+  }
 });
 
 /* =====================================================================
@@ -1168,8 +1307,13 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.6';
+const APP_VERSION = 'v2.7';
 const CHANGELOG = [
+  { version:'v2.7', date:'2026-10-22', items:[
+    '「四、檢查目前資料是否重複」可以直接刪除多餘的歷史資料：完全相同的每組可勾選「刪除多餘的」並選要保留哪一筆；跨來源重複的組可勾選要刪的那筆歷史資料',
+    '刪除前自動下載目前全部歷史資料的 Excel 備份（可從「一、方式 B」匯回還原），並再跳出確認視窗列出要刪除的紀錄；按取消資料不會變動',
+    '法會報名平台、供品贊助平台的重複只列出不刪（每次更新會重新抓取，請到原平台刪除）',
+  ]},
   { version:'v2.6', date:'2026-10-22', items:[
     '匯入／更新資料前自動檢查重複：同一批裡完全相同的紀錄，或其他來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名已有紀錄，都會先列出提醒，可按「取消」不匯入',
     '資料管理新增「四、檢查目前資料是否重複」，檢查資料庫裡現有的全部資料（只檢查、不改資料）',
