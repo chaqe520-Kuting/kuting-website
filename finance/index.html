@@ -228,6 +228,8 @@
   .bankshot-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .bankshot-head b{font-family:"Noto Serif TC",serif;color:var(--temple-red-deep);font-size:15px;}
   .bankshot-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;}
+  .bankshot-paste{border:2px dashed var(--gold);border-radius:8px;background:#fff;padding:14px;text-align:center;color:var(--ink-soft);font-size:13.5px;cursor:text;margin:6px 0;}
+  .bankshot-paste:focus{outline:none;border-color:var(--temple-red);background:#FFF8F0;}
   .bankshot-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;}
   .bankshot-thumbs img{height:110px;border:1px solid var(--line);border-radius:6px;background:#fff;}
   .bankshot-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:8px;}
@@ -503,11 +505,13 @@
             <p class="muted" style="margin:8px 0 0;">可一次選多張，電腦也可以在這個框裡按 Ctrl+V 貼上截圖。AI 由報名小幫手代讀，截圖不會保存；讀出後請逐筆核對，<b>勾選的才會存</b>。重複的交易會標紅色、不預先勾選。</p>
             <div class="bankshot-tools">
               <input type="file" id="bankshotFile" accept="image/*" multiple>
+              <button class="btn secondary" id="bankshotPasteBtn">📋 貼上截圖</button>
               <button class="btn" id="bankshotReadBtn">讀取截圖</button>
               <button class="btn secondary small" id="bankshotClearBtn">清除</button>
               <button class="btn secondary small" id="bankshotUrlBtn">設定小幫手網址</button>
               <span id="bankshotMsg" class="muted"></span>
             </div>
+            <div class="bankshot-paste" id="bankshotPasteZone" tabindex="0">📋 電腦截圖：按 <b>Win＋Shift＋S</b>（Mac 是 Ctrl＋Shift＋Cmd＋4）框選手機銀行畫面 → 點這裡 → 按 <b>Ctrl＋V</b> 貼上（或按上面「📋 貼上截圖」）</div>
             <div class="bankshot-thumbs" id="bankshotThumbs"></div>
             <div id="bankshotResult"></div>
           </div>
@@ -890,9 +894,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.12.1';
+const APP_VERSION = 'v1.12.2';
 const APP_DATE = '2026-10-22';
 const CHANGELOG = [
+  { version:'v1.12.2', date:'2026-10-22', items:[
+    '銀行截圖快速登記新增「📋 貼上截圖」按鈕與貼上區：電腦按 Win＋Shift＋S 截圖後，按按鈕或在頁面上按 Ctrl＋V 就能加入截圖辨識',
+  ]},
   { version:'v1.12.1', date:'2026-10-22', items:[
     '銀行截圖讀取中顯示已等幾秒；超過 120 秒、小幫手回應錯誤或小幫手還是舊版本時，會跳出說明，不會一直停在「讀取中」',
   ]},
@@ -2354,14 +2361,45 @@ function bindBankshotUi(){
   });
   document.getElementById('bankshotUrlBtn').addEventListener('click', ()=>bankshotUrl(true));
   // 電腦：在框裡按 Ctrl+V 貼上截圖
-  document.getElementById('bankshotBox').addEventListener('paste', ev=>{
+  // v1.12.2 整個頁面都能 Ctrl+V 貼上截圖（游標在一般輸入框時只貼文字，不攔截）
+  document.addEventListener('paste', ev=>{
+    if(!currentUser) return;
     const files = Array.from((ev.clipboardData && ev.clipboardData.items) || [])
       .filter(it=>it.kind==='file' && /^image\//.test(it.type)).map(it=>it.getAsFile()).filter(Boolean);
     if(!files.length) return;
+    const t = ev.target;
+    const inBox = document.getElementById('bankshotBox').contains(t);
+    if(!inBox && t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA')) return;
     ev.preventDefault();
     if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
     addBankshotFiles(files);
   });
+  document.getElementById('bankshotPasteZone').addEventListener('click', ev=>ev.currentTarget.focus());
+  document.getElementById('bankshotPasteBtn').addEventListener('click', pasteBankshotFromClipboard);
+}
+
+// 「📋 貼上截圖」按鈕：讀剪貼簿裡的圖片（Chrome／Edge 第一次會問是否允許讀取剪貼簿）
+async function pasteBankshotFromClipboard(){
+  const msg = document.getElementById('bankshotMsg');
+  if(!(navigator.clipboard && navigator.clipboard.read)){
+    msg.textContent = '這個瀏覽器不支援按鈕貼上，請點下方虛線框後按 Ctrl+V';
+    document.getElementById('bankshotPasteZone').focus();
+    return;
+  }
+  try{
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for(const it of items){
+      const type = it.types.find(t=>/^image\//.test(t));
+      if(type){ const blob = await it.getType(type); files.push(new File([blob], '剪貼簿截圖', { type })); }
+    }
+    if(!files.length){ msg.textContent = '剪貼簿裡沒有圖片：請先按 Win+Shift+S 截圖，再按「📋 貼上截圖」'; return; }
+    addBankshotFiles(files);
+  }catch(e){
+    console.error('clipboard', e);
+    msg.textContent = '沒有權限讀剪貼簿：請點下方虛線框後按 Ctrl+V，或在網址列左邊允許「剪貼簿」';
+    document.getElementById('bankshotPasteZone').focus();
+  }
 }
 
 // 縮小成長邊 2200px 以內的 JPEG，手機截圖約 300～600KB，字仍清楚
