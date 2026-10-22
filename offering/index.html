@@ -1264,8 +1264,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v116";
-  var APP_UPDATED = "2026-10-21";
+  var APP_VERSION = "v117";
+  var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1275,6 +1275,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v117", date: "2026-10-22", changes: [
+      "修正：信眾在品項欄直接打「地母娘娘大壽金」這類仙佛名稱＋大壽金時找不到品項、送出鈕一直是灰的；現在會列出「各師尊大壽金」，選了之後仙佛名稱自動帶入「地母娘娘」",
+      "品項欄打完沒有點下拉清單、只對到一個品項時自動選好",
+      "品項還沒選好時，表單下方會提示「請點選清單中的品項」或「找不到這個品項」，不再只有灰色按鈕"
+    ]},
     { version: "v116", date: "2026-10-21", changes: [
       "場次操作加「📋 複製成新場次」：用現有場次當範本，品項（項次、名稱、規格、單位、單價、總量、不公開、補運欄）、場次說明、確認欄位名稱、LINE 連結都複製過去，只要改名稱和日期",
       "複製時報名資料、收款、已贊助數量都不帶過去（已贊助基準歸 0），海報圖片可選擇要不要一起複製",
@@ -2417,7 +2422,23 @@
       var hit = hay.some(function(h){ return h.indexOf(text) >= 0 || text.indexOf(h) >= 0; });
       if(hit) out.push(c);
     });
+    // v117 — 信眾常直接打「地母娘娘大壽金」「關聖帝君壽金」這種「仙佛名稱＋大壽金」，
+    // 和品項名稱「各師尊大壽金」字面對不上，以前搜尋不到、品項選不起來，送出鈕一直是灰的。
+    // 打的字有「壽金」時，把「各師尊大壽金」也列進建議（選了之後仙佛名稱會自動帶入）。
+    if(text.indexOf("壽金") >= 0){
+      occ.catalog.forEach(function(c){
+        if(out.indexOf(c) < 0 && itemNeedsDedication(c.catId, occ)) out.unshift(c);
+      });
+    }
     return out.slice(0, 6);
+  }
+
+  // v117 — 從「地母娘娘大壽金」這類輸入猜出敬致的仙佛名稱（去掉「各師尊」「大壽金」「壽金」）
+  function guessDedicateFromKeyword(text){
+    var t = String(text || "").replace(/\s+/g, "");
+    if(t.indexOf("壽金") < 0) return "";
+    t = t.replace(/各師尊/g, "").replace(/大?壽金/g, "").replace(/[()（）、,，]/g, "");
+    return /^\d*$/.test(t) ? "" : t;
   }
 
   /* ---------------- tabs ---------------- */
@@ -5977,6 +5998,7 @@
       div.innerHTML = "<span>" + c.label + "</span><span class='s-type'>" + typeLabel + "</span>";
       div.addEventListener("click", function(){
         qaSelected = c;
+        if(itemNeedsDedication(c.catId) && !qaDedicateTo.value.trim()) qaDedicateTo.value = guessDedicateFromKeyword(qaKeyword.value);
         qaKeyword.value = c.short;
         qaSuggest.hidden = true;
         renderQaChip();
@@ -6061,7 +6083,20 @@
     var needsDedication = !!(pubQaSelected && itemNeedsDedication(pubQaSelected.catId));
     pubQaDedicateRow.style.display = needsDedication ? "flex" : "none";
     if(!needsDedication) pubQaDedicateTo.value = "";
-    if(!pubQaSelected){ pubQaAmountPreview.textContent = "—"; pubQaAddBtn.disabled = true; pubQaFullWarning.style.display = "none"; return; }
+    if(!pubQaSelected){
+      pubQaAmountPreview.textContent = "—"; pubQaAddBtn.disabled = true;
+      // v117 — 打了品項文字卻沒有選定品項時，告訴信眾要怎麼做（以前只有灰色按鈕，不知道哪裡不對）
+      var kw = pubQaKeyword.value.trim();
+      if(kw){
+        pubQaFullWarning.textContent = pubQaSearch(kw).length
+          ? "請在品項欄下方的清單點選要贊助的品項，選好後才能送出。"
+          : "找不到「" + kw + "」這個品項，請改輸入品名中的幾個字（例如：壽桃）或項次數字，再從清單點選。";
+        pubQaFullWarning.style.display = "block";
+      } else {
+        pubQaFullWarning.style.display = "none";
+      }
+      return;
+    }
     var q = parseFloat(pubQaQty.value) || 0;
     var amount = pubQaSelected.type === "donation" ? q : q * pubQaSelected.price;
     pubQaAmountPreview.textContent = fmt(amount);
@@ -6075,9 +6110,33 @@
     pubQaAddBtn.disabled = !(pubQaName.value.trim() && q > 0) || overCapacity;
   }
 
+  function pubQaSearch(text){
+    return search(text).filter(function(c){ return !itemIsHidden(c.catId); }); // v91：不公開的品項信眾搜尋不到
+  }
+  function pubQaPick(c){
+    if(itemNeedsDedication(c.catId) && !pubQaDedicateTo.value.trim()) pubQaDedicateTo.value = guessDedicateFromKeyword(pubQaKeyword.value);
+    pubQaSelected = c;
+    pubQaKeyword.value = c.short;
+    pubQaSuggest.hidden = true;
+    renderPubQaChip();
+    updatePubQaPreview();
+  }
+  // v117 — 信眾打完品項沒有點下拉清單就去填數量：只對到一個品項（或品名／項次完全相同）時自動幫他選好
+  function pubQaAutoPick(){
+    if(pubQaSelected) return;
+    var kw = pubQaKeyword.value.trim();
+    if(!kw) return;
+    var results = pubQaSearch(kw);
+    var exact = results.filter(function(c){ return c.short === kw || c.label === kw || String(c.no) === kw; });
+    if(exact.length === 1) pubQaPick(exact[0]);
+    else if(results.length === 1) pubQaPick(results[0]);
+  }
+  pubQaKeyword.addEventListener("change", pubQaAutoPick);
+  pubQaQty.addEventListener("focus", pubQaAutoPick);
+
   pubQaKeyword.addEventListener("input", function(){
     pubQaSelected = null;
-    var results = search(pubQaKeyword.value).filter(function(c){ return !itemIsHidden(c.catId); }); // v91：不公開的品項信眾搜尋不到
+    var results = pubQaSearch(pubQaKeyword.value);
     if(!results.length){ pubQaSuggest.hidden = true; pubQaSuggest.innerHTML = ""; updatePubQaPreview(); return; }
     pubQaSuggest.innerHTML = "";
     results.forEach(function(c){
@@ -6087,11 +6146,7 @@
       var fullTag = (remaining != null && remaining <= 0) ? "已額滿" : "供品";
       div.innerHTML = "<span>" + c.label + "</span><span class='s-type'>" + fullTag + "</span>";
       div.addEventListener("click", function(){
-        pubQaSelected = c;
-        pubQaKeyword.value = c.short;
-        pubQaSuggest.hidden = true;
-        renderPubQaChip();
-        updatePubQaPreview();
+        pubQaPick(c);
         pubQaQty.focus(); pubQaQty.select();
       });
       pubQaSuggest.appendChild(div);
@@ -6101,7 +6156,7 @@
   document.addEventListener("click", function(e){
     if(!pubQaSuggest.contains(e.target) && e.target !== pubQaKeyword){ pubQaSuggest.hidden = true; }
   });
-  pubQaQty.addEventListener("input", updatePubQaPreview);
+  pubQaQty.addEventListener("input", function(){ pubQaAutoPick(); updatePubQaPreview(); });
   pubQaName.addEventListener("input", updatePubQaPreview);
 
   function resetPubQaForm(){
