@@ -223,6 +223,27 @@
 
   .tab-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
 
+  /* v1.12.0 銀行截圖快速登記 */
+  .bankshot-box{border:1px solid var(--gold);border-radius:10px;background:#FFFBF0;padding:12px 16px;margin-bottom:16px;}
+  .bankshot-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .bankshot-head b{font-family:"Noto Serif TC",serif;color:var(--temple-red-deep);font-size:15px;}
+  .bankshot-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;}
+  .bankshot-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;}
+  .bankshot-thumbs img{height:110px;border:1px solid var(--line);border-radius:6px;background:#fff;}
+  .bankshot-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:8px;}
+  .bankshot-table{border-collapse:collapse;table-layout:fixed;width:1310px;font-size:13.5px;}
+  .bankshot-table th{background:var(--paper-deep);padding:6px;text-align:left;white-space:nowrap;font-weight:700;color:var(--ink-soft);}
+  .bankshot-table td{padding:4px;border-top:1px solid var(--line);vertical-align:top;}
+  .bankshot-table input, .bankshot-table select{width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:5px;font-size:13.5px;font-family:"Noto Sans TC",sans-serif;background:#fff;box-sizing:border-box;}
+  .bankshot-table tr.st-dup td{background:#FDECEA;}
+  .bankshot-table tr.st-maybe td, .bankshot-table tr.st-seed td{background:#FFF4D6;}
+  .bankshot-table tr.st-saved td{background:#E8F3EA;color:var(--ink-soft);}
+  .bankshot-st{font-size:12.5px;line-height:1.4;white-space:normal;}
+  .bankshot-st.dup{color:var(--temple-red);font-weight:700;}
+  .bankshot-st.warn{color:#9A6400;font-weight:700;}
+  .bankshot-st.ok{color:var(--jade);}
+  .bankshot-sum{margin:8px 0;font-size:14px;line-height:1.7;}
+
   .form-row{
     display:grid;
     grid-template-columns:repeat(4,1fr);
@@ -472,6 +493,26 @@
         </div>
         <p class="muted" style="margin-top:-8px;margin-bottom:14px;">登記銀行匯款前，可先對照這個金額跟手機銀行／存摺上的實際餘額是否一致，確認無誤再送出。</p>
 
+        <div class="bankshot-box" id="bankshotBox">
+          <div class="bankshot-head">
+            <b>📷 銀行截圖快速登記</b>
+            <span class="muted" style="font-size:12.5px;">京城銀行 App 入帳／出帳截圖、信眾轉帳成功畫面 → AI 讀出 → 核對後存成銀行收支</span>
+            <button class="btn secondary small" id="bankshotToggleBtn">展開 ▾</button>
+          </div>
+          <div id="bankshotBody" style="display:none;">
+            <p class="muted" style="margin:8px 0 0;">可一次選多張，電腦也可以在這個框裡按 Ctrl+V 貼上截圖。AI 由報名小幫手代讀，截圖不會保存；讀出後請逐筆核對，<b>勾選的才會存</b>。重複的交易會標紅色、不預先勾選。</p>
+            <div class="bankshot-tools">
+              <input type="file" id="bankshotFile" accept="image/*" multiple>
+              <button class="btn" id="bankshotReadBtn">讀取截圖</button>
+              <button class="btn secondary small" id="bankshotClearBtn">清除</button>
+              <button class="btn secondary small" id="bankshotUrlBtn">設定小幫手網址</button>
+              <span id="bankshotMsg" class="muted"></span>
+            </div>
+            <div class="bankshot-thumbs" id="bankshotThumbs"></div>
+            <div id="bankshotResult"></div>
+          </div>
+        </div>
+
         <div class="form-row">
           <div>
             <label>日期</label>
@@ -539,9 +580,13 @@
         </div>
 
         <div class="form-row">
-          <div style="grid-column:1 / -1;">
+          <div style="grid-column:span 2;">
             <label>紅包袋編號（選填）</label>
             <input type="text" id="entryEnvelope" autocomplete="off" placeholder="例如 0123">
+          </div>
+          <div style="grid-column:span 2;">
+            <label>匯款人帳號後 5 碼（選填，銀行收入）</label>
+            <input type="text" id="entryCounterAcct" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="例如 85506，輸入後自動帶出曾用過的姓名">
           </div>
         </div>
 
@@ -845,9 +890,16 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.11.10';
-const APP_DATE = '2026-10-19';
+const APP_VERSION = 'v1.12.0';
+const APP_DATE = '2026-10-22';
 const CHANGELOG = [
+  { version:'v1.12.0', date:'2026-10-22', items:[
+    '新增「📷 銀行截圖快速登記」：選京城銀行 App 的入帳／出帳截圖或信眾的轉帳成功畫面（可多張、可 Ctrl+V 貼上），由報名小幫手的 AI 讀出每筆日期、收支、金額、餘額、摘要與匯款人帳號後 5 碼，核對修改後勾選存成銀行收支',
+    '防重複：同一筆交易（日期＋時間＋金額＋餘額）已登記過會標紅色、不預先勾選；同日同金額的銀行登記、歷史銀行帳已有的月份會標黃色提醒；兩張截圖重疊的交易自動合併',
+    '新增「匯款人帳號後 5 碼」欄位（手動登記也可填）：輸入後自動帶出上次這個帳號的姓名，最近登記、明細查詢、搜尋、匯出 Excel 與操作紀錄都會顯示',
+    '截圖讀出最後一筆的帳戶餘額時，會和平台的銀行餘額對照，方便發現漏登或重複',
+    '修正：紅包袋編號重複提醒（v1.11.8）沒有跳出的問題',
+  ]},
   { version:'v1.11.10', date:'2026-10-19', items:[
     '匯出的 Excel（月份明細、收支明細各工作表）金額欄加千分位逗號，例如 12,345；仍是數字，可直接加總'
   ]},
@@ -1565,16 +1617,17 @@ function joinLabel(activity, item){
 
 // v1.11.6 網頁登記的備註、紅包袋編號一起帶進明細查詢，供搜尋與顯示
 function liveExtra(e){
-  return { note:(e.note||'').trim(), env:(e.envelopeNo||'').trim() };
+  return { note:(e.note||'').trim(), env:(e.envelopeNo||'').trim(), acct:(e.counterAcct||'').trim() };
 }
 function extraText(x){
-  return x ? `${x.note} ${x.env}` : '';
+  return x ? `${x.note} ${x.env} ${x.acct||''}` : '';
 }
 function extraHtml(x){
-  if(!x || (!x.note && !x.env)) return '';
+  if(!x || (!x.note && !x.env && !x.acct)) return '';
   const parts = [];
   if(x.note) parts.push('備註：' + escapeHtmlText(x.note));
   if(x.env) parts.push('紅包袋：' + escapeHtmlText(x.env));
+  if(x.acct) parts.push('帳號後5碼：' + escapeHtmlText(x.acct));
   return `<br><span style="font-size:13px;color:var(--temple-red-deep);">${parts.join('　')}</span>`;
 }
 // 搜尋：姓名、活動、項目／摘要（含帳號）、備註、紅包袋編號；輸入純數字時也比對金額（可含逗號）
@@ -2058,13 +2111,14 @@ function clearEntryForm(){
   document.getElementById('entryItemOut').value = '';
   document.getElementById('entryNote').value = '';
   document.getElementById('entryEnvelope').value = '';
+  document.getElementById('entryCounterAcct').value = '';
   editingEntryId = null;
   document.getElementById('submitEntryBtn').textContent = '新增登記';
   document.getElementById('cancelEditBtn').style.display = 'none';
   renderBalancePreview();
 }
 
-async function findEnvelopeDuplicates(envNo, excludeId){
+function findEnvelopeDuplicates(envNo, excludeId){
   if(!envNo) return [];
   const m = envNo.match(/\d+/);
   const n = m ? Number(m[0]) : null;
@@ -2106,6 +2160,7 @@ async function handleSubmitEntry(){
     date: dateStr, year, month, account, direction, amount,
     note: document.getElementById('entryNote').value||'',
     envelopeNo: document.getElementById('entryEnvelope').value.trim(),
+    counterAcct: document.getElementById('entryCounterAcct').value.replace(/\D/g,'').slice(-5),
     enteredBy: currentUser.name,
     updatedAt: new Date().toISOString(),
   };
@@ -2147,6 +2202,7 @@ function startEditEntry(id){
   document.getElementById('entryAmount').value = Math.round(e.amount).toLocaleString('en-US');
   document.getElementById('entryNote').value = e.note||'';
   document.getElementById('entryEnvelope').value = e.envelopeNo||'';
+  document.getElementById('entryCounterAcct').value = e.counterAcct||'';
   toggleEntryDirectionFields();
   document.getElementById('entryName').value = e.name||'';
   document.getElementById('entryActivity').value = e.activity||'';
@@ -2199,10 +2255,10 @@ function filterLiveEntries(q){
   if(/^\d+$/.test(digits)){
     const n = Number(digits);
     return liveEntries.filter(e=> envNum(e)===n || Math.round(e.amount)===n
-      || String(e.envelopeNo||'').trim()===q);
+      || String(e.envelopeNo||'').trim()===q || (q.length===5 && e.counterAcct===q));
   }
   const k = q.toLowerCase();
-  return liveEntries.filter(e=>`${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.date||''}`.toLowerCase().includes(k));
+  return liveEntries.filter(e=>`${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.counterAcct||''} ${e.date||''}`.toLowerCase().includes(k));
 }
 function bindLiveEntryUi(){
   const box = document.getElementById('liveEntrySearch');
@@ -2238,7 +2294,7 @@ function renderLiveEntryTable(){
       <td>${e.account==='cash'?'現金':'銀行'}</td>
       <td>${e.direction==='in'?'收入':'支出'}</td>
       <td>${nameOrCat}</td>
-      <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}${e.envelopeNo ? `<br><span style="color:var(--temple-red-deep);">紅包袋 ${escapeHtmlText(e.envelopeNo)}</span>` : ''}</td>
+      <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}${e.envelopeNo ? `<br><span style="color:var(--temple-red-deep);">紅包袋 ${escapeHtmlText(e.envelopeNo)}</span>` : ''}${e.counterAcct ? `<br><span style="color:var(--temple-red-deep);">帳號後5碼 ${escapeHtmlText(e.counterAcct)}</span>` : ''}</td>
       <td>${moneyPlain(e.amount)}</td>
       <td class="muted">${e.enteredBy||''}</td>
       <td>
@@ -2247,6 +2303,341 @@ function renderLiveEntryTable(){
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="8" class="muted">${found ? '查無符合資料' : '尚無線上登記資料'}</td></tr>`;
+}
+
+/* ================= 銀行截圖快速登記（v1.12.0）=================
+   截圖在瀏覽器縮小後送給報名小幫手（Apps Script，action: bankshot），小幫手驗證財務記帳的登入憑證，
+   用 Gemini 讀出每筆交易回傳；截圖與結果都不保存。會計人員核對、勾選後，逐筆照一般登記的方式
+   （含操作紀錄）存進 entries，另外記下 counterAcct（匯款人帳號後 5 碼）、bankTime、bankBalance、
+   bankRef（日期｜時間｜收支｜金額｜餘額，用來擋同一筆交易重複登記）、source:'bankshot'。 */
+
+// 和供品贊助後台共用同一個小幫手網址（同一個網站，瀏覽器存一次兩邊都能用）
+const BANKSHOT_URL_KEY = 'gongpin_linebot_url';
+let bankshotImages = [];   // {name, base64, thumb}
+let bankshotRows = [];     // 讀出的交易（可在表格修改）
+let bankshotLastBalance = null;
+
+function bankshotUrl(ask){
+  let url = '';
+  try{ url = localStorage.getItem(BANKSHOT_URL_KEY) || ''; }catch(_){}
+  if(url && !ask) return url;
+  const input = prompt('請貼上報名小幫手的網址（Apps Script 部署的網頁應用程式網址，像 https://script.google.com/macros/s/……/exec）', url);
+  if(input == null) return '';
+  url = String(input).trim().split('?')[0];
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
+    alert('網址格式不對，應該像 https://script.google.com/macros/s/……/exec');
+    return '';
+  }
+  try{ localStorage.setItem(BANKSHOT_URL_KEY, url); }catch(_){}
+  return url;
+}
+
+function bindBankshotUi(){
+  const body = document.getElementById('bankshotBody');
+  document.getElementById('bankshotToggleBtn').addEventListener('click', ev=>{
+    const show = body.style.display === 'none';
+    body.style.display = show ? '' : 'none';
+    ev.target.textContent = show ? '收合 ▴' : '展開 ▾';
+  });
+  document.getElementById('bankshotFile').addEventListener('change', ev=>{
+    addBankshotFiles(Array.from(ev.target.files||[]));
+    ev.target.value = '';
+  });
+  document.getElementById('bankshotReadBtn').addEventListener('click', readBankshots);
+  document.getElementById('bankshotClearBtn').addEventListener('click', ()=>{
+    bankshotImages = []; bankshotRows = []; bankshotLastBalance = null;
+    renderBankshotThumbs(); renderBankshotRows();
+    document.getElementById('bankshotMsg').textContent = '';
+  });
+  document.getElementById('bankshotUrlBtn').addEventListener('click', ()=>bankshotUrl(true));
+  // 電腦：在框裡按 Ctrl+V 貼上截圖
+  document.getElementById('bankshotBox').addEventListener('paste', ev=>{
+    const files = Array.from((ev.clipboardData && ev.clipboardData.items) || [])
+      .filter(it=>it.kind==='file' && /^image\//.test(it.type)).map(it=>it.getAsFile()).filter(Boolean);
+    if(!files.length) return;
+    ev.preventDefault();
+    if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
+    addBankshotFiles(files);
+  });
+}
+
+// 縮小成長邊 2200px 以內的 JPEG，手機截圖約 300～600KB，字仍清楚
+function shrinkImage(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale);
+      c.height = Math.round(img.naturalHeight * scale);
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const dataUrl = c.toDataURL('image/jpeg', 0.88);
+      resolve({ name:file.name||'截圖', base64:dataUrl.split(',')[1], thumb:dataUrl });
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('讀不到這張圖片')); };
+    img.src = url;
+  });
+}
+
+async function addBankshotFiles(files){
+  const msg = document.getElementById('bankshotMsg');
+  for(const f of files){
+    if(!/^image\//.test(f.type)) continue;
+    try{ bankshotImages.push(await shrinkImage(f)); }
+    catch(e){ msg.textContent = e.message; }
+  }
+  renderBankshotThumbs();
+  if(bankshotImages.length) msg.textContent = `已選 ${bankshotImages.length} 張，按「讀取截圖」`;
+}
+
+function renderBankshotThumbs(){
+  document.getElementById('bankshotThumbs').innerHTML = bankshotImages.map((im,i)=>
+    `<div style="text-align:center;"><img src="${im.thumb}" alt="截圖 ${i+1}"><br><button class="row-del" onclick="removeBankshotImage(${i})">移除</button></div>`).join('');
+}
+function removeBankshotImage(i){
+  bankshotImages.splice(i, 1);
+  renderBankshotThumbs();
+}
+
+async function readBankshots(){
+  const msg = document.getElementById('bankshotMsg');
+  if(!(fbAuth && fbAuth.currentUser)){ msg.textContent = '請先登入'; return; }
+  if(!bankshotImages.length){ msg.textContent = '請先選截圖'; return; }
+  const url = bankshotUrl(false);
+  if(!url) return;
+  const btn = document.getElementById('bankshotReadBtn');
+  btn.disabled = true;
+  const found = [];
+  let failed = 0;
+  try{
+    for(let i=0; i<bankshotImages.length; i++){
+      msg.textContent = `AI 讀取中（第 ${i+1}／${bankshotImages.length} 張，每張約 5～20 秒）…`;
+      const idToken = await fbAuth.currentUser.getIdToken();
+      let out;
+      try{
+        // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
+        const res = await fetch(url, { method:'POST', body: JSON.stringify({ action:'bankshot', idToken, image:{ mime:'image/jpeg', base64:bankshotImages[i].base64 } }) });
+        out = await res.json();
+      }catch(e){
+        console.error('bankshot', e);
+        out = { ok:false, error:'連不到小幫手（網址不對，或小幫手還沒更新到 v1.12）' };
+      }
+      if(!out || !out.ok){
+        failed++;
+        alert(`第 ${i+1} 張讀取失敗：${(out && out.error) || '不明原因'}`);
+        continue;
+      }
+      if(out.kind === 'other' && !(out.rows||[]).length){ failed++; alert(`第 ${i+1} 張看起來不是銀行交易畫面`); continue; }
+      (out.rows||[]).forEach(r=>found.push(Object.assign({ shot:i+1 }, r)));
+    }
+  } finally {
+    btn.disabled = false;
+  }
+  addBankshotRows(found);
+  msg.textContent = `讀出 ${found.length} 筆${failed ? `，${failed} 張失敗` : ''}。請逐筆核對後按「存入勾選的交易」。`;
+}
+
+// AI 讀到的日期：西元 YYYY-MM-DD；只有 MM-DD 時補今年（變成未來日期就改去年）
+function normBankDate(d){
+  d = String(d||'').trim().replace(/[\/.]/g,'-');
+  let m = d.match(/^(\d{2,4})-(\d{1,2})-(\d{1,2})$/);
+  if(m){
+    let y = +m[1]; if(y < 1000) y += 1911;
+    return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+  }
+  m = d.match(/^(\d{1,2})-(\d{1,2})$/);
+  if(m){
+    const now = new Date();
+    let y = now.getFullYear();
+    const iso = (yy)=>`${yy}-${String(+m[1]).padStart(2,'0')}-${String(+m[2]).padStart(2,'0')}`;
+    if(iso(y) > now.toISOString().slice(0,10)) y--;
+    return iso(y);
+  }
+  return '';
+}
+function bankRefOf(r){
+  // 有時間或餘額才夠當「同一筆交易」的指紋；兩個都沒有時只做同日同金額的提醒
+  if(!r.date || !r.amount || (!r.time && r.balance===null)) return '';
+  return [r.date, (r.time||'').slice(0,5), r.dir, Math.round(r.amount), r.balance===null ? '' : Math.round(r.balance)].join('|');
+}
+// 以前登記過同一個帳號後 5 碼的姓名（最新的一筆）
+function nameForCounterAcct(acct){
+  if(!acct) return '';
+  const hit = liveEntries.find(e=>e.counterAcct===acct && (e.name||'').trim());
+  return hit ? hit.name.trim() : '';
+}
+
+function addBankshotRows(found){
+  // 沒有時間和餘額的交易用寬鬆的鍵，避免同一張截圖讀兩次時重複列出
+  const keyOf = r=> r.ref || ['~', r.date, r.dir, r.amount, r.summary, r.counterAcct].join('|');
+  const seen = new Set(bankshotRows.map(keyOf));
+  found.forEach(raw=>{
+    const r = {
+      shot: raw.shot, date: normBankDate(raw.date), time: String(raw.time||'').trim(),
+      dir: raw.dir==='out' ? 'out' : 'in', amount: Math.round(Number(raw.amount)||0),
+      balance: raw.balance===null || raw.balance===undefined || raw.balance==='' ? null : Math.round(Number(raw.balance)),
+      counterAcct: String(raw.counterAcct||'').replace(/\D/g,'').slice(-5),
+      summary: String(raw.summary||'').trim(), memo: String(raw.memo||'').trim(),
+    };
+    r.ref = bankRefOf(r);
+    if(seen.has(keyOf(r))) return;   // 兩張截圖重疊的同一筆
+    seen.add(keyOf(r));
+    r.name = String(raw.counterName||'').trim() || nameForCounterAcct(r.counterAcct);
+    r.activity = '';
+    r.item = r.dir==='out' ? r.summary : '';
+    r.note = [r.summary, r.memo].filter(Boolean).join(' ');
+    bankshotRows.push(r);
+  });
+  // 依日期時間排序，畫面上的順序和存摺一樣；最後一筆有餘額的交易拿來對帳
+  bankshotRows.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  const lastWithBal = bankshotRows.filter(r=>r.balance!==null).pop();
+  bankshotLastBalance = lastWithBal ? lastWithBal.balance : null;
+  bankshotRows.forEach(r=>{ if(!r.saved){ r.status = bankshotStatus(r); r.checked = r.status.level==='ok'; } });
+  renderBankshotRows();
+}
+
+// 防重複：紅＝同一筆交易已登記；黃＝同日同金額的銀行登記、或歷史銀行帳已有這個月份（再登記會相加）
+function bankshotStatus(r){
+  if(!r.date || !r.amount) return { level:'warn', text:'日期或金額沒讀到，請補上' };
+  if(r.ref && liveEntries.some(e=>e.bankRef===r.ref)) return { level:'dup', text:'已登記過這筆交易' };
+  const same = liveEntries.filter(e=>e.account==='bank' && e.direction===r.dir && e.date===r.date && Math.round(e.amount)===r.amount);
+  if(same.length) return { level:'warn', text:`同一天已有 ${same.length} 筆同金額的銀行登記（${same.map(e=>e.name||e.enteredBy||'未填姓名').join('、')}），請確認是不是同一筆` };
+  const {year, month} = gregorianToROC(r.date);
+  const seedM = SEED_MONTHS.find(m=>m.year===year && m.month===month);
+  if(seedM && (seedM.bankIn!==null || seedM.bankOut!==null)) return { level:'warn', text:`歷史銀行帳已有 ${year} 年 ${month} 月，再登記會重複相加` };
+  return { level:'ok', text:'新的交易' };
+}
+
+function renderBankshotRows(){
+  const box = document.getElementById('bankshotResult');
+  if(!bankshotRows.length){ box.innerHTML = ''; return; }
+  const opts = (list, v)=>list.map(([k,t])=>`<option value="${k}"${k===v?' selected':''}>${t}</option>`).join('');
+  const rows = bankshotRows.map((r,i)=>{
+    const st = r.saved ? { level:'saved', text:'✅ 已存入' } : r.status;
+    const cls = st.level==='dup' ? 'st-dup' : st.level==='warn' ? (st.text.indexOf('歷史')>=0 ? 'st-seed' : 'st-maybe') : st.level==='saved' ? 'st-saved' : '';
+    const dis = r.saved ? ' disabled' : '';
+    const inp = (f, extra)=>`<input data-i="${i}" data-f="${f}" value="${escHtml(r[f]===null?'':r[f])}"${extra||''}${dis}>`;
+    return `<tr class="${cls}">
+      <td style="text-align:center;"><input type="checkbox" data-i="${i}" data-f="checked"${r.checked?' checked':''}${dis} style="width:18px;height:18px;"></td>
+      <td>${inp('date', ' type="date"')}</td>
+      <td>${inp('time', ' placeholder="時間"')}</td>
+      <td><select data-i="${i}" data-f="dir"${dis}>${opts([['in','收入'],['out','支出']], r.dir)}</select></td>
+      <td>${inp('amount', ' inputmode="numeric"')}</td>
+      <td>${inp('counterAcct', ' inputmode="numeric" maxlength="5" placeholder="後5碼"')}</td>
+      <td>${inp('name', ' list="nameList" placeholder="匯款人"')}</td>
+      <td>${inp('activity', ' list="activityList"')}</td>
+      <td>${inp('item', r.dir==='in' ? ' list="itemInList"' : ' list="itemOutList"')}</td>
+      <td>${inp('note')}</td>
+      <td class="muted" style="text-align:right;white-space:nowrap;">${r.balance===null ? '—' : moneyPlain(r.balance)}<br><span style="font-size:11.5px;">第 ${r.shot} 張</span></td>
+      <td><div class="bankshot-st ${st.level==='dup'?'dup':st.level==='warn'?'warn':'ok'}">${escHtml(st.text)}</div></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="bankshot-wrap"><table class="bankshot-table">
+      <colgroup><col style="width:36px"><col style="width:140px"><col style="width:84px"><col style="width:72px"><col style="width:96px"><col style="width:80px"><col style="width:110px"><col style="width:120px"><col style="width:140px"><col style="width:150px"><col style="width:92px"><col style="width:190px"></colgroup>
+      <thead><tr><th>存</th><th>日期</th><th>時間</th><th>收支</th><th>金額</th><th>帳號後5碼</th><th>姓名</th><th>活動名稱</th><th>項目／摘要</th><th>備註</th><th>交易後餘額</th><th>檢查</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="bankshot-sum" id="bankshotSum"></div>
+    <div class="form-footer" style="margin-top:4px;">
+      <button class="btn" id="bankshotSaveBtn">存入勾選的交易</button>
+      <span id="bankshotSaveMsg" class="muted"></span>
+    </div>`;
+  box.querySelectorAll('[data-f]').forEach(el=>{
+    el.addEventListener(el.type==='checkbox' || el.tagName==='SELECT' ? 'change' : 'input', onBankshotEdit);
+  });
+  document.getElementById('bankshotSaveBtn').addEventListener('click', saveBankshotRows);
+  renderBankshotSum();
+}
+
+// 勾選合計與餘額對照（只更新這一塊，打字時不重畫表格）
+function renderBankshotSum(){
+  const el = document.getElementById('bankshotSum');
+  if(!el) return;
+  const pick = bankshotRows.filter(r=>r.checked && !r.saved);
+  const sumIn = pick.filter(r=>r.dir==='in').reduce((s,r)=>s+r.amount, 0);
+  const sumOut = pick.filter(r=>r.dir==='out').reduce((s,r)=>s+r.amount, 0);
+  const rowsNow = computeRows();
+  const lastBank = [...rowsNow].reverse().find(x=>x.cumBank!==null);
+  const cur = lastBank ? lastBank.cumBank : 0;
+  const after = cur + sumIn - sumOut;
+  let check = '';
+  if(bankshotLastBalance !== null){
+    const diff = bankshotLastBalance - after;
+    check = `<br>截圖最後一筆的帳戶餘額 <b>${moneyPlain(bankshotLastBalance)}</b>　`
+      + (Math.abs(diff) < 1 ? '<span style="color:var(--jade);font-weight:700;">✓ 和存入後的平台銀行餘額一致</span>'
+        : `<span style="color:var(--temple-red);font-weight:700;">和存入後的平台銀行餘額差 ${moneyPlain(diff)}</span>（可能有漏登、重複，或截圖不是最新一筆）`);
+  }
+  el.innerHTML = `勾選 <b>${pick.length}</b> 筆：收入 <b>${moneyPlain(sumIn)}</b>、支出 <b>${moneyPlain(sumOut)}</b>　平台銀行餘額 ${moneyPlain(cur)} → 存入後 <b>${moneyPlain(after)}</b>${check}`;
+  const btn = document.getElementById('bankshotSaveBtn');
+  btn.textContent = `存入勾選的交易（${pick.length} 筆）`;
+  btn.disabled = !pick.length;
+}
+
+function onBankshotEdit(ev){
+  const el = ev.target, r = bankshotRows[+el.dataset.i], f = el.dataset.f;
+  if(f==='checked'){ r.checked = el.checked; renderBankshotRows(); return; }
+  if(f==='amount'){ r.amount = Math.round(Number(String(el.value).replace(/[^\d.]/g,''))||0); }
+  else if(f==='counterAcct'){
+    el.value = el.value.replace(/\D/g,'').slice(0,5); r.counterAcct = el.value;
+    if(r.counterAcct.length===5 && !r.name){ r.name = nameForCounterAcct(r.counterAcct); }
+  }
+  else r[f] = el.value;
+  if(['date','time','dir','amount'].includes(f)){
+    r.ref = bankRefOf(r); r.status = bankshotStatus(r);
+    // 只更新這一列的檢查欄，不重畫整個表格（避免打字中游標跳走）
+    const tr = el.closest('tr'), st = tr && tr.querySelector('.bankshot-st');
+    if(st){
+      st.className = 'bankshot-st ' + (r.status.level==='dup' ? 'dup' : r.status.level==='warn' ? 'warn' : 'ok');
+      st.textContent = r.status.text;
+      tr.className = r.status.level==='dup' ? 'st-dup' : r.status.level==='warn' ? 'st-maybe' : '';
+    }
+  }
+  if(f==='dir'){ renderBankshotRows(); return; }
+  renderBankshotSum();
+}
+
+async function saveBankshotRows(){
+  const msg = document.getElementById('bankshotSaveMsg');
+  if(!currentUser){ msg.textContent = '請先登入'; return; }
+  const pick = bankshotRows.filter(r=>r.checked && !r.saved);
+  const bad = pick.find(r=>!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !(r.amount > 0));
+  if(bad){ alert('有勾選的交易缺日期或金額，請補上或取消勾選'); return; }
+  const dupPick = pick.filter(r=>r.status && r.status.level!=='ok');
+  const sumIn = pick.filter(r=>r.dir==='in').reduce((s,r)=>s+r.amount, 0);
+  const sumOut = pick.filter(r=>r.dir==='out').reduce((s,r)=>s+r.amount, 0);
+  if(!confirm(`存入 ${pick.length} 筆銀行收支？\n收入 ${moneyPlain(sumIn)}、支出 ${moneyPlain(sumOut)}`
+    + (dupPick.length ? `\n\n⚠ 其中 ${dupPick.length} 筆有重複提醒，確定也要存？` : ''))) return;
+  const btn = document.getElementById('bankshotSaveBtn');
+  btn.disabled = true;
+  let ok = 0;
+  for(const r of pick){
+    msg.textContent = `儲存中… ${ok+1}／${pick.length}`;
+    const {year, month} = gregorianToROC(r.date);
+    const now = new Date().toISOString();
+    const entry = {
+      date: r.date, year, month, account:'bank', direction: r.dir, amount: r.amount,
+      note: (r.note||'').trim(), envelopeNo: '', counterAcct: r.counterAcct||'',
+      name: (r.name||'').trim(), activity: (r.activity||'').trim(), item: (r.item||'').trim(), category: '',
+      bankTime: (r.time||'').trim(), bankBalance: r.balance, bankRef: r.ref||'', source: 'bankshot',
+      enteredBy: currentUser.name, updatedAt: now, createdAt: now, deleted: false,
+    };
+    try{
+      await saveEntryWithLog(null, null, entry, 'create');
+      r.saved = true; r.checked = false; ok++;
+    }catch(e){
+      console.error(e);
+      alert(`第 ${ok+1} 筆（${r.date} ${moneyPlain(r.amount)}）儲存失敗，後面的先不存：` + (e && e.code === 'permission-denied' ? '權限不足，請重新整理頁面' : (e && e.message || e)));
+      break;
+    }
+  }
+  renderBankshotRows();
+  const m2 = document.getElementById('bankshotSaveMsg');
+  if(m2) m2.textContent = `已存入 ${ok} 筆`;
 }
 
 /* ================= 操作紀錄（v1.11.0）=================
@@ -2261,7 +2652,7 @@ const AUDIT_ACTIONS = {
 };
 const AUDIT_FIELDS = [
   ['date','日期'], ['account','帳別'], ['direction','收支'], ['amount','金額'],
-  ['name','姓名'], ['activity','活動名稱'], ['item','項目'], ['category','分類'], ['note','備註'], ['envelopeNo','紅包袋編號']
+  ['name','姓名'], ['activity','活動名稱'], ['item','項目'], ['category','分類'], ['note','備註'], ['envelopeNo','紅包袋編號'], ['counterAcct','匯款帳號後5碼']
 ];
 const AUDIT_PAGE = 200;
 let isAdminUser = false;
@@ -2588,7 +2979,7 @@ function exportDetailExcel(){
     .slice().sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .map(e=>[e.date, e.account==='cash'?'現金':'銀行', e.direction==='in'?'收入':'支出',
              e.name||'', e.activity||'', e.category ? (CAT_LABELS[e.category]||e.category) : '',
-             e.item||'', e.amount, e.note||'', e.envelopeNo||'', e.enteredBy||'', e.createdAt||'']);
+             e.item||'', e.amount, e.note||'', e.envelopeNo||'', e.counterAcct||'', e.bankTime||'', e.enteredBy||'', e.createdAt||'']);
 
   const total = incomeRows.length + bankRows.length + expenseRows.length + mergedRows.length + liveRows.length;
   if(total === 0){ msg.textContent = '這個範圍沒有資料可以匯出'; setTimeout(()=>{ msg.textContent=''; }, 3000); return; }
@@ -2605,8 +2996,8 @@ function exportDetailExcel(){
   addSheet('現金支出分類', ['年','月', ...catKeys.map(k=>CAT_LABELS[k]), '分類合計','現金支出總額','備註'], expenseRows,
            [7,6, ...catKeys.map(()=>14), 12,14,36], catKeys.map((k,i)=>i+2).concat([catKeys.length+2, catKeys.length+3]));
   addSheet('合併明細', ['年','月','來源','姓名','項目／摘要','收入','支出'], mergedRows, [7,6,8,16,36,12,12], [5,6]);
-  addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','紅包袋編號','登記人','登記時間'], liveRows,
-           [12,8,8,16,20,14,30,12,20,12,12,24], [7]);
+  addSheet('網頁登記明細', ['日期','帳別','收支','姓名','活動名稱','分類','項目／摘要','金額','備註','紅包袋編號','匯款帳號後5碼','交易時間','登記人','登記時間'], liveRows,
+           [12,8,8,16,20,14,30,12,20,12,14,10,12,24], [7]);
 
   const ey = document.getElementById('exportYearPick').value;
   const em = document.getElementById('exportMonthPick').value;
@@ -2664,6 +3055,12 @@ function init(){
   document.getElementById('entryAmount').addEventListener('input', ev=>{ formatAmountInput(ev.target); renderBalancePreview(); });
   document.getElementById('submitEntryBtn').addEventListener('click', handleSubmitEntry);
   document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
+  document.getElementById('entryCounterAcct').addEventListener('input', ev=>{
+    ev.target.value = ev.target.value.replace(/\D/g,'').slice(0,5);
+    const nameEl = document.getElementById('entryName');
+    if(ev.target.value.length===5 && !nameEl.value.trim()) nameEl.value = nameForCounterAcct(ev.target.value);
+  });
+  bindBankshotUi();
   document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
   document.getElementById('exportDetailBtn').addEventListener('click', exportDetailExcel);
   document.getElementById('exportSuggestBtn').addEventListener('click', exportSuggestExcel);
