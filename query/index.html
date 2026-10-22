@@ -264,11 +264,20 @@
         <p style="margin-top:12px;">方式 B：到法會報名平台後台，按「匯出資料備份（下載檔案）」，把下載的 .json 檔選進來。</p>
         <input type="file" id="liveFile" accept=".json,application/json"> <button type="button" id="liveFileBtn">匯入線上報名資料</button>
         <p id="liveMsg" class="msg-ok"></p>
-        <p style="font-size:12.5px;">兩種方式都會「取代」上一次的線上報名資料（會換成法會報名平台目前的完整資料）。</p>
+        <p style="font-size:12.5px;">兩種方式都會換成法會報名平台目前的完整資料（含已結束場次）；法會報名平台已刪除的場次，會保留上次同步的紀錄。</p>
       </div>
 
       <div class="tool-block">
-        <h3>三、新增工作人員帳號</h3>
+        <h3>三、更新供品贊助平台的報名資料</h3>
+        <p>輸入您在<b>供品贊助平台</b>的姓名與密碼（帳號需為啟用中的志工），按「從供品贊助平台更新」，會抓取全部場次（含已關閉報名的場次）的登記資料。密碼只用這一次，不會儲存，抓完會自動登出供品贊助平台。供品贊助平台已刪除的場次，會保留上次同步的紀錄。</p>
+        <input type="text" id="gpName" placeholder="供品贊助平台的姓名" autocomplete="off">
+        <input type="password" id="gpPw" placeholder="供品贊助平台的密碼" autocomplete="off">
+        <button type="button" id="gpSyncBtn">從供品贊助平台更新</button>
+        <p id="gpMsg" class="msg-ok"></p>
+      </div>
+
+      <div class="tool-block">
+        <h3>四、新增工作人員帳號</h3>
         <p>輸入志工姓名與預設密碼，按「新增帳號」就會建立並直接啟用。志工登入後可按上方「修改密碼」自行更改。</p>
         <input type="text" id="newStaffName" placeholder="志工中文姓名">
         <input type="text" id="newStaffPw" placeholder="預設密碼（至少 8 字）" autocomplete="off">
@@ -282,7 +291,7 @@
       </div>
 
       <div class="tool-block">
-        <h3>四、工作人員帳號啟用</h3>
+        <h3>五、工作人員帳號啟用</h3>
         <p>工作人員第一次登入後會出現在下面（顯示「待啟用」），管理員按「啟用」後對方才看得到資料。不認識的名字請不要啟用。</p>
         <button type="button" id="memberRefreshBtn">重新整理名單</button>
         <div id="memberList" style="margin-top:8px;"></div>
@@ -370,10 +379,11 @@ async function loadAll(){
   };
   const hist = collect('hist', meta.histVer);
   const live = collect('live', meta.liveVer);
-  ALL = hist.concat(live);
+  const gp = collect('gp', meta.gpVer);
+  ALL = hist.concat(live, gp);
   const fmtT = t => t ? new Date(t).toLocaleString('zh-TW', {hour12:false}) : '尚未匯入';
   document.getElementById('dataNote').textContent =
-    `目前資料：歷史資料 ${hist.length} 筆（匯入時間：${fmtT(meta.histAt)}）；線上報名資料 ${live.length} 筆（匯入時間：${fmtT(meta.liveAt)}）`;
+    `目前資料：歷史資料 ${hist.length} 筆（匯入時間：${fmtT(meta.histAt)}）；線上報名資料 ${live.length} 筆（匯入時間：${fmtT(meta.liveAt)}）；供品贊助資料 ${gp.length} 筆（匯入時間：${fmtT(meta.gpAt)}）`;
   // 法會類別下拉選單
   const keep = assemblySelect.value;
   assemblySelect.innerHTML = '<option value="">全部法會</option>';
@@ -655,10 +665,12 @@ function buildLiveRecords(events, regDocs){
 }
 
 /* v2.4：更新線上報名資料時，法會報名平台已經沒有的場次（例如被刪除），保留上次同步的紀錄，不讓它從查詢裡消失 */
-function keepMissingLive(events){
+const SOURCE_OF = { live: '線上報名平台', gp: '供品贊助平台' };
+function keepMissingLive(events, source){
+  source = source || SOURCE_OF.live;
   const ids = new Set((events || []).map(ev => ev.id));
   const keys = new Set((events || []).map(ev => (ev.name || '') + '|' + extractYear(ev.date)));
-  return ALL.filter(r => r['_來源'] === '線上報名平台' &&
+  return ALL.filter(r => r['_來源'] === source &&
       (r['_eventId'] ? !ids.has(r['_eventId']) : !keys.has((r['法會名稱'] || '') + '|' + r['年度'])))
     .map(r => ({ ...r, '_狀態': '已結束' }));
 }
@@ -685,7 +697,7 @@ async function replaceDataset(prefix, records){
   const olds = snap.docs.filter(d => d.id.indexOf(prefix + '_') === 0 && d.id.indexOf(prefix + '_' + ver + '_') !== 0);
   for(const d of olds){ await d.ref.delete(); }
   await loadAll();
-  const now = ALL.filter(r => prefix === 'live' ? r['_來源'] === '線上報名平台' : r['_來源'] !== '線上報名平台').length;
+  const now = ALL.filter(r => SOURCE_OF[prefix] ? r['_來源'] === SOURCE_OF[prefix] : !Object.values(SOURCE_OF).includes(r['_來源'])).length;
   if(now !== records.length) throw new Error(`驗證失敗：寫入 ${records.length} 筆，讀回 ${now} 筆`);
 }
 
@@ -781,6 +793,8 @@ document.getElementById('adminTools').addEventListener('toggle', () => {
   const el = document.getElementById('fahuiName');
   const u = auth && auth.currentUser;
   if(el && !el.value && u && u.displayName) el.value = u.displayName;
+  const g = document.getElementById('gpName');
+  if(g && !g.value && u && u.displayName) g.value = u.displayName;
 });
 document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
   const msg = document.getElementById('fahuiMsg');
@@ -829,6 +843,129 @@ document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
     msg.textContent = '更新中，請稍候…';
     await replaceDataset('live', recs);
     msg.textContent = `更新成功並驗證通過：共 ${recs.length} 筆線上報名資料，含已結束場次 ${liveSummary(recs)} 場（${new Date().toLocaleString('zh-TW', {hour12:false})}）。`;
+  }catch(e){
+    console.error(e); msg.className = 'msg-err'; msg.textContent = '更新失敗：' + (e.message || e);
+  }finally{
+    pwEl.value = '';
+    btn.disabled = false;
+  }
+});
+
+/* =====================================================================
+   v2.5：從供品贊助平台（Firebase 專案 kuting1027）抓取全部場次的登記資料
+   - 跟法會報名平台一樣另開獨立的 Firebase 連線，用供品贊助平台的志工帳號登入
+   - 供品贊助平台的規則只允許「啟用中的志工」讀取登記資料；密碼不儲存，抓完立即登出
+   ===================================================================== */
+const GP_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAtCbwm5KdaB-JGylrrhVjZluCvT2-MhQk",
+  authDomain: "kuting1027.firebaseapp.com",
+  projectId: "kuting1027",
+  storageBucket: "kuting1027.firebasestorage.app",
+  messagingSenderId: "437567114703",
+  appId: "1:437567114703:web:92de0a9bfba4dddda996ba"
+};
+let gpApp = null;
+// 場次日期可能是 2026-11-08、115/11/08、115年… 或只寫在場次名稱裡，統一換成民國年
+function gpRocYear(occ){
+  const txt = (occ.date || '') + ' ' + (occ.label || '');
+  let m = txt.match(/(19|20)\d{2}/);
+  if(m) return String(parseInt(m[0], 10) - 1911);
+  m = txt.match(/(\d{2,3})\s*(年|\/|-|\.)/);
+  if(m) return m[1];
+  return String(new Date().getFullYear() - 1911);
+}
+function gpTimeMs(rocYear, t){
+  const m = String(t || '').match(/(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if(!m) return 0;
+  return new Date(parseInt(rocYear, 10) + 1911, m[1] - 1, m[2], m[3], m[4]).getTime() || 0;
+}
+function buildGpRecords(occs){
+  const out = [];
+  occs.forEach(o => {
+    const year = gpRocYear(o);
+    const regs = o.regs.slice().sort((a, b) => gpTimeMs(year, a.time) - gpTimeMs(year, b.time));
+    regs.forEach(r => {
+      const it = o.items[r.catId] || {};
+      const asAmount = !!it.needsBuyun || String(it.unit || '').trim() === '元';
+      const cash = Number(r.amount) || Number(r.qty) || 0;
+      const qtyText = r.type === 'donation' ? '' : (asAmount ? Math.round(cash).toLocaleString('zh-TW') + ' 元' : (r.qty || '') + (it.unit || ''));
+      const parts = [(r.label || it.name || '') + (r.dedicateTo ? '－' + r.dedicateTo : '') + (qtyText ? ' ×' + qtyText : '')];
+      if(r.buyunName || r.buyun) parts.push('補運：' + (r.buyunName || r.buyun));
+      out.push({
+        '年度': year,
+        '法會名稱': o.label || '',
+        '報名者姓名': r.name || '',
+        '電話': r.phone || '',
+        '陽上人': '',
+        '項目': parts.join('；'),
+        '地址': r.buyunAddr || '',
+        '費用': r.amount || (r.type === 'donation' ? r.qty : '') || '',
+        '備註': r.note || '',
+        '收款狀態': r.paid ? '已收款' : '待收款',
+        '照片': '',
+        '編號': r.id || '',
+        '_來源': SOURCE_OF.gp,
+        '_eventId': o.id,
+        '_狀態': o.status === 'closed' ? '已結束' : (o.status === 'draft' ? '準備中' : '報名中'),
+        '_time': gpTimeMs(year, r.time)
+      });
+    });
+  });
+  return out;
+}
+document.getElementById('gpSyncBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('gpMsg');
+  const btn = document.getElementById('gpSyncBtn');
+  const n = document.getElementById('gpName').value.trim();
+  const pwEl = document.getElementById('gpPw');
+  const p = pwEl.value;
+  if(!n || !p){ msg.className = 'msg-err'; msg.textContent = '請輸入供品贊助平台的姓名與密碼'; return; }
+  btn.disabled = true;
+  msg.className = 'msg-ok'; msg.textContent = '登入供品贊助平台中…';
+  try{
+    if(!gpApp){
+      gpApp = firebase.initializeApp(GP_FIREBASE_CONFIG, 'gongpin');
+      await gpApp.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+    }
+    const gAuth = gpApp.auth(), gDb = gpApp.firestore();
+    try{
+      await gAuth.signInWithEmailAndPassword((await sha256Hex(n.toLowerCase())) + '@kuting-gongpin-accounts.local', p);
+    }catch(e){
+      throw new Error(e.code === 'auth/too-many-requests' ? '嘗試次數過多，請稍後再試' : '供品贊助平台的姓名或密碼錯誤');
+    }
+    pwEl.value = '';
+    msg.textContent = '讀取供品贊助資料中…';
+    const occs = [];
+    try{
+      const snap = await gDb.collection('occasions').get();
+      for(const d of snap.docs){
+        const x = d.data() || {};
+        if(x.deleted) continue;   // 已刪除場次的墓碑
+        const [itSnap, regSnap] = await Promise.all([d.ref.collection('items').get(), d.ref.collection('registrations').get()]);
+        const items = {};
+        itSnap.forEach(i => { const v = i.data() || {}; items[v.id != null ? v.id : i.id] = v; });
+        const regs = [];
+        regSnap.forEach(r => { const v = r.data() || {}; if(v.id == null) v.id = r.id; regs.push(v); });
+        occs.push({ id: d.id, label: x.label, date: x.date, status: x.status, items, regs });
+      }
+    }catch(e){
+      if(e.code === 'permission-denied') throw new Error('這個帳號在供品贊助平台尚未啟用，無法讀取登記資料，請先由供品贊助平台的管理者啟用');
+      throw e;
+    }finally{
+      try{ await gAuth.signOut(); }catch(e){}
+    }
+    if(!occs.length) throw new Error('供品贊助平台目前沒有任何場次');
+    const kept = keepMissingLive(occs.map(o => ({ id: o.id, name: o.label, date: gpRocYear(o) })), SOURCE_OF.gp);
+    const fresh = buildGpRecords(occs);
+    const recs = fresh.concat(kept);
+    const closedN = occs.filter(o => o.status === 'closed').length;
+    if(!confirm(`供品贊助平台目前有 ${occs.length} 個場次（其中已關閉 ${closedN} 場），共 ${fresh.length} 筆登記。` +
+        (kept.length ? `\n另外保留 ${kept.length} 筆供品贊助平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？`)){
+      msg.textContent = '已取消，資料沒有變動'; return;
+    }
+    msg.textContent = '更新中，請稍候…';
+    await replaceDataset('gp', recs);
+    msg.textContent = `更新成功並驗證通過：共 ${recs.length} 筆供品贊助資料，含已結束場次 ${liveSummary(recs)} 場（${new Date().toLocaleString('zh-TW', {hour12:false})}）。`;
   }catch(e){
     console.error(e); msg.className = 'msg-err'; msg.textContent = '更新失敗：' + (e.message || e);
   }finally{
@@ -926,15 +1063,15 @@ function renderResults(matches){
         card.innerHTML = `
           ${asmNames.length > 1 ? `<div class="record-asm">${escapeHtml(r['法會名稱'] || '')}</div>` : ''}
           <div class="record-row">
-            <div class="record-item">姓氏祖先：${escapeHtml(r['項目'] || '（未填項目說明）')}${r['_來源'] ? `<span class="source-tag">${escapeHtml(r['_來源'])}</span>` : ''}${r['_狀態'] === '已結束' ? `<span class="source-tag">已結束</span>` : ''}</div>
+            <div class="record-item">${r['_來源'] === SOURCE_OF.gp ? '供品' : '姓氏祖先'}：${escapeHtml(r['項目'] || '（未填項目說明）')}${r['_來源'] ? `<span class="source-tag">${escapeHtml(r['_來源'])}</span>` : ''}${r['_狀態'] === '已結束' ? `<span class="source-tag">已結束</span>` : ''}</div>
             <div class="record-fee">${r['費用'] ? 'NT$ ' + escapeHtml(r['費用']) : ''}</div>
           </div>
           <div class="record-detail">
             ${r['陽上人'] ? `<div>陽上人：${escapeHtml(r['陽上人'])}</div>` : ''}
-            ${r['地址'] ? `<div>祖先牌位地址：${escapeHtml(r['地址'])}</div>` : ''}
+            ${r['地址'] ? `<div>${r['_來源'] === SOURCE_OF.gp ? '補運地址' : '祖先牌位地址'}：${escapeHtml(r['地址'])}</div>` : ''}
             ${r['備註'] ? `<div>備註：${escapeHtml(r['備註'])}</div>` : ''}
             <div>編號 #${escapeHtml(r['編號'])}
-              ${r['收款狀態'] ? `<span class="badge">已收款 ${escapeHtml(r['收款狀態'])}</span>` : ''}
+              ${r['收款狀態'] ? `<span class="badge">${/收款/.test(r['收款狀態']) ? '' : '已收款 '}${escapeHtml(r['收款狀態'])}</span>` : ''}
               ${r['照片'] ? `<span class="badge">照片 ${escapeHtml(r['照片'])}</span>` : ''}
             </div>
           </div>
@@ -961,8 +1098,12 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.4';
+const APP_VERSION = 'v2.5';
 const CHANGELOG = [
+  { version:'v2.5', date:'2026-10-22', items:[
+    '供品贊助平台的登記也能查：管理員在「資料管理 → 三」輸入供品贊助平台的姓名與密碼，按「從供品贊助平台更新」，全部場次（含已關閉報名）的登記都會併進查詢',
+    '供品紀錄顯示品項、數量、補運與補運地址、收款狀態，標示「供品贊助平台」；已刪除場次保留上次同步的紀錄',
+  ]},
   { version:'v2.4', date:'2026-10-21', items:[
     '「從法會報名平台更新」會一併同步已結束（已關閉報名）的場次，完成訊息顯示含幾場已結束場次；查詢結果的已結束場次加上「已結束」標籤',
     '法會報名平台已刪除的場次，更新時保留上次同步的紀錄，不會因為更新而從查詢裡消失',
