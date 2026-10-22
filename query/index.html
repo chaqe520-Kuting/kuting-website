@@ -277,7 +277,14 @@
       </div>
 
       <div class="tool-block">
-        <h3>四、新增工作人員帳號</h3>
+        <h3>四、檢查目前資料是否重複</h3>
+        <p>檢查資料庫裡現有的全部資料：同一來源完全相同的紀錄，以及不同來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名都有紀錄的情況。只檢查、不會改動資料。</p>
+        <button type="button" id="dupCheckBtn">檢查重複資料</button>
+        <pre id="dupResult" style="white-space:pre-wrap;font-size:13px;margin:8px 0 0;"></pre>
+      </div>
+
+      <div class="tool-block">
+        <h3>五、新增工作人員帳號</h3>
         <p>輸入志工姓名與預設密碼，按「新增帳號」就會建立並直接啟用。志工登入後可按上方「修改密碼」自行更改。</p>
         <input type="text" id="newStaffName" placeholder="志工中文姓名">
         <input type="text" id="newStaffPw" placeholder="預設密碼（至少 8 字）" autocomplete="off">
@@ -291,7 +298,7 @@
       </div>
 
       <div class="tool-block">
-        <h3>五、工作人員帳號啟用</h3>
+        <h3>六、工作人員帳號啟用</h3>
         <p>工作人員第一次登入後會出現在下面（顯示「待啟用」），管理員按「啟用」後對方才看得到資料。不認識的名字請不要啟用。</p>
         <button type="button" id="memberRefreshBtn">重新整理名單</button>
         <div id="memberList" style="margin-top:8px;"></div>
@@ -680,6 +687,56 @@ function liveSummary(recs){
   return Object.keys(evs).length;
 }
 
+/* v2.6：匯入前檢查重複資料
+   - 同一批裡完全相同的紀錄（年度、法會、姓名、電話、項目、費用都一樣）→ 可能重複送出或重複匯入
+   - 跟其他來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名已有紀錄 → 可能兩邊各匯了一次 */
+function dupAsm(name){ return String(name || '').replace(/\s+/g, '').replace(/普度/g, '普渡').replace(/^(民國)?\d{2,4}年?/, ''); }
+function dupSrc(r){ return r['_來源'] || '歷史資料'; }
+function dupExactKey(r){ return [r['年度'], dupAsm(r['法會名稱']), String(r['報名者姓名'] || '').trim(), String(r['電話'] || '').trim(), String(r['項目'] || '').trim(), r['費用']].join('|'); }
+function dupPersonKey(r){ return [String(r['年度'] || '').trim(), dupAsm(r['法會名稱']), String(r['報名者姓名'] || '').trim()].join('|'); }
+function findDuplicates(recs, others){
+  const seen = {}, exact = [];
+  recs.forEach(r => {
+    if(!String(r['報名者姓名'] || '').trim()) return;
+    const k = dupExactKey(r);
+    if(seen[k]){ seen[k].n++; if(seen[k].n === 2) exact.push(seen[k]); }
+    else seen[k] = { r, n: 1 };
+  });
+  const otherBy = {};
+  (others || []).forEach(o => { const k = dupPersonKey(o); (otherBy[k] = otherBy[k] || new Set()).add(dupSrc(o)); });
+  const crossSeen = {}, cross = [];
+  recs.forEach(r => {
+    const k = dupPersonKey(r);
+    if(!String(r['報名者姓名'] || '').trim() || crossSeen[k] || !otherBy[k]) return;
+    crossSeen[k] = 1;
+    cross.push({ r, srcs: [...otherBy[k]] });
+  });
+  return { exact, cross };
+}
+function dupLabel(r){ return `${r['年度']}年 ${r['法會名稱'] || ''} ${r['報名者姓名'] || ''}`; }
+function dupText(d, max){
+  max = max || 8;
+  const lines = [];
+  if(d.exact.length){
+    lines.push(`● 這批資料裡有 ${d.exact.length} 組完全相同的紀錄（可能重複送出或重複匯入）：`);
+    d.exact.slice(0, max).forEach(x => lines.push(`  ${dupLabel(x.r)}（${String(x.r['項目'] || '').slice(0, 20)}）× ${x.n} 筆`));
+    if(d.exact.length > max) lines.push(`  …另有 ${d.exact.length - max} 組`);
+  }
+  if(d.cross.length){
+    lines.push(`● 有 ${d.cross.length} 人在其他來源同年度、同法會已有紀錄（可能兩邊重複匯入）：`);
+    d.cross.slice(0, max).forEach(x => lines.push(`  ${dupLabel(x.r)}（已在：${x.srcs.join('、')}）`));
+    if(d.cross.length > max) lines.push(`  …另有 ${d.cross.length - max} 人`);
+  }
+  return lines.join('\n');
+}
+// 匯入前提醒：沒有重複回傳 ''；有重複回傳要加在確認視窗裡的說明
+function dupWarning(recs, prefix){
+  const src = SOURCE_OF[prefix];
+  const others = ALL.filter(r => src ? r['_來源'] !== src : Object.values(SOURCE_OF).includes(r['_來源']));
+  const t = dupText(findDuplicates(recs, others));
+  return t ? `\n\n⚠️ 發現可能重複的資料，請確認：\n${t}\n\n若確定沒問題可以繼續匯入；要先查清楚請按「取消」，資料不會變動。` : '';
+}
+
 /* =====================================================================
    管理員：匯入資料（先寫入新版本，成功後才切換版本並清掉舊版本，中途失敗不會弄丟原有資料）
    ===================================================================== */
@@ -715,7 +772,7 @@ function normalizeHistRows(rows, sheetName){
 
 async function importHist(records, msgEl){
   if(!records.length){ msgEl.className = 'msg-err'; msgEl.textContent = '沒有可匯入的資料（請確認欄位名稱）'; return; }
-  if(!confirm(`確定要匯入 ${records.length} 筆歷史資料嗎？這會取代目前全部的歷史資料。`)) return;
+  if(!confirm(`確定要匯入 ${records.length} 筆歷史資料嗎？這會取代目前全部的歷史資料。` + dupWarning(records, 'hist'))) return;
   msgEl.className = 'msg-ok'; msgEl.textContent = '匯入中，請稍候…';
   try{
     await replaceDataset('hist', records);
@@ -764,7 +821,7 @@ document.getElementById('liveFileBtn').addEventListener('click', async () => {
     Object.keys(data.regs).forEach(eventId => (data.regs[eventId] || []).forEach(p => regDocs.push({ eventId, payload: p })));
     const kept = keepMissingLive(data.events);
     const recs = buildLiveRecords(data.events, regDocs).concat(kept);
-    if(!confirm(`備份檔內有 ${regDocs.length} 筆報名（轉成 ${recs.length - kept.length} 筆查詢紀錄）${kept.length ? `，另保留 ${kept.length} 筆備份檔裡已沒有的舊場次紀錄` : ''}。確定要匯入嗎？`)) return;
+    if(!confirm(`備份檔內有 ${regDocs.length} 筆報名（轉成 ${recs.length - kept.length} 筆查詢紀錄）${kept.length ? `，另保留 ${kept.length} 筆備份檔裡已沒有的舊場次紀錄` : ''}。確定要匯入嗎？` + dupWarning(recs, 'live'))) return;
     msg.className = 'msg-ok'; msg.textContent = '匯入中，請稍候…';
     await replaceDataset('live', recs);
     msg.textContent = `匯入成功並驗證通過：共 ${recs.length} 筆線上報名資料。`;
@@ -837,7 +894,7 @@ document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
     const recs = buildLiveRecords(events, regDocs).concat(kept);
     const closedN = events.filter(ev => ev.active === false).length;
     if(!confirm(`法會報名平台目前有 ${events.length} 個場次（其中已結束 ${closedN} 場）、${regDocs.length} 筆報名，轉成 ${recs.length - kept.length} 筆查詢紀錄。` +
-        (kept.length ? `\n另外保留 ${kept.length} 筆法會報名平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？`)){
+        (kept.length ? `\n另外保留 ${kept.length} 筆法會報名平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？` + dupWarning(recs, 'live'))){
       msg.textContent = '已取消，資料沒有變動'; return;
     }
     msg.textContent = '更新中，請稍候…';
@@ -960,7 +1017,7 @@ document.getElementById('gpSyncBtn').addEventListener('click', async () => {
     const recs = fresh.concat(kept);
     const closedN = occs.filter(o => o.status === 'closed').length;
     if(!confirm(`供品贊助平台目前有 ${occs.length} 個場次（其中已關閉 ${closedN} 場），共 ${fresh.length} 筆登記。` +
-        (kept.length ? `\n另外保留 ${kept.length} 筆供品贊助平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？`)){
+        (kept.length ? `\n另外保留 ${kept.length} 筆供品贊助平台已刪除場次的舊紀錄，不會消失。` : '') + `\n確定要更新嗎？` + dupWarning(recs, 'gp'))){
       msg.textContent = '已取消，資料沒有變動'; return;
     }
     msg.textContent = '更新中，請稍候…';
@@ -972,6 +1029,19 @@ document.getElementById('gpSyncBtn').addEventListener('click', async () => {
     pwEl.value = '';
     btn.disabled = false;
   }
+});
+
+document.getElementById('dupCheckBtn').addEventListener('click', () => {
+  const out = document.getElementById('dupResult');
+  const srcs = ['歷史資料', SOURCE_OF.live, SOURCE_OF.gp];
+  const parts = [];
+  srcs.forEach((src, i) => {
+    const mine = ALL.filter(r => dupSrc(r) === src);
+    const others = ALL.filter(r => srcs.indexOf(dupSrc(r)) > i);   // 跨來源每一對只比一次
+    const t = dupText(findDuplicates(mine, others), 30);
+    if(t) parts.push(`【${src}】\n${t}`);
+  });
+  out.textContent = parts.length ? parts.join('\n\n') : `沒有發現重複資料（共檢查 ${ALL.length} 筆）。`;
 });
 
 /* =====================================================================
@@ -1098,8 +1168,12 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.5';
+const APP_VERSION = 'v2.6';
 const CHANGELOG = [
+  { version:'v2.6', date:'2026-10-22', items:[
+    '匯入／更新資料前自動檢查重複：同一批裡完全相同的紀錄，或其他來源（歷史資料／法會報名平台／供品贊助平台）同年度、同法會、同姓名已有紀錄，都會先列出提醒，可按「取消」不匯入',
+    '資料管理新增「四、檢查目前資料是否重複」，檢查資料庫裡現有的全部資料（只檢查、不改資料）',
+  ]},
   { version:'v2.5', date:'2026-10-22', items:[
     '供品贊助平台的登記也能查：管理員在「資料管理 → 三」輸入供品贊助平台的姓名與密碼，按「從供品贊助平台更新」，全部場次（含已關閉報名）的登記都會併進查詢',
     '供品紀錄顯示品項、數量、補運與補運地址、收款狀態，標示「供品贊助平台」；已刪除場次保留上次同步的紀錄',
