@@ -295,8 +295,15 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.36 ・ 2026-10-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.37 ・ 2026-10-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.37（2026-10-22）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：信眾沒寫欄位名稱時不再看順序，改成先判斷每段內容是什麼（電話、地址、補運選項、祖先／先人、人名、數量），再放進對的欄位；同一行用空白或逗號隔開的多段內容會自動拆開</li>
+        <li>人名：單一姓名優先放報名者；有「、」的多人名單放到補運姓名這類名單欄；寫「祖先、歷代、冤親債主、倒房」的放到祖先／先人欄，倒房的地址放倒房地址</li>
+        <li>欄位名稱寫錯也會自動更正：例如電話欄寫成地址、地址欄寫成電話，會移回依內容重新判斷</li>
+        <li>補運範本拿掉「農曆生日」欄位（已建立的場次不受影響）</li>
+      </ul>
       <b>v4.36（2026-10-22）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>場次管理新增「🖨️ 列印報名表（A3）」：開出 A3 橫式報名表（有格線、每頁重複表頭、上方有筆數、總金額、已收款），可直接列印或另存 PDF，法會前核對用</li>
@@ -751,7 +758,6 @@ const TEMPLATES = {
       {k:'phone', label:'聯絡電話', type:'tel', isShared:true, keywords:['電話','手機']},
       {k:'buyunKind', label:'補運項目', type:'radio', required:true, options:['補運','補運+補財庫'], keywords:['補運項目','補財庫']},
       {k:'buyunName', label:'補運姓名', type:'text', required:true, help:'同一戶多人請用「、」分開', keywords:['補運姓名','補運名單']},
-      {k:'birthday', label:'農曆生日', type:'text', help:'例：65年3月15日', keywords:['生日','出生']},
       {k:'buyunAddr', label:'補運地址', type:'text', keywords:['補運地址','地址','住址']},
       {k:'note', label:'備註', type:'textarea', keywords:['備註']},
     ],
@@ -1396,52 +1402,103 @@ function isNameLike(v){
   return t.split(/[、,，及和&＆\/]/).filter(Boolean).every(p=>/^[一-鿿]{2,5}$/.test(p) || /^[一-鿿]{1,4}(氏|姓)?(歷代)?祖先$/.test(p));
 }
 function isAddrField(f){ return /地址|住址|牌位/.test(f.label||''); }
+/* v4.37：沒標欄位名稱的內容「不看順序」，先判斷每一段內容是什麼（電話／地址／選項／祖先先人／人名／數量），
+   再依類型放進欄位；同一行裡用空白或逗號隔開的多段內容會先拆開。 */
+const ANCESTOR_RE = /祖先|歷代|冤親債主|先人|亡|往生|倒房|地基主|[一-鿿]氏/;
+function isAncestorField(f){ return /祖先|先人|亡者|冤親|蓮位|倒房|地基主/.test(f.label||'') && !isAddrField(f); }
+function optionFieldFor(ev, v, emptyOnly, mapped){
+  for(const f of (ev.fields||[])){
+    if(!(f.type==='select'||f.type==='radio')) continue;
+    if(emptyOnly && String(mapped.fields[f.k]||'').trim()) continue;
+    const s = snapToOption(f, v);
+    if((f.options||[]).includes(s) && normalizeKeyword(v).length<=normalizeKeyword(s).length+4) return {f, val:s};
+  }
+  return null;
+}
+function classifyValue(ev, v){
+  const t = String(v||'').trim();
+  if(!t) return null;
+  const digits = t.replace(/[^\d]/g,'');
+  if(PHONE_RE.test(t) && digits.length>=8 && t.replace(/[\d\s\-()（）+#轉分機]/g,'').length<=2) return 'phone';
+  if(optionFieldFor(ev, t, false, {fields:{}})) return 'option';
+  if(ADDR_RE.test(t) && t.length>=6) return 'addr';
+  if(ev.mode!=='items' && /^\s*[\d一二兩三四五六七八九十]+\s*(位|份|戶|個|人)\s*$/.test(t)) return 'qty';
+  if(isNameLike(t) || (ANCESTOR_RE.test(t) && t.length<=30 && !/\d/.test(t))) return ANCESTOR_RE.test(t) ? 'ancestor' : 'names';
+  return null;
+}
+// 一段沒標名稱的文字，用空白／逗號／分號拆開；拆出來每一段都認得出類型才拆（地址、備註句子不亂拆）
+function splitTokens(ev, v){
+  const t = String(v||'').trim();
+  const parts = t.split(/[\s,，;；]+/).filter(Boolean);
+  if(parts.length<2) return [t];
+  return parts.every(p=>classifyValue(ev, p)) ? parts : [t];
+}
 function guessUnmapped(ev, mapped){
   const guessed = {};
   if(!ev) return guessed;
-  const left = [];
-  const empty = f=>!String(mapped.fields[f.k]||'').trim();
   const fields = ev.fields||[];
+  const empty = f=>!String(mapped.fields[f.k]||'').trim();
+  const set = (f, val)=>{ mapped.fields[f.k] = val; guessed[f.k] = true; };
+  // 1) 拆開、分類
+  const items = [];
   mapped.unmapped.forEach(en=>{
     const v = String(en.value||'').trim();
-    if(!v){ return; }
-    let target = null, val = v;
-    // 電話
-    if(PHONE_RE.test(v) && v.replace(/[^\d]/g,'').length>=8 && v.replace(/[\d\s\-()（）+#轉分機]/g,'').length<=2){
-      target = fields.find(f=>isPhoneField(f) && empty(f));
-    }
-    // 下拉／單選的選項
-    if(!target){
-      for(const f of fields){
-        if((f.type==='select'||f.type==='radio') && empty(f)){
-          const s = snapToOption(f, v);
-          if((f.options||[]).includes(s) && normalizeKeyword(v).length<=normalizeKeyword(s).length+4){ target = f; val = s; break; }
-        }
-      }
-    }
-    // 地址（一般地址欄優先，倒房的地址最後）
-    if(!target && ADDR_RE.test(v) && v.length>=6){
-      const addrs = fields.filter(f=>isAddrField(f) && empty(f));
-      target = addrs.find(f=>!/倒房/.test(f.label)) || addrs[0];
-    }
-    // 姓名
-    if(!target && isNameLike(v)){
-      const names = fields.filter(f=>empty(f) && (f.type||'text')==='text' && !isPhoneField(f) && !isAddrField(f));
-      target = /祖先/.test(v) ? (names.find(f=>/祖先|先人|亡者/.test(f.label)) || names[0]) : names[0];
-    }
-    // 只有一個「數量×單價」費用，內容像「2位」
-    if(!target && ev.mode!=='items' && /^\s*[\d一二兩三四五六七八九十]+\s*(位|份|戶|個|人)\s*$/.test(v)){
-      const qtyFees = (ev.fees||[]).filter(fl=>fl.mode!=='amount');
-      if(qtyFees.length===1){ mapped.fees[qtyFees[0].k] = v; guessed['fee:'+qtyFees[0].k] = true; return; }
-    }
-    if(target){ mapped.fields[target.k] = val; guessed[target.k] = true; }
-    else left.push(en);
+    if(!v) return;
+    const toks = en.label ? [v] : splitTokens(ev, v);
+    toks.forEach(tk=>items.push({en, v:tk, type:classifyValue(ev, tk), ctx:(en.label||'')+' '+(en.raw||'')}));
   });
-  mapped.unmapped = left;
+  const left = new Set();
+  const take = type=>items.filter(it=>it.type===type && !it.done);
+  // 2) 依類型放（電話 → 選項 → 地址 → 祖先先人 → 數量 → 人名），跟信眾寫的順序無關
+  take('phone').forEach(it=>{ const f = fields.find(x=>isPhoneField(x) && empty(x)); if(f){ set(f, it.v); it.done=true; } });
+  take('option').forEach(it=>{ const o = optionFieldFor(ev, it.v, true, mapped); if(o){ set(o.f, o.val); it.done=true; } });
+  take('addr').forEach(it=>{
+    const addrs = fields.filter(f=>isAddrField(f) && empty(f));
+    const wantDaofang = /倒房/.test(it.ctx);
+    const f = addrs.find(x=>/倒房/.test(x.label)===wantDaofang) || addrs.find(x=>!/倒房/.test(x.label)) || addrs[0];
+    if(f){ set(f, it.v); it.done=true; }
+  });
+  take('ancestor').forEach(it=>{
+    const anc = fields.filter(f=>isAncestorField(f) && empty(f));
+    const wantDaofang = /倒房/.test(it.v+' '+it.ctx);
+    const f = anc.find(x=>/倒房/.test(x.label)===wantDaofang) || anc[0];
+    if(f){ set(f, it.v); it.done=true; }
+  });
+  take('qty').forEach(it=>{
+    const qtyFees = (ev.fees||[]).filter(fl=>fl.mode!=='amount');
+    if(qtyFees.length===1){ mapped.fees[qtyFees[0].k] = it.v; guessed['fee:'+qtyFees[0].k] = true; it.done=true; }
+  });
+  // 人名：報名者優先；多人名單（有「、」）優先放「…姓名／名單」類欄位（例：補運姓名）
+  const nameFields = ()=>fields.filter(f=>empty(f) && (f.type||'text')==='text' && !isPhoneField(f) && !isAddrField(f));
+  const isReporter = f=>f.k==='reporter' || /報名者|贊助姓名/.test(f.label||'');
+  take('names').sort((a,b)=>(a.v.match(/[、,，]/)?1:0)-(b.v.match(/[、,，]/)?1:0)).forEach(it=>{
+    const list = nameFields();
+    const multi = /[、,，及和]/.test(it.v);
+    let f = multi ? (list.find(x=>!isReporter(x) && !isAncestorField(x)) || list.find(x=>!isReporter(x)) || list[0])
+                  : (list.find(isReporter) || list.find(x=>!isAncestorField(x)) || list[0]);
+    if(f){ set(f, it.v); it.done=true; }
+  });
+  items.forEach(it=>{ if(!it.done) left.add(it.en); });
+  // 拆開的那一行只要有一段沒放進欄位，整行留在「沒對到」（避免遺失）
+  mapped.unmapped = mapped.unmapped.filter(en=>left.has(en));
   return guessed;
+}
+// v4.37：有標名稱但內容明顯放錯（例：電話欄寫地址、地址欄寫電話），移回去重新依內容判斷
+function fixMislabeled(ev, mapped){
+  if(!ev) return;
+  (ev.fields||[]).forEach(f=>{
+    const v = String(mapped.fields[f.k]||'').trim();
+    if(!v) return;
+    const type = classifyValue(ev, v);
+    const bad = (isPhoneField(f) && type && type!=='phone')
+             || (isAddrField(f) && type==='phone')
+             || ((f.type||'text')==='text' && !isPhoneField(f) && !isAddrField(f) && type==='phone' && !/電話|手機/.test(f.label||''));
+    if(bad){ delete mapped.fields[f.k]; mapped.unmapped.push({label:'', value:v, raw:v}); }
+  });
 }
 function analyzeBlock(b, ev){
   const mapped = buildMappedEntries(b.rawEntries || b.entries, ev);
+  fixMislabeled(ev, mapped);
   const guessed = guessUnmapped(ev, mapped);
   const fee = {};
   if(ev){
@@ -4060,7 +4117,7 @@ async function openNewEventModal(){
     ['ancestor','祭拜祖先（一戶/倒房/地基主/金紙）'],
     ['liang','梁皇寶懺（主蓮位/副蓮位）'],
     ['general','一般法會（一戶 6000、隨喜功德）'],
-    ['buyun','補運（每位 1000，補運／補運+補財庫）'],
+    ['buyun','補運（每位 1000，補運／補運+補財庫、地址）'],
     ['donation','隨喜/樂捐登記（單純金額贊助，如普渡功德金）'],
     ['blank','空白樣板（自行從零設計欄位）'],
   ];
