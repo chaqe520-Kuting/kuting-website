@@ -1264,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v120";
+  var APP_VERSION = "v121";
   var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1275,6 +1275,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v121", date: "2026-10-22", changes: [
+      "後台登記清單：手機點「已收款／待收款」（或編輯、確認等按鈕）後，畫面不再跳回最上方，會停在剛才點的那一筆",
+      "雲端同步更新清單、關掉收款確認詢問視窗時，也維持原本的捲動位置；資料庫與規則未變更"
+    ]},
     { version: "v120", date: "2026-10-22", changes: [
       "匯出紅紙（A3）：各供品品項名稱改成靠上對齊，字平均分配排滿整個品名格（兩種格式都適用）"
     ]},
@@ -4329,10 +4333,12 @@
   function scheduleSnapshotRender(){
     clearTimeout(snapshotRenderTimer);
     snapshotRenderTimer = setTimeout(function(){
-      renderBanner();
-      renderLayoutInputs();
-      renderPublicOccasionStatus();
-      renderAll();
+      keepScrollPosition(function(){
+        renderBanner();
+        renderLayoutInputs();
+        renderPublicOccasionStatus();
+        renderAll();
+      });
     }, 150);
   }
 
@@ -7299,6 +7305,7 @@
     }
     currentPageRegs(occ).forEach(function(reg){
       var tr = document.createElement("tr");
+      tr.setAttribute("data-reg-id", reg.id);
 
       if(reg.id === editingRegId){
         var midSpan = Math.max(cc - 7, 1);
@@ -8054,7 +8061,11 @@
         setTimeout(function(){ showToast("沒有詢問收款確認：" + regNoticeGroups(regs).map(function(g){ return g.name; }).join("、") + " 還沒用小幫手私訊過報名成功通知，小幫手不知道是哪位 LINE 好友"); }, 1200);
         return;
       }
-      if(!confirm("已標成已收款。要用小幫手私訊「收款確認」給：\n" + cards.map(function(c){ return c.name + " → LINE「" + c.lineName + "」"; }).join("\n") + "\n\n（會用到每月的免費訊息則數）")) return;
+      var askX = window.pageXOffset, askY = window.pageYOffset;
+      var askOk = confirm("已標成已收款。要用小幫手私訊「收款確認」給：\n" + cards.map(function(c){ return c.name + " → LINE「" + c.lineName + "」"; }).join("\n") + "\n\n（會用到每月的免費訊息則數）");
+      // v121 — 手機關掉詢問視窗後畫面不要跳位
+      if(Math.abs(window.pageYOffset - askY) > 1) window.scrollTo(askX, askY);
+      if(!askOk) return;
       var ok = 0, fail = [];
       cards.reduce(function(p, c){
         return p.then(function(){ return linebotSend(c, "paid", url).then(function(out){ if(out.ok) ok++; else fail.push(c.name + "：" + (out.error || "傳送失敗")); }); });
@@ -8213,11 +8224,50 @@
   /* ---------------- render all (within current occasion) ---------------- */
 
   function renderAll(){
-    recompute();
-    renderRegTable();
-    renderItemManage();
-    renderOccasionChips();
-    saveStateToStorage();
+    keepScrollPosition(function(){
+      recompute();
+      renderRegTable();
+      renderItemManage();
+      renderOccasionChips();
+      saveStateToStorage();
+    });
+  }
+
+  // v121 — 手機點「已收款」等按鈕後，整份清單重畫會讓畫面跳回最上方。
+  // 重畫前記下畫面上的一筆登記（剛點的那筆，或畫面最上面看得到的那筆）離視窗頂端多遠，
+  // 重畫後把那筆捲回原來的位置；表格左右捲動的位置也一併保留。
+  var keepScrollDepth = 0;
+  function keepScrollPosition(fn){
+    if(keepScrollDepth > 0 || !regTableBody){ fn(); return; }
+    var x = window.pageXOffset, y = window.pageYOffset;
+    var wrap = regTableBody.closest(".table-wrap");
+    var wrapLeft = wrap ? wrap.scrollLeft : 0;
+    var anchorId = null, anchorTop = 0;
+    var active = document.activeElement;
+    var activeRow = active && regTableBody.contains(active) ? active.closest("tr[data-reg-id]") : null;
+    var rows = activeRow ? [activeRow] : regTableBody.querySelectorAll("tr[data-reg-id]");
+    for(var i = 0; i < rows.length; i++){
+      var rect = rows[i].getBoundingClientRect();
+      if(rect.height && rect.bottom > 0 && rect.top < window.innerHeight){
+        anchorId = rows[i].getAttribute("data-reg-id"); anchorTop = rect.top; break;
+      }
+    }
+    // 被點的按鈕會在重畫時移除，手機瀏覽器可能因此捲動，先讓它失去焦點
+    if(activeRow && active.blur) active.blur();
+    keepScrollDepth++;
+    try { fn(); } finally { keepScrollDepth--; }
+    var restore = function(){
+      if(wrap && wrap.scrollLeft !== wrapLeft) wrap.scrollLeft = wrapLeft;
+      var row = anchorId != null ? regTableBody.querySelector('tr[data-reg-id="' + anchorId + '"]') : null;
+      if(row){
+        var diff = row.getBoundingClientRect().top - anchorTop;
+        if(Math.abs(diff) > 1) window.scrollBy(0, diff);
+      } else if(Math.abs(window.pageYOffset - y) > 1){
+        window.scrollTo(x, y);
+      }
+    };
+    restore();
+    if(window.requestAnimationFrame) requestAnimationFrame(restore);
   }
 
   document.getElementById("appVersionLabel").textContent = "版本 " + APP_VERSION + "（最後更新：" + APP_UPDATED + "）";
