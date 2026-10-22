@@ -295,8 +295,16 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.34 ・ 2026-10-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.35 ・ 2026-10-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.35（2026-10-22）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上判斷場次更準：同時開放多場時，不只看標題，整則內容的欄位說法、選項、費用名稱都拿來跟每一場比對，只出現在某一場的說法加分最多；判斷不出來或兩場很像時標紅框「⚠️ 場次不確定」，並寫出判斷依據；沒有線索的那筆沿用上一筆的場次</li>
+        <li>可一次指定「這次貼上全部屬於哪一場」</li>
+        <li>沒照格式寫也能辨識：沒有編號、沒有冒號、用逗號隔開的內容都收進來；電話、地址、選項、姓名會依內容猜欄位，猜的欄位標黃色請確認</li>
+        <li>沒對到的內容可以直接選要放哪個欄位，勾「記住」後，下次同樣的說法就會自動對應（越用越準）</li>
+        <li>新增場次（內建或範本庫）時，費用名稱相同的項目，單價自動用最近一場同名費用的價格，選範本時就看得到價格和來源</li>
+      </ul>
       <b>v4.34（2026-10-22）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>內建範本單價改用上次的價格：「一般法會」一戶 6000 元（比照 115 年中元普渡）＋隨喜功德；「補運」每位 1000 元（比照 115/2/7 補運）。價格有變動時，建立場次後在「編輯報名欄位／費用」修改即可</li>
@@ -1016,10 +1024,37 @@ function parseLineBlocks(text){
       }
     }
 
-    lines.forEach(line=>{
+    // v4.35：沒有編號的行也收進來（以前會被當標題或直接漏掉）。
+    // 整段都沒有編號時：第一行像標題（有「報名／法會／【」或沒有冒號且下面還有內容）當標題，其餘每行一項；
+    // 同一段裡同一個欄位名稱又出現一次（例如第二個「報名者」），就當成下一位。
+    const hasNumbered = lines.some(l=>ENTRY_LINE_RE.test(l));
+    const seenLabels = new Set();
+    function pushFree(line){
+      const colonMatch = line.match(/^([^:：]{1,20})[:：]\s*(.*)$/);
+      if(colonMatch){
+        const label = colonMatch[1].trim(), value = colonMatch[2].trim();
+        const lk = exactLabelKey(label);
+        if(entries && lk && seenLabels.has(lk)){ flush(); entries = []; headerLines = []; seenLabels.clear(); }
+        if(!entries) entries = [];
+        if(lk) seenLabels.add(lk);
+        entries.push({label, value, raw:line});
+        return;
+      }
+      if(!entries) entries = [];
+      // 沒有冒號、用逗號隔開的一行（例：王小明,補運,嘉義市…）拆成好幾項，讓內容自己去猜欄位
+      const parts = /[,，]/.test(line) && !ADDR_RE.test(line.split(/[,，]/)[0]) ? line.split(/[,，]/).map(x=>x.trim()).filter(Boolean) : [line];
+      parts.forEach(pt=>entries.push({label:'', value:pt, raw:pt}));
+    }
+    lines.forEach((line, li)=>{
       const m = line.match(ENTRY_LINE_RE);
       if(!m){
-        if(entries===null) headerLines.push(line);
+        if(entries===null){
+          const titleLike = /報名|法會|登記|【|〔|\[/.test(line) && !/[:：]/.test(line);
+          if(hasNumbered || (titleLike && li===0 && lines.length>1)){ headerLines.push(line); return; }
+          pushFree(line);
+          return;
+        }
+        pushFree(line);
         return;
       }
       const n = m[1];
@@ -1341,65 +1376,186 @@ function autoInferFeeQuantities(ev, mappedFieldValues){
   return fee;
 }
 
-function guessEventForHeader(header){
-  const KEYWORDS = {
-    ancestor: ['祭拜祖先','祖先','一戶','地基主','倒房'],
-    liang: ['梁皇','寶懺','蓮位'],
-    birthday: ['聖誕','供品','千秋','贊助'],
-    donation: ['普渡','隨喜','功德','樂捐','捐款'],
-    buyun: ['補運','補財庫','改運'],
-  };
-  let best=null, bestScore=0;
-  adminOpenEvents().forEach(ev=>{
-    let score=0;
-    if(ev.name && header.includes(ev.name)) score+=5;
-    // v4.33：每個場次自己設定的「LINE 標題關鍵字」優先
-    (ev.lineKeywords||[]).forEach(k=>{ if(k && header.includes(k)) score+=4; });
-    (KEYWORDS[ev.type]||[]).forEach(k=>{ if(header.includes(k)) score+=2; });
-    if(score>bestScore){ bestScore=score; best=ev; }
+
+/* ---------------- v4.35：LINE 貼上辨識加強 ----------------
+   1. 判斷場次：不只看標題，整則內容的欄位名稱、選項、費用名稱都拿來跟每個場次比對打分數，
+      只出現在某一場的說法加分比較多；分數接近就標「⚠️ 場次不確定」請工作人員確認；
+      完全沒有線索時沿用上一筆的場次（同一次貼上通常是同一場）。
+   2. 沒照格式寫的內容：電話、地址、選項、姓名用內容本身的樣子去猜欄位，猜的欄位標黃色請確認。
+   3. 記住修正：沒對到的行可以手動選欄位，勾「記住」後，這個說法會加進該欄位的關鍵字，下次自動對應。 */
+const PHONE_RE = /(?:\+?886[-\s]?|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}|0\d{1,2}[-\s)）]?\d{6,8}/;
+const ADDR_RE = /(?:縣|市).{0,12}(?:鄉|鎮|市|區|村|里|路|街|段|巷|號)|(?:路|街|巷|弄).{0,6}號|(?:寺|塔|宮|堂|納骨|靈骨)/;
+function isNameLike(v){
+  const t = String(v||'').replace(/\s+/g,'');
+  if(!t || /\d/.test(t)) return false;
+  return t.split(/[、,，及和&＆\/]/).filter(Boolean).every(p=>/^[一-鿿]{2,5}$/.test(p) || /^[一-鿿]{1,4}(氏|姓)?(歷代)?祖先$/.test(p));
+}
+function isAddrField(f){ return /地址|住址|牌位/.test(f.label||''); }
+function guessUnmapped(ev, mapped){
+  const guessed = {};
+  if(!ev) return guessed;
+  const left = [];
+  const empty = f=>!String(mapped.fields[f.k]||'').trim();
+  const fields = ev.fields||[];
+  mapped.unmapped.forEach(en=>{
+    const v = String(en.value||'').trim();
+    if(!v){ return; }
+    let target = null, val = v;
+    // 電話
+    if(PHONE_RE.test(v) && v.replace(/[^\d]/g,'').length>=8 && v.replace(/[\d\s\-()（）+#轉分機]/g,'').length<=2){
+      target = fields.find(f=>isPhoneField(f) && empty(f));
+    }
+    // 下拉／單選的選項
+    if(!target){
+      for(const f of fields){
+        if((f.type==='select'||f.type==='radio') && empty(f)){
+          const s = snapToOption(f, v);
+          if((f.options||[]).includes(s) && normalizeKeyword(v).length<=normalizeKeyword(s).length+4){ target = f; val = s; break; }
+        }
+      }
+    }
+    // 地址（一般地址欄優先，倒房的地址最後）
+    if(!target && ADDR_RE.test(v) && v.length>=6){
+      const addrs = fields.filter(f=>isAddrField(f) && empty(f));
+      target = addrs.find(f=>!/倒房/.test(f.label)) || addrs[0];
+    }
+    // 姓名
+    if(!target && isNameLike(v)){
+      const names = fields.filter(f=>empty(f) && (f.type||'text')==='text' && !isPhoneField(f) && !isAddrField(f));
+      target = /祖先/.test(v) ? (names.find(f=>/祖先|先人|亡者/.test(f.label)) || names[0]) : names[0];
+    }
+    // 只有一個「數量×單價」費用，內容像「2位」
+    if(!target && ev.mode!=='items' && /^\s*[\d一二兩三四五六七八九十]+\s*(位|份|戶|個|人)\s*$/.test(v)){
+      const qtyFees = (ev.fees||[]).filter(fl=>fl.mode!=='amount');
+      if(qtyFees.length===1){ mapped.fees[qtyFees[0].k] = v; guessed['fee:'+qtyFees[0].k] = true; return; }
+    }
+    if(target){ mapped.fields[target.k] = val; guessed[target.k] = true; }
+    else left.push(en);
   });
-  return best;
+  mapped.unmapped = left;
+  return guessed;
+}
+function analyzeBlock(b, ev){
+  const mapped = buildMappedEntries(b.rawEntries || b.entries, ev);
+  const guessed = guessUnmapped(ev, mapped);
+  const fee = {};
+  if(ev){
+    Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
+    Object.assign(fee, guessFees(b.header||'', ev));
+    Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
+  }
+  return {mapped, fee, guessed};
+}
+
+// 每個場次「獨有」的說法：欄位名稱／關鍵字／選項／費用名稱，只出現在這一場（其他開放中的場次沒有）
+function eventSignals(ev){
+  const out = [];
+  (ev.fields||[]).forEach(f=>{
+    [...(f.keywords||[]), ...extractFallbackKeywords(f.label)].forEach(k=>{ const n=normalizeKeyword(k); if(n.length>=2) out.push(n); });
+    (f.options||[]).forEach(o=>{ const n=normalizeKeyword(o); if(n.length>=2) out.push(n); });
+  });
+  (ev.fees||[]).forEach(fl=>{ const n=exactLabelKey(fl.label); if(n.length>=2) out.push(n); (fl.keywords||[]).forEach(k=>{ const m=normalizeKeyword(k); if(m.length>=2) out.push(m); }); });
+  (ev.items||[]).forEach(it=>{ const n=normalizeKeyword(it.name); if(n.length>=2) out.push(n); });
+  return Array.from(new Set(out));
+}
+const EVENT_TYPE_WORDS = {
+  ancestor: ['祭拜祖先','祖先','一戶','地基主','倒房','渡祖先'],
+  liang: ['梁皇','寶懺','蓮位'],
+  birthday: ['聖誕','供品','千秋','贊助'],
+  donation: ['普渡','隨喜','功德','樂捐','捐款'],
+  buyun: ['補運','補財庫','改運'],
+};
+function eventNameCore(name){
+  return normalizeKeyword(String(name||'').replace(/(?:民國)?\s*1[0-4]\d\s*年|[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]年?|\d+\s*[\/月]\s*\d+\s*日?|農曆[^\s]*|（[^）]*）|\([^)]*\)/g,''));
+}
+function scoreEventsForBlock(b, cands){
+  const header = normalizeKeyword(b.header||'');
+  const body = normalizeKeyword((b.rawEntries||b.entries||[]).map(e=>e.raw!==undefined?e.raw:(e.label+'：'+e.value)).join(' '));
+  const all = header + ' ' + body;
+  const sig = new Map(cands.map(ev=>[ev.id, eventSignals(ev)]));
+  const count = new Map();
+  sig.forEach(list=>list.forEach(s=>count.set(s,(count.get(s)||0)+1)));
+  return cands.map(ev=>{
+    let score = 0; const why = [];
+    const core = eventNameCore(ev.name);
+    if(core.length>=2 && all.includes(core)){ score += 8; why.push('場次名稱'); }
+    (ev.lineKeywords||[]).forEach(k=>{ const n=normalizeKeyword(k); if(n && all.includes(n)){ score += header.includes(n)?6:4; why.push(k); } });
+    (EVENT_TYPE_WORDS[ev.type]||[]).forEach(k=>{ if(header.includes(k)){ score += 2; why.push(k); } else if(body.includes(k)) score += 0.5; });
+    sig.get(ev.id).forEach(s=>{
+      if(!all.includes(s)) return;
+      const uniq = count.get(s)===1;
+      score += uniq ? 2 : 0.3;
+      if(uniq && why.length<4) why.push(s);
+    });
+    // 標了名稱的行，對到這場的欄位越多越像
+    const m = buildMappedEntries(b.rawEntries||b.entries||[], ev);
+    const labeled = (b.rawEntries||b.entries||[]).filter(e=>e.label).length;
+    if(labeled){ score += 1.5 * (labeled - m.unmapped.filter(e=>e.label).length) / labeled; }
+    return {ev, score, why: Array.from(new Set(why))};
+  }).sort((a,b)=>b.score-a.score);
 }
 
 function parseAndBuildPreview(text){
   const blocks = parseLineBlocks(text);
-  // 沒有從標題猜到場次時，預設用「目前後台正在看的場次」，這樣不管解析出幾筆，
-  // 都會直接完整顯示可編輯的報名格式，不用先一筆一筆手動選場次才看得到內容——
-  // 之後如果哪一筆場次猜錯了，你還是可以直接在下拉選單改成正確的場次。
+  const cands = adminOpenEvents();
   const fallbackEv = events.find(e=>e.id===adminSelectedEvent) || null;
+  let prevEv = null;
   importBlocks = blocks.map(b=>{
-    const guessedEv = guessEventForHeader(b.header) || fallbackEv;
-    const mapped = buildMappedEntries(b.entries, guessedEv);
-    const fee = {};
-    if(guessedEv){
-      Object.assign(fee, autoInferFeeQuantities(guessedEv, mapped.fields));
-      Object.assign(fee, guessFees(b.header, guessedEv));
-      Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
+    const blk = {header:b.header, rawEntries:b.entries};
+    let ev = null, uncertain = false, why = '';
+    if(importForceEventId){
+      ev = events.find(e=>e.id===importForceEventId) || null; why = '全部指定';
+    } else if(cands.length===1){
+      ev = cands[0]; why = '目前只有這一場';
+    } else if(cands.length){
+      const sc = scoreEventsForBlock(blk, cands);
+      const top = sc[0], second = sc[1];
+      if(top.score < 1.6){
+        ev = prevEv || fallbackEv || top.ev;
+        uncertain = !prevEv;
+        why = prevEv ? '沒有線索，跟上一筆同場次' : '沒有線索，請確認';
+      } else {
+        ev = top.ev;
+        uncertain = second && (top.score - second.score) < 2;
+        why = (top.why.length ? '依據：'+top.why.slice(0,4).join('、') : '依欄位名稱') + (uncertain ? `；也很像「${second.ev.name}」` : '');
+      }
     }
-    return {
-      header: b.header,
-      rawEntries: b.entries,
-      eventId: guessedEv ? guessedEv.id : '',
-      mapped,
-      fee,
-      include: !!guessedEv,
-    };
+    prevEv = ev || prevEv;
+    const a = analyzeBlock(blk, ev);
+    return {...blk, eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain, why, learn:{}};
   });
+}
+let importForceEventId = '';
+// 依目前選的場次重新對應一筆（換場次時用）
+function reanalyzeImportBlock(bi, eventId, why){
+  const b = importBlocks[bi];
+  const ev = events.find(e=>e.id===eventId) || null;
+  const a = analyzeBlock(b, ev);
+  Object.assign(b, {eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain:false, why: why||'手動選擇', learn:{}});
 }
 
 async function confirmImport(){
   let count = 0;
   const byEvent = {};
+  const learnedEvents = new Set();
   for(const b of importBlocks){
     if(!b.include || !b.eventId) continue;
     const ev = events.find(e=>e.id===b.eventId);
     if(!ev) continue;
     const f = {};
     (ev.fields||[]).forEach(fl=>{ f[fl.k] = (b.mapped.fields[fl.k]||'').toString().trim(); });
-    if(b.mapped.unmapped.length){
-      const extra = b.mapped.unmapped.map(u=>`${u.label}:${u.value}`).join('；');
+    const rest = b.mapped.unmapped.filter(u=>!u.assign);
+    if(rest.length){
+      const extra = rest.map(u=>u.label ? `${u.label}:${u.value}` : u.value).join('；');
       f.note = f.note ? f.note+'；'+extra : extra;
     }
+    // v4.35：記住手動指定的說法 → 加進該欄位的 LINE 關鍵字
+    b.mapped.unmapped.forEach(u=>{
+      if(!u.assign || u.noLearn || !u.label) return;
+      const kw = u.label.replace(/[（(][^）)]*[）)]/g,'').trim();
+      const fd = (ev.fields||[]).find(x=>x.k===u.assign);
+      if(kw.length>=2 && fd && !(fd.keywords||[]).includes(kw)){ fd.keywords = [...(fd.keywords||[]), kw]; learnedEvents.add(ev.id); }
+    });
     const rec = {id:uid(), f, paid:false, confirmed:false, createdAt:Date.now()};
     if(ev.mode==='items'){
       rec.items = [];
@@ -1417,9 +1573,11 @@ async function confirmImport(){
     const ok = await appendRegs(eventId, byEvent[eventId]);
     if(!ok) allOk = false;
   }
+  if(learnedEvents.size) await saveEvents();
   importBlocks = [];
   importRaw = '';
-  showToast(allOk ? `已匯入 ${count} 筆報名資料` : '部分資料匯入失敗，請檢查網路後再試一次');
+  importForceEventId = '';
+  showToast((allOk ? `已匯入 ${count} 筆報名資料` : '部分資料匯入失敗，請檢查網路後再試一次') + (learnedEvents.size ? '，並記住新的欄位說法' : ''), 3500);
   render();
 }
 
@@ -1992,9 +2150,16 @@ function renderImportPanel(){
 
   if(importBlocks.length){
     html += `<div style="margin-top:18px;">`;
+    // v4.35：同時開放多場時，可一次指定全部歸到哪一場
+    const nUnc = importBlocks.filter(b=>b.include && b.uncertain).length;
+    html += `<div class="field" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;">
+      <label>這次貼上的報名，全部屬於哪一場？</label>
+      <select id="importForceSel"><option value="">🤖 每一筆自動判斷</option>${adminOpenEvents().map(e=>`<option value="${e.id}" ${e.id===importForceEventId?'selected':''}>${escHtml(e.name)}${e.draft?'（準備中）':''}</option>`).join('')}</select>
+      <div class="hint">${nUnc ? `<b style="color:var(--vermilion);">有 ${nUnc} 筆場次不確定（紅框），請確認。</b>` : '每筆的場次都有判斷依據，仍可在每筆右上角修改。'} 黃色欄位是系統依內容猜的，請看一下對不對。</div>
+    </div>`;
     importBlocks.forEach((b,bi)=>{
       const ev = events.find(e=>e.id===b.eventId);
-      html += `<div class="card" style="background:#FBF6EA;margin-bottom:12px;">
+      html += `<div class="card" style="background:#FBF6EA;margin-bottom:12px;${b.uncertain&&b.include?'border:2px solid var(--vermilion);':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;">
             <input type="checkbox" data-inc="${bi}" ${b.include?'checked':''}> 匯入第 ${bi+1} 筆
@@ -2007,12 +2172,14 @@ function renderImportPanel(){
             </select>
           </div>
         </div>
+        ${b.why ? `<p class="hint" style="margin:4px 0;${b.uncertain?'color:var(--vermilion);font-weight:700;':''}">${b.uncertain?'⚠️ 場次不確定：':'✅ '}${escHtml(b.why)}</p>` : ''}
         <p class="hint">原始標題：${b.header||'（無）'}</p>
         <p class="hint">原始貼上內容：${b.rawEntries.map((en,i)=>`${i+1}.${en.label}:${en.value}`).join('　')}</p>`;
       if(ev){
         (ev.fields||[]).forEach(f=>{
           const val = (b.mapped.fields[f.k]||'').toString();
-          html += `<div class="field"><label>${f.label}</label><input type="text" data-blk="${bi}" data-fkey="${f.k}" value="${val.replace(/"/g,'&quot;')}"></div>`;
+          const g = b.guessed && b.guessed[f.k];
+          html += `<div class="field"><label>${escHtml(f.label)}${g?' <span style="color:#9a6a00;font-weight:500;">🤔 系統猜的</span>':''}</label><input type="text" data-blk="${bi}" data-fkey="${f.k}" value="${val.replace(/"/g,'&quot;')}" ${g?'style="background:#FFF6CC;"':''}></div>`;
         });
         if(ev.mode!=='items' && (ev.fees||[]).length){
           html += `<label>費用項目（依標題自動猜測，請確認）</label>`;
@@ -2022,8 +2189,12 @@ function renderImportPanel(){
         }
         if(b.mapped.unmapped.length){
           html += `<div style="background:#FBF0EC;border:1px solid var(--vermilion);border-radius:8px;padding:8px 10px;margin-top:8px;">
-            <div style="font-weight:700;color:var(--vermilion);font-size:12.5px;margin-bottom:4px;">⚠️ 以下內容沒有對應到任何欄位（將附加於備註，不會遺失，但建議去「編輯報名欄位／費用」補上對應的關鍵字）：</div>
-            ${b.mapped.unmapped.map(u=>`<div style="font-size:12.5px;">${u.label}：${u.value}</div>`).join('')}
+            <div style="font-weight:700;color:var(--vermilion);font-size:12.5px;margin-bottom:4px;">⚠️ 以下內容沒有對應到欄位（不選的話會附加到備註，不會遺失）。可選要放到哪個欄位，勾「記住」下次同樣的說法就會自動對應：</div>
+            ${b.mapped.unmapped.map((u,ui)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;margin:4px 0;">
+              <span style="flex:1;min-width:140px;">${u.label?escHtml(u.label)+'：':''}${escHtml(u.value)}</span>
+              <select data-umblk="${bi}" data-umidx="${ui}" style="width:auto;min-width:120px;"><option value="">放到備註</option>${(ev.fields||[]).map(f=>`<option value="${f.k}" ${u.assign===f.k?'selected':''}>${escHtml(f.label)}</option>`).join('')}</select>
+              ${u.label && exactLabelKey(u.label).length>=2 ? `<label style="display:flex;align-items:center;gap:4px;margin:0;font-weight:500;"><input type="checkbox" data-umlearn="${bi}" data-umidx="${ui}" ${u.noLearn?'':'checked'} style="width:auto;min-height:0;"> 記住「${escHtml(u.label)}」</label>` : ''}
+            </div>`).join('')}
           </div>`;
         }
       } else {
@@ -3601,20 +3772,35 @@ function bindEvents(){
   });
   document.querySelectorAll('[data-evsel]').forEach(el=>{
     el.onchange = ()=>{
-      const bi = Number(el.dataset.evsel);
-      const ev = events.find(e=>e.id===el.value);
-      importBlocks[bi].eventId = el.value;
-      const mapped = buildMappedEntries(importBlocks[bi].rawEntries, ev);
-      importBlocks[bi].mapped = mapped;
-      const fee = {};
-      if(ev){
-        Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
-        Object.assign(fee, guessFees(importBlocks[bi].header, ev));
-        Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
-      }
-      importBlocks[bi].fee = fee;
-      importBlocks[bi].include = !!ev;
+      reanalyzeImportBlock(Number(el.dataset.evsel), el.value, '手動選擇');
       render();
+    };
+  });
+  const importForceSel = document.getElementById('importForceSel');
+  if(importForceSel) importForceSel.onchange = ()=>{
+    importForceEventId = importForceSel.value;
+    parseAndBuildPreview(importRaw);
+    render();
+  };
+  // v4.35：沒對到的行手動選欄位（值放進欄位；勾「記住」的在確認匯入時加進欄位關鍵字）
+  document.querySelectorAll('[data-umblk]').forEach(el=>{
+    el.onchange = ()=>{
+      const b = importBlocks[Number(el.dataset.umblk)];
+      const u = b.mapped.unmapped[Number(el.dataset.umidx)];
+      if(!u) return;
+      u.assign = el.value;
+      if(el.value){
+        const cur = String(b.mapped.fields[el.value]||'').trim();
+        b.mapped.fields[el.value] = cur ? cur+'、'+u.value : u.value;
+        const inp = document.querySelector(`[data-blk="${el.dataset.umblk}"][data-fkey="${el.value}"]`);
+        if(inp) inp.value = b.mapped.fields[el.value];
+      }
+    };
+  });
+  document.querySelectorAll('[data-umlearn]').forEach(el=>{
+    el.onchange = ()=>{
+      const u = importBlocks[Number(el.dataset.umlearn)].mapped.unmapped[Number(el.dataset.umidx)];
+      if(u) u.noLearn = !el.checked;
     };
   });
   document.querySelectorAll('[data-blk][data-fkey]').forEach(el=>{
@@ -3635,13 +3821,18 @@ function bindEvents(){
     el.oninput = ()=>{ importBlocks[Number(el.dataset.blk)].fee[el.dataset.feekey] = Number(el.value)||0; };
   });
   const confirmImportBtn = document.getElementById('confirmImportBtn');
-  if(confirmImportBtn) confirmImportBtn.onclick = ()=>confirmImport();
+  if(confirmImportBtn) confirmImportBtn.onclick = async ()=>{
+    const unc = importBlocks.filter(b=>b.include && b.uncertain).length;
+    if(unc && !(await showConfirm(`還有 <b>${unc} 筆</b>場次不確定（紅框），確定場次都對了嗎？`))) return;
+    confirmImport();
+  };
   const discardImportBtn = document.getElementById('discardImportBtn');
   if(discardImportBtn) discardImportBtn.onclick = async ()=>{
     if(!(await showConfirm('確定要放棄這次解析出來的內容嗎？畫面會清空，尚未送出的資料不會被保存。'))) return;
     importBlocks = [];
     importRaw = '';
     importParseFailed = false;
+    importForceEventId = '';
     render();
     showToast('已清空，可以重新貼上新的內容');
   };
@@ -3835,6 +4026,19 @@ function eventFormatSnapshot(src){
   if(src.exportCfg) snap.exportCfg = JSON.parse(JSON.stringify(src.exportCfg));
   return snap;
 }
+// v4.35：從範本新增場次時，費用名稱相同的項目，單價改用「最近一場」有這個費用的場次價格
+function latestFeePrices(fees){
+  const out = {};
+  (fees||[]).forEach(fl=>{
+    const k = exactLabelKey(fl.label);
+    if(!k) return;
+    for(let i=events.length-1;i>=0;i--){
+      const hit = (events[i].fees||[]).find(x=>exactLabelKey(x.label)===k);
+      if(hit){ out[fl.k] = {price:Number(hit.price)||0, from:events[i].name}; break; }
+    }
+  });
+  return out;
+}
 function templateSummary(t){
   const nf = (t.fields||[]).length;
   const extra = t.mode==='items' ? `${(t.items||[]).length} 個供品` : `${(t.fees||[]).length} 個費用項目`;
@@ -3894,7 +4098,8 @@ async function openNewEventModal(){
     const src = sourceOf(sel.value);
     const h = bg.querySelector('#m_typeHint');
     if(!src){ h.textContent=''; return; }
-    h.textContent = '欄位：' + (src.fields||[]).map(f=>f.label).join('、') + (src.mode==='items' ? `；供品 ${(src.items||[]).length} 項` : ((src.fees||[]).length ? '；費用：'+src.fees.map(f=>f.label).join('、') : ''));
+    const lp = sel.value.startsWith('e:') ? {} : latestFeePrices(src.fees);
+    h.textContent = '欄位：' + (src.fields||[]).map(f=>f.label).join('、') + (src.mode==='items' ? `；供品 ${(src.items||[]).length} 項` : ((src.fees||[]).length ? '；費用：'+src.fees.map(f=>`${f.label} ${money(lp[f.k]?lp[f.k].price:f.price)}${f.mode==='amount'?'':'元'}${lp[f.k]?`（同「${lp[f.k].from}」）`:''}`).join('、') : ''));
   }
   sel.onchange = updHint; updHint();
   bg.querySelector('#m_cancel').onclick = ()=>bg.remove();
@@ -3904,6 +4109,10 @@ async function openNewEventModal(){
     const src = sourceOf(sel.value);
     if(!src){ showToast('請選擇報名格式'); return; }
     const snap = eventFormatSnapshot(src);
+    if(!sel.value.startsWith('e:') && snap.fees){
+      const lp = latestFeePrices(snap.fees);
+      snap.fees.forEach(fl=>{ if(lp[fl.k]) fl.price = lp[fl.k].price; });
+    }
     const evObj = {
       id:uid(), name, date:bg.querySelector('#m_date').value.trim(), note:bg.querySelector('#m_note').value.trim(),
       active:true, draft:true,  // v4.31：新場次先是準備中
