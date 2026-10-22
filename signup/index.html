@@ -164,6 +164,17 @@
   .row-actions{display:flex;gap:6px;flex-wrap:wrap;}
   .stock-tag{font-size:11px;color:var(--muted);}
   .hint{font-size:12px;color:var(--muted);line-height:1.6;margin-top:4px;}
+  /* v4.33：欄位說明、單選按鈕、範本／匯出設定 */
+  .field-help{font-size:12.5px;color:var(--muted);line-height:1.6;margin:-2px 0 6px;white-space:pre-wrap;}
+  body.pub .field-help{font-size:14px;}
+  .radio-group{display:flex;flex-wrap:wrap;gap:8px;}
+  .radio-group label{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:500;cursor:pointer;margin:0;}
+  .radio-group input{width:auto;min-height:0;margin:0;}
+  .cfg-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px dashed var(--line);}
+  .cfg-row input[type=text]{flex:1;min-width:120px;}
+  .tpl-list{list-style:none;padding:0;margin:0 0 10px;}
+  .tpl-list li{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px dashed var(--line);}
+  .tpl-list li .nm{flex:1;min-width:140px;font-weight:700;}
   .modal-bg{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(42,33,24,.45);display:flex;align-items:center;justify-content:center;z-index:40;padding:12px;box-sizing:border-box;}
   .modal{background:#FFFDF7;border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow-x:hidden;overflow-y:auto;padding:18px;border:1px solid var(--line);box-sizing:border-box;word-break:break-word;}
 
@@ -284,8 +295,17 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.32 ・ 2026-10-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.33 ・ 2026-10-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.33（2026-10-22）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>報名欄位可設定得更細：每個欄位可加「填寫說明」（顯示在欄位名稱下方）、新增「單選按鈕」「電話」「數字」類型、勾「僅後台」的欄位信眾看不到（例如工作人員備註）</li>
+        <li>新增法會場次時，報名格式可直接選「從現有場次複製」（例如渡祖先、供品贊助），或選範本庫裡的範本；報名資料不會複製</li>
+        <li>常用範本庫：場次管理按「⭐ 存成範本」把欄位、費用、填寫範例、匯出設定存起來；內建再加「一般法會」「補運」範本；「⭐ 範本庫」可改名、刪除</li>
+        <li>LINE：按「💬 LINE 報名格式」依這場的欄位產生報名格式，複製貼到 LINE 群組；信眾照格式回覆後貼回「從 LINE 貼上快速匯入」，會依欄位名稱逐欄對應、下拉／單選自動對到最接近的選項，費用可寫「2位」「兩位」；每場可設 LINE 標題關鍵字自動判斷場次</li>
+        <li>匯出 Excel 依場次設定：「⚙️ 匯出設定」可勾選欄位、調整順序、改標題名稱、選排序，也可依某欄位（例如補運項目）另外分工作表；沒設定的場次照舊</li>
+        <li>舊場次、報名資料、資料庫規則都沒有變更</li>
+      </ul>
       <b>v4.32（2026-10-21）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>場次管理加「📋 複製成新場次」：用現有場次（例如渡祖先法會）當範本，報名欄位、費用／供品項目、填寫說明都複製過去，只要改名稱和日期；報名資料、收款、照片不會複製</li>
@@ -691,6 +711,36 @@ const TEMPLATES = {
       {k:'note', label:'備註', type:'textarea', keywords:['備註']},
     ],
     mode: 'items',
+  },
+  // v4.33：常用範本庫新增「一般法會」「補運」（費用單價先留 0，建立後再依當年金額修改）
+  general: {
+    label: '一般法會',
+    fields: [
+      {k:'reporter', label:'報名者姓名', type:'text', required:true, isShared:true, keywords:['報名者']},
+      {k:'phone', label:'聯絡電話', type:'tel', isShared:true, keywords:['電話','手機']},
+      {k:'attendee', label:'參加者姓名', type:'text', required:true, keywords:['參加者','姓名']},
+      {k:'addr', label:'地址', type:'text', keywords:['地址','住址']},
+      {k:'note', label:'備註', type:'textarea', keywords:['備註']},
+    ],
+    fees: [
+      {k:'person', label:'參加費（每位）', price:0, mode:'qty', keywords:['參加']},
+      {k:'amount', label:'隨喜功德金', price:0, mode:'amount', keywords:['隨喜','功德']},
+    ],
+  },
+  buyun: {
+    label: '補運',
+    fields: [
+      {k:'reporter', label:'報名者姓名', type:'text', required:true, isShared:true, keywords:['報名者']},
+      {k:'phone', label:'聯絡電話', type:'tel', isShared:true, keywords:['電話','手機']},
+      {k:'buyunKind', label:'補運項目', type:'radio', required:true, options:['補運','補運+補財庫'], keywords:['補運項目','補財庫']},
+      {k:'buyunName', label:'補運姓名', type:'text', required:true, help:'同一戶多人請用「、」分開', keywords:['補運姓名','補運名單']},
+      {k:'birthday', label:'農曆生日', type:'text', help:'例：65年3月15日', keywords:['生日','出生']},
+      {k:'buyunAddr', label:'補運地址', type:'text', keywords:['補運地址','地址','住址']},
+      {k:'note', label:'備註', type:'textarea', keywords:['備註']},
+    ],
+    fees: [
+      {k:'buyunFee', label:'補運（每位）', price:0, mode:'qty', keywords:['補運費']},
+    ],
   },
   donation: {
     label: '隨喜/樂捐登記',
@@ -1163,6 +1213,53 @@ function findKeywordAnywhere(lineText, ev, blockHasDaofang){
   return scored[0];
 }
 
+/* v4.33：用「💬 LINE 報名格式」產生的文字，欄位名稱會跟設定一模一樣，先用完全相同的名稱對應（最準）。
+   比對時拿掉括號內的說明、空白，費用項目可在後面多寫「數量／金額」。 */
+function exactLabelKey(s){
+  return lightNormalize(s).replace(/[（(][^）)]*[）)]/g,'').replace(/[\s:：*＊]/g,'');
+}
+function matchExactLabel(label, ev, value){
+  const k = exactLabelKey(label);
+  if(!k) return null;
+  const f = (ev.fields||[]).find(x=>exactLabelKey(x.label)===k);
+  if(f) return {key:f.k, kind:'field'};
+  // 費用項目：名稱後面有寫「數量／金額」，或內容只是數字（例「2」「2位」），才當成費用，
+  // 避免「倒房：王氏」這種其實是姓名的內容被誤當成費用
+  const hasSuffix = /(數量|金額|位數|份數)$/.test(k);
+  const looksNum = /^\s*[\d,，一二兩三四五六七八九十]+\s*(位|份|戶|個|人|元)?\s*$/.test(String(value||''));
+  if(!hasSuffix && !looksNum) return null;
+  const k2 = k.replace(/(數量|金額|位數|份數)$/,'');
+  const fl = (ev.fees||[]).find(x=>{ const fk = exactLabelKey(x.label); return fk===k || fk===k2; });
+  if(fl) return {key:fl.k, kind:'fee'};
+  return null;
+}
+// v4.33：費用數量可寫「2」「2位」「兩位」「3,600元」
+function parseFeeValue(v){
+  const t = String(v==null?'':v).trim();
+  const d = t.replace(/[,，]/g,'').match(/\d+(?:\.\d+)?/);
+  if(d) return Number(d[0])||0;
+  const zh = {'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+  const c = t.match(/[一二兩三四五六七八九十]/);
+  return c ? zh[c[0]] : 0;
+}
+// v4.33：下拉／單選欄位，把 LINE 寫的內容對到最接近的選項（例：「要補財庫」→「補運+補財庫」）
+function snapToOption(f, val){
+  const v = normalizeKeyword(val);
+  if(!v || !(f.options||[]).length) return val;
+  const opts = f.options.map(o=>({o, n:normalizeKeyword(o)})).filter(x=>x.n);
+  const eq = opts.find(x=>x.n===v);
+  if(eq) return eq.o;
+  const inVal = opts.filter(x=>v.includes(x.n)).sort((a,b)=>b.n.length-a.n.length);
+  if(inVal.length) return inVal[0].o;
+  const inOpt = opts.filter(x=>x.n.includes(v));
+  if(inOpt.length===1) return inOpt[0].o;
+  // 最後用「連續相同的字」最長的選項（至少 2 個字，且只有一個最長），例：「要補財庫」→「補運+補財庫」
+  const lcs = (a,b)=>{ let best=0; for(let i=0;i<a.length;i++) for(let j=0;j<b.length;j++){ let k=0; while(a[i+k]&&a[i+k]===b[j+k]) k++; if(k>best) best=k; } return best; };
+  const scored = opts.map(x=>({o:x.o, n:lcs(v, x.n)})).sort((a,b)=>b.n-a.n);
+  if(scored[0].n>=2 && (scored.length===1 || scored[1].n<scored[0].n)) return scored[0].o;
+  return val;
+}
+
 function buildMappedEntries(entries, ev){
   const fields = {}; const fees = {}; const unmapped = [];
   if(!ev){ return {fields, fees, unmapped: entries.slice()}; }
@@ -1175,14 +1272,18 @@ function buildMappedEntries(entries, ev){
     let result = null;
     if(en.label){
       // 這一行有冒號：整行文字（冒號前後都算）搜尋關鍵字，內容值一律取冒號後面的原始文字
-      const m = findKeywordAnywhere(rawFull, ev, blockHasDaofang);
+      const ex = matchExactLabel(en.label, ev, en.value);
+      const m = ex || findKeywordAnywhere(rawFull, ev, blockHasDaofang);
       if(m) result = {key:m.key, kind:m.kind, value:en.value};
     } else {
       // 這一行沒有冒號：用「開頭前綴」比對，抓出關鍵字後面剩下的文字當內容值
       result = matchKeywordPrefix(rawFull, ev);
     }
     if(!result){ unmapped.push(en); return; }
-    if(result.kind==='field') fields[result.key] = result.value;
+    if(result.kind==='field'){
+      const fd = (ev.fields||[]).find(x=>x.k===result.key);
+      fields[result.key] = fd && (fd.type==='select'||fd.type==='radio') ? snapToOption(fd, result.value) : result.value;
+    }
     else fees[result.key] = result.value;
   });
   return {fields, fees, unmapped};
@@ -1242,11 +1343,14 @@ function guessEventForHeader(header){
     liang: ['梁皇','寶懺','蓮位'],
     birthday: ['聖誕','供品','千秋','贊助'],
     donation: ['普渡','隨喜','功德','樂捐','捐款'],
+    buyun: ['補運','補財庫','改運'],
   };
   let best=null, bestScore=0;
   adminOpenEvents().forEach(ev=>{
     let score=0;
     if(ev.name && header.includes(ev.name)) score+=5;
+    // v4.33：每個場次自己設定的「LINE 標題關鍵字」優先
+    (ev.lineKeywords||[]).forEach(k=>{ if(k && header.includes(k)) score+=4; });
     (KEYWORDS[ev.type]||[]).forEach(k=>{ if(header.includes(k)) score+=2; });
     if(score>bestScore){ bestScore=score; best=ev; }
   });
@@ -1266,7 +1370,7 @@ function parseAndBuildPreview(text){
     if(guessedEv){
       Object.assign(fee, autoInferFeeQuantities(guessedEv, mapped.fields));
       Object.assign(fee, guessFees(b.header, guessedEv));
-      Object.keys(mapped.fees).forEach(k=>{ fee[k] = Number(mapped.fees[k])||0; });
+      Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
     }
     return {
       header: b.header,
@@ -1398,7 +1502,8 @@ function renderPublic(){
 
 /* v4.9：電話欄位（欄位名稱含「電話」或「手機」的文字欄位）。報名時不檢查，後台用「清除非電話格式」整理 */
 function isPhoneField(f){
-  return f && f.type!=='select' && f.type!=='textarea' && /電話|手機/.test(f.label||'');
+  if(f && f.type==='tel') return true;  // v4.33：可直接選「電話」類型
+  return f && (f.type||'text')==='text' && /電話|手機/.test(f.label||'');
 }
 const FAKE_PHONES = ['0912345678','0987654321','0123456789','0911222333'];
 // 回傳空字串＝是電話格式；否則回傳原因
@@ -1428,15 +1533,34 @@ function checkPhone(raw){
 function renderFieldInput(f, name){
   if(isPhoneField(f)) return `<input type="text" name="${name}" data-phone inputmode="tel" autocomplete="tel" placeholder="手機 09xx-xxx-xxx 或 市話 05-2xxxxxx">`;
   if(f.type==='textarea') return `<textarea name="${name}"></textarea>`;
-  if(f.type==='select') return `<select name="${name}"><option value="">請選擇</option>${(f.options||[]).map(o=>`<option value="${o.replace(/"/g,'&quot;')}">${o}</option>`).join('')}</select>`;
+  if(f.type==='select') return `<select name="${name}"><option value="">請選擇</option>${(f.options||[]).map(o=>`<option value="${escHtml(o)}">${escHtml(o)}</option>`).join('')}</select>`;
+  // v4.33：單選按鈕（選項少時比下拉好按）
+  if(f.type==='radio') return `<div class="radio-group">${(f.options||[]).map(o=>`<label><input type="radio" name="${name}" value="${escHtml(o)}"> ${escHtml(o)}</label>`).join('')}</div>`;
+  if(f.type==='number') return `<input type="text" name="${name}" inputmode="numeric">`;
   return `<input type="text" name="${name}">`;
 }
+// v4.33：欄位標題＋說明文字（說明顯示在標題下方，小字）
+function fieldLabelHtml(f){
+  return `<label>${escHtml(f.label)}${f.required?' *':''}</label>${f.help?`<div class="field-help">${escHtml(f.help)}</div>`:''}`;
+}
+// v4.33：讀取欄位值（單選按鈕要找被勾的那一個）
+function readFieldValue(root, name){
+  const checked = root.querySelector(`[name="${name}"]:checked`);
+  if(checked) return checked.value.trim();
+  const el = root.querySelector(`[name="${name}"]`);
+  if(!el || el.type==='radio') return '';
+  return (el.value||'').trim();
+}
 
+// v4.33：勾「僅後台」的欄位（例如工作人員備註）信眾報名頁不顯示，後台編輯、匯出照常
 function getSharedFields(ev){
-  return (ev.fields||[]).filter(f=>f.isShared===true);
+  return (ev.fields||[]).filter(f=>f.isShared===true && !f.adminOnly);
 }
 function getRepeatFields(ev){
-  return (ev.fields||[]).filter(f=>f.isShared!==true);
+  return (ev.fields||[]).filter(f=>f.isShared!==true && !f.adminOnly);
+}
+function getPublicFields(ev){
+  return (ev.fields||[]).filter(f=>!f.adminOnly);
 }
 
 function renderPersonBlockHtml(ev, blockIdx){
@@ -1447,7 +1571,7 @@ function renderPersonBlockHtml(ev, blockIdx){
     <button type="button" class="btn btn-danger btn-sm person-remove-btn" data-block="${blockIdx}" style="display:none;">移除此位</button>
   </div>`;
   repeatFields.forEach(f=>{
-    html += `<div class="field"><label>${f.label}${f.required?' *':''}</label>${renderFieldInput(f, `pf_${blockIdx}_${f.k}`)}</div>`;
+    html += `<div class="field">${fieldLabelHtml(f)}${renderFieldInput(f, `pf_${blockIdx}_${f.k}`)}</div>`;
   });
   if((ev.fees||[]).length){
     html += `<label>費用項目</label>`;
@@ -1481,9 +1605,9 @@ function renderPublicForm(ev){
   }
   html += `<form id="publicForm">`;
 
-  const sharedFields = ev.mode==='items' ? (ev.fields||[]) : getSharedFields(ev);
+  const sharedFields = ev.mode==='items' ? getPublicFields(ev) : getSharedFields(ev);
   sharedFields.forEach(f=>{
-    html += `<div class="field"><label>${f.label}${f.required?' *':''}</label>${renderFieldInput(f, f.k)}</div>`;
+    html += `<div class="field">${fieldLabelHtml(f)}${renderFieldInput(f, f.k)}</div>`;
   });
 
   if(ev.mode==='items'){
@@ -1845,6 +1969,7 @@ function renderImportPanel(){
   let html = `<div class="card"><h2>從 LINE 貼上快速匯入</h2>
     <p class="hint">依「貼上文字裡的關鍵字」自動比對到對應的欄位（不是依行數順序）——例如貼上的內容裡有「報名者」，就會自動對應到「報名者姓名」欄位，不管它出現在第幾行。兩筆報名資料之間留一行空白，系統就會視為不同一位報名者；沒留空行但編號重新從「1.」開始，也會自動判斷為下一位。下方每個欄位都可以直接修改內容，確認無誤後再按「確認並產生報名資料」送出到後台，不會自動送出。</p>`;
   if(curEv){
+    html += `<p class="hint">💡 先在場次管理按「💬 LINE 報名格式」複製格式貼到 LINE 群組，信眾照格式回覆，貼回這裡就能逐欄對應。</p>`;
     html += `<p class="hint"><b>${curEv.name}</b> 目前的關鍵字對應（欄位　←　會觸發對應的關鍵字）：<br>${renderKeywordSummary(curEv).join('　｜　')}</p>
     <p class="hint">如果要新增/修改關鍵字，請到「編輯報名欄位／費用」裡調整。</p>`;
   }
@@ -1921,6 +2046,7 @@ function renderEventManager(){
   html += `<div class="event-pick">`;
   draftEvs.forEach(e=>{ html += chip(e); });
   html += `<div class="event-chip" id="newEventBtn" style="border-style:dashed;">＋ 新增法會場次</div>`;
+  html += `<div class="event-chip" id="tplLibBtn" style="border-style:dashed;">⭐ 範本庫</div>`;
   html += `</div>`;
   html += `<div class="hint" style="margin:0 0 6px;">開放報名中（報名網站看得到）</div>`;
   html += `<div class="event-pick">${openEvs.length ? openEvs.map(chip).join('') : '<span class="hint" style="margin:0;">目前沒有開放報名的場次</span>'}</div>`;
@@ -1938,7 +2064,10 @@ function renderEventManager(){
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
+      <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
+      <button class="btn btn-ghost btn-sm" id="lineFmtBtn">💬 LINE 報名格式</button>
       <button class="btn btn-ghost btn-sm" id="exportBtn">匯出 Excel</button>
+      <button class="btn btn-ghost btn-sm" id="exportCfgBtn">⚙️ 匯出設定</button>
       <button class="btn btn-danger btn-sm" id="deleteEventBtn">刪除此場次</button>
     </div>`;
   }
@@ -3189,6 +3318,15 @@ function bindEvents(){
   if(newBtn) newBtn.onclick = openNewEventModal;
   const copyEventBtn = document.getElementById('copyEventBtn');
   if(copyEventBtn) copyEventBtn.onclick = ()=>openCopyEventModal(adminSelectedEvent);
+  // v4.33：範本庫、LINE 報名格式、匯出設定
+  const saveTplBtn = document.getElementById('saveTplBtn');
+  if(saveTplBtn) saveTplBtn.onclick = ()=>openSaveTemplateModal(adminSelectedEvent);
+  const tplLibBtn = document.getElementById('tplLibBtn');
+  if(tplLibBtn) tplLibBtn.onclick = ()=>openTemplateLibrary();
+  const lineFmtBtn = document.getElementById('lineFmtBtn');
+  if(lineFmtBtn) lineFmtBtn.onclick = ()=>openLineFormatModal(adminSelectedEvent);
+  const exportCfgBtn = document.getElementById('exportCfgBtn');
+  if(exportCfgBtn) exportCfgBtn.onclick = ()=>openExportSettings(adminSelectedEvent);
 
   const editFieldsBtn = document.getElementById('editFieldsBtn');
   if(editFieldsBtn) editFieldsBtn.onclick = ()=>openFieldEditor(adminSelectedEvent);
@@ -3468,7 +3606,7 @@ function bindEvents(){
       if(ev){
         Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
         Object.assign(fee, guessFees(importBlocks[bi].header, ev));
-        Object.keys(mapped.fees).forEach(k=>{ fee[k] = Number(mapped.fees[k])||0; });
+        Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
       }
       importBlocks[bi].fee = fee;
       importBlocks[bi].include = !!ev;
@@ -3532,8 +3670,7 @@ function autoFillBlockFees(ev, blockEl){
   const blockIdx = blockEl.dataset.block;
   const fieldValues = {};
   getRepeatFields(ev).forEach(f=>{
-    const inp = blockEl.querySelector(`[name="pf_${blockIdx}_${f.k}"]`);
-    if(inp) fieldValues[f.k] = inp.value.trim();
+    fieldValues[f.k] = readFieldValue(blockEl, `pf_${blockIdx}_${f.k}`);
   });
   const inferred = autoInferFeeQuantities(ev, fieldValues);
   Object.keys(inferred).forEach(feeKey=>{
@@ -3561,11 +3698,11 @@ async function submitPublicForm(pf){
     const ev = events.find(e=>e.id===publicSelectedEvent);
     if(!ev){ showToast('找不到此場次，請重新整理頁面後再試'); return; }
     const fieldsDef = ev.fields||[];
-    const sharedFields = ev.mode==='items' ? fieldsDef : getSharedFields(ev);
+    const sharedFields = ev.mode==='items' ? getPublicFields(ev) : getSharedFields(ev);
     const repeatFields = getRepeatFields(ev);
 
     const sharedF = {};
-    sharedFields.forEach(fl=>{ sharedF[fl.k] = (pf.querySelector(`[name="${fl.k}"]`)||{}).value?.trim() || ''; });
+    sharedFields.forEach(fl=>{ sharedF[fl.k] = readFieldValue(pf, fl.k); });
     const missingShared = sharedFields.filter(fl=>fl.required && !sharedF[fl.k]);
     if(missingShared.length){
       showToast('請填寫必填欄位：' + missingShared.map(m=>m.label).join('、'), 3000);
@@ -3588,7 +3725,7 @@ async function submitPublicForm(pf){
         const idx = blockEl.dataset.block;
         const visibleFields = repeatFields;
         const blockF = {};
-        visibleFields.forEach(fl=>{ blockF[fl.k] = (blockEl.querySelector(`[name="pf_${idx}_${fl.k}"]`)||{}).value?.trim() || ''; });
+        visibleFields.forEach(fl=>{ blockF[fl.k] = readFieldValue(blockEl, `pf_${idx}_${fl.k}`); });
         const blockFee = {};
         (ev.fees||[]).forEach(fl=>{ blockFee[fl.k] = Number((blockEl.querySelector(`[name="pf_${idx}_fee_${fl.k}"]`)||{}).value)||0; });
 
@@ -3657,75 +3794,117 @@ async function clearBadPhones(eventId){
   showToast(failed ? `已清除 ${done} 筆，${failed} 筆失敗，請再按一次` : `已清除 ${done} 筆非電話格式的電話`, 4000);
 }
 
+/* v4.33：常用範本庫（存在 kv/eventTemplates，只有欄位格式、沒有報名資料或個資） */
+let customTemplates = null;
+async function loadCustomTemplates(force){
+  if(customTemplates && !force) return customTemplates;
+  try{
+    const r = await window.storage.get('eventTemplates', STORE_SHARED);
+    const arr = JSON.parse(r.value);
+    customTemplates = Array.isArray(arr) ? arr : [];
+  }catch(e){ customTemplates = []; }
+  return customTemplates;
+}
+async function saveCustomTemplates(list){
+  try{
+    await window.storage.set('eventTemplates', JSON.stringify(list), STORE_SHARED);
+    customTemplates = list;
+    return true;
+  }catch(e){
+    console.error('saveCustomTemplates', e);
+    showToast('⚠️ 範本儲存失敗：'+(e && e.message ? e.message : '未知錯誤'), 5000);
+    return false;
+  }
+}
+// 只取「格式」：欄位、費用／供品項目、確認欄名稱、填寫範例、LINE 關鍵字、匯出設定
+function eventFormatSnapshot(src){
+  const mode = src.mode==='items' ? 'items' : 'fees';
+  const snap = {
+    type: src.type || 'custom', mode,
+    fields: JSON.parse(JSON.stringify(src.fields||[])),
+    confirmLabel: src.confirmLabel || '登記資料確認',
+  };
+  if(mode==='items') snap.items = JSON.parse(JSON.stringify(src.items||[]));
+  else snap.fees = JSON.parse(JSON.stringify(src.fees||[]));
+  if(src.exampleNote) snap.exampleNote = src.exampleNote;
+  if(src.lineKeywords && src.lineKeywords.length) snap.lineKeywords = src.lineKeywords.slice();
+  if(src.exportCfg) snap.exportCfg = JSON.parse(JSON.stringify(src.exportCfg));
+  return snap;
+}
+function templateSummary(t){
+  const nf = (t.fields||[]).length;
+  const extra = t.mode==='items' ? `${(t.items||[]).length} 個供品` : `${(t.fees||[]).length} 個費用項目`;
+  return `${nf} 個欄位、${extra}`;
+}
+
 /* ---------------- modals ---------------- */
-function openNewEventModal(){
+async function openNewEventModal(){
+  const custom = await loadCustomTemplates(true);
+  const builtinOpts = [
+    ['ancestor','祭拜祖先（一戶/倒房/地基主/金紙）'],
+    ['liang','梁皇寶懺（主蓮位/副蓮位）'],
+    ['general','一般法會（參加者姓名、電話、隨喜）'],
+    ['buyun','補運（補運／補運+補財庫、地址、生日）'],
+    ['donation','隨喜/樂捐登記（單純金額贊助，如普渡功德金）'],
+    ['blank','空白樣板（自行從零設計欄位）'],
+  ];
+  const evOpts = events.slice().reverse();
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<div class="modal">
     <h2 style="font-family:'Noto Serif TC';margin:0 0 14px;">新增法會場次</h2>
     <div class="field"><label>場次名稱</label><input type="text" id="m_name" placeholder="例：115年中元祭拜祖先法會"></div>
+    <div class="field"><label>報名格式從哪裡來（建立後欄位/費用都可再自行編輯）</label>
+      <select id="m_type">
+        <optgroup label="內建範本">
+          ${builtinOpts.map(([k,l])=>`<option value="b:${k}">${l}</option>`).join('')}
+        </optgroup>
+        ${custom.length ? `<optgroup label="我的範本庫">${custom.map(t=>`<option value="t:${t.id}">⭐ ${escHtml(t.label)}（${templateSummary(t)}）</option>`).join('')}</optgroup>` : ''}
+        ${evOpts.length ? `<optgroup label="從現有場次複製格式（不含報名資料）">${evOpts.map(e=>`<option value="e:${e.id}">📋 ${escHtml(e.name)}${e.active===false?'（已結束）':e.draft?'（準備中）':''}</option>`).join('')}</optgroup>` : ''}
+      </select>
+      <div class="hint" id="m_typeHint"></div>
+    </div>
     <div class="grid2">
-      <div class="field"><label>起始樣板（建立後欄位/費用都可再自行編輯）</label>
-        <select id="m_type">
-          <option value="ancestor">祭拜祖先（一戶/倒房/地基主/金紙）</option>
-          <option value="liang">梁皇寶懺（主蓮位/副蓮位）</option>
-          <option value="donation">隨喜/樂捐登記（單純金額贊助，如普渡功德金）</option>
-          <option value="blank">空白樣板（自行從零設計欄位）</option>
-        </select>
-      </div>
       <div class="field"><label>日期</label><input type="text" id="m_date" placeholder="例：115/8/16（農曆七月初四）"></div>
+      <div class="field"><label>備註</label><input type="text" id="m_note" placeholder="選填"></div>
     </div>
-    <div class="field"><label>備註</label><input type="text" id="m_note" placeholder="選填"></div>
-    <div id="m_itemsWrap" style="display:none;">
-      <label>供品項目（每列：名稱 / 單價 / 總數量）</label>
-      <div id="m_items"></div>
-      <button type="button" class="btn btn-ghost btn-sm" id="m_addItem">＋ 新增供品項目</button>
-    </div>
-    <p class="hint">建立場次後，可以隨時在「編輯報名欄位／費用」中新增、刪除、修改欄位與費用項目，不受樣板限制。</p>
+    <p class="hint">新場次一律先是「準備中」，報名網站看不到，編輯好再按「✅ 開放報名」。常用的格式可在場次管理按「⭐ 存成範本」，以後新增場次直接選。</p>
     <div class="row-actions" style="margin-top:18px;">
       <button class="btn btn-primary" id="m_save">建立場次</button>
       <button class="btn btn-ghost" id="m_cancel">取消</button>
     </div>
   </div>`;
   document.body.appendChild(bg);
-  const itemsWrap = bg.querySelector('#m_itemsWrap');
-  const itemsList = bg.querySelector('#m_items');
-  function addItemRow(name='',price='',total=''){
-    const row = document.createElement('div');
-    row.style.cssText='display:flex;gap:6px;margin-bottom:6px;';
-    row.innerHTML = `<input type="text" placeholder="名稱" value="${name}" class="mi_name" style="flex:2">
-      <input type="number" placeholder="單價" value="${price}" class="mi_price" style="flex:1">
-      <input type="number" placeholder="總數量" value="${total}" class="mi_total" style="flex:1">
-      <button type="button" class="btn btn-danger btn-sm mi_del">刪</button>`;
-    row.querySelector('.mi_del').onclick = ()=>row.remove();
-    itemsList.appendChild(row);
+  const sel = bg.querySelector('#m_type');
+  function sourceOf(v){
+    const kind = v.slice(0,2), id = v.slice(2);
+    if(kind==='b:'){
+      const tpl = TEMPLATES[id];
+      return tpl ? {type:id, mode: tpl.mode==='items'?'items':'fees', fields:tpl.fields, fees:tpl.fees||[], items:[], confirmLabel:tpl.confirmLabel} : null;
+    }
+    if(kind==='t:') return custom.find(t=>t.id===id) || null;
+    if(kind==='e:'){ const e = events.find(x=>x.id===id); return e ? eventFormatSnapshot(e) : null; }
+    return null;
   }
-  bg.querySelector('#m_addItem').onclick = ()=>addItemRow();
-  bg.querySelector('#m_type').onchange = (e)=>{
-    itemsWrap.style.display = e.target.value==='birthday' ? 'block' : 'none';
-    if(e.target.value==='birthday' && !itemsList.children.length) addItemRow();
-  };
+  function updHint(){
+    const src = sourceOf(sel.value);
+    const h = bg.querySelector('#m_typeHint');
+    if(!src){ h.textContent=''; return; }
+    h.textContent = '欄位：' + (src.fields||[]).map(f=>f.label).join('、') + (src.mode==='items' ? `；供品 ${(src.items||[]).length} 項` : ((src.fees||[]).length ? '；費用：'+src.fees.map(f=>f.label).join('、') : ''));
+  }
+  sel.onchange = updHint; updHint();
   bg.querySelector('#m_cancel').onclick = ()=>bg.remove();
   bg.querySelector('#m_save').onclick = async ()=>{
     const name = bg.querySelector('#m_name').value.trim();
     if(!name){ showToast('請輸入場次名稱'); return; }
-    const type = bg.querySelector('#m_type').value;
-    const tpl = TEMPLATES[type];
+    const src = sourceOf(sel.value);
+    if(!src){ showToast('請選擇報名格式'); return; }
+    const snap = eventFormatSnapshot(src);
     const evObj = {
-      id:uid(), name, type, date:bg.querySelector('#m_date').value.trim(), note:bg.querySelector('#m_note').value.trim(),
-      active:true, draft:true, mode: tpl.mode==='items' ? 'items' : 'fees',  // v4.31：新場次先是準備中
-      fields: JSON.parse(JSON.stringify(tpl.fields)),
-      confirmLabel: tpl.confirmLabel || '登記資料確認',
+      id:uid(), name, date:bg.querySelector('#m_date').value.trim(), note:bg.querySelector('#m_note').value.trim(),
+      active:true, draft:true,  // v4.31：新場次先是準備中
+      ...snap,
     };
-    if(evObj.mode==='items'){
-      evObj.items = Array.from(itemsList.children).map(row=>({
-        name: row.querySelector('.mi_name').value.trim(),
-        price: Number(row.querySelector('.mi_price').value)||0,
-        total: Number(row.querySelector('.mi_total').value)||0,
-      })).filter(it=>it.name);
-    } else {
-      evObj.fees = JSON.parse(JSON.stringify(tpl.fees||[]));
-    }
     events.push(evObj);
     const ok = await saveEvents();
     if(!ok){ events = events.filter(e=>e.id!==evObj.id); return; }
@@ -3734,6 +3913,76 @@ function openNewEventModal(){
     render();
     showToast('已建立法會場次（準備中，編輯好再按「開放報名」）', 3500);
   };
+}
+
+// v4.33：把目前場次的格式存進範本庫（同名就覆蓋）
+async function openSaveTemplateModal(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const list = (await loadCustomTemplates(true)).slice();
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 6px;">⭐ 存成範本</h2>
+    <p class="hint" style="margin:0 0 12px;">把「${escHtml(ev.name)}」的報名欄位、費用／供品項目、填寫範例、LINE 關鍵字、匯出設定存成範本。<b>不含任何報名資料。</b>以後「新增法會場次」可直接選這個範本。</p>
+    <div class="field"><label>範本名稱</label><input type="text" id="st_name" placeholder="例：渡祖先法會、補運、供品贊助"></div>
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" id="st_save">存成範本</button>
+      <button class="btn btn-ghost" id="st_cancel">取消</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const inp = bg.querySelector('#st_name');
+  inp.value = String(ev.name||'').replace(/^\s*(?:民國)?\s*1[0-4]\d\s*年?\s*/,'').replace(/（複製）/g,'').trim();
+  setTimeout(()=>{ inp.focus(); inp.select(); }, 30);
+  bg.querySelector('#st_cancel').onclick = ()=>bg.remove();
+  bg.querySelector('#st_save').onclick = async ()=>{
+    const label = inp.value.trim();
+    if(!label){ showToast('請輸入範本名稱'); return; }
+    const idx = list.findIndex(t=>String(t.label).trim()===label);
+    if(idx>=0 && !(await showConfirm(`範本庫已經有「${escHtml(label)}」，要用這個場次的格式覆蓋嗎？`))) return;
+    const tpl = {id: idx>=0 ? list[idx].id : uid(), label, ...eventFormatSnapshot(ev), savedAt: Date.now(), savedBy: (staff && staff.name) || ''};
+    if(idx>=0) list[idx] = tpl; else list.push(tpl);
+    if(!(await saveCustomTemplates(list))) return;
+    bg.remove();
+    showToast(`已存成範本「${label}」`, 3000);
+  };
+}
+
+// v4.33：範本庫管理（改名、刪除；內建範本不能刪）
+async function openTemplateLibrary(){
+  await loadCustomTemplates(true);
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  function draw(){
+    const list = customTemplates||[];
+    bg.innerHTML = `<div class="modal">
+      <h2 style="font-family:'Noto Serif TC';margin:0 0 6px;">⭐ 範本庫</h2>
+      <p class="hint" style="margin:0 0 12px;">新增法會場次時可以選這些範本。要新增範本：先選一個場次，按「⭐ 存成範本」。刪除範本不會影響已建立的場次。</p>
+      ${list.length ? `<ul class="tpl-list">${list.map(t=>`<li>
+        <span class="nm">${escHtml(t.label)}<div class="hint" style="font-weight:400;margin:0;">${templateSummary(t)}${t.savedAt?'・'+new Date(t.savedAt).toLocaleDateString('zh-TW'):''}${t.savedBy?'・'+escHtml(t.savedBy):''}</div></span>
+        <button class="btn btn-ghost btn-sm" data-tren="${t.id}">改名</button>
+        <button class="btn btn-danger btn-sm" data-tdel="${t.id}">刪除</button>
+      </li>`).join('')}</ul>` : `<div class="empty">範本庫還是空的。</div>`}
+      <p class="hint">內建範本：祭拜祖先、梁皇寶懺、一般法會、補運、隨喜/樂捐、空白樣板（固定提供，不能刪）。</p>
+      <div class="row-actions" style="margin-top:14px;"><button class="btn btn-ghost" id="tl_close">關閉</button></div>
+    </div>`;
+    bg.querySelector('#tl_close').onclick = ()=>bg.remove();
+    bg.querySelectorAll('[data-tren]').forEach(b=>b.onclick = async ()=>{
+      const t = list.find(x=>x.id===b.dataset.tren);
+      const nv = prompt('新的範本名稱', t.label);
+      if(nv===null || !nv.trim()) return;
+      const nl = list.map(x=>x.id===t.id ? {...x, label:nv.trim()} : x);
+      if(await saveCustomTemplates(nl)) draw();
+    });
+    bg.querySelectorAll('[data-tdel]').forEach(b=>b.onclick = async ()=>{
+      const t = list.find(x=>x.id===b.dataset.tdel);
+      if(!(await showConfirm(`確定要從範本庫刪除「${escHtml(t.label)}」嗎？（已建立的場次不受影響）`))) return;
+      if(await saveCustomTemplates(list.filter(x=>x.id!==t.id))) draw();
+    });
+  }
+  draw();
+  document.body.appendChild(bg);
 }
 
 // v4.32：用現有場次當範本，複製報名欄位、費用／供品項目、說明，產生新的準備中場次。
@@ -3809,6 +4058,11 @@ function openFieldEditor(eventId){
         <button type="button" class="btn btn-ghost btn-sm" id="fe_addFee">＋ 新增費用項目</button>
       `}
     </div>
+    <div class="field" style="margin-top:18px;">
+      <label>LINE 貼上時辨認這個場次的關鍵字（逗號分隔，選填）</label>
+      <input type="text" id="fe_lineKw" value="${escHtml((ev.lineKeywords||[]).join(','))}" placeholder="例：渡祖先,中元,超薦">
+      <div class="hint">LINE 訊息第一行（標題）出現這些字，「從 LINE 貼上快速匯入」就會自動歸到這個場次。</div>
+    </div>
     <div class="row-actions" style="margin-top:18px;">
       <button class="btn btn-primary" id="fe_save">儲存變更</button>
       <button class="btn btn-ghost" id="fe_cancel">取消</button>
@@ -3820,7 +4074,7 @@ function openFieldEditor(eventId){
   function addFieldRow(f){
     f = f || {k:'f_'+uid(), label:'', type:'text', required:false, options:[]};
     const row = document.createElement('div');
-    row.style.cssText='display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;';
+    row.style.cssText='display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line);flex-wrap:wrap;';
     row.dataset.key = f.k;
     row.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:2px;">
@@ -3832,19 +4086,26 @@ function openFieldEditor(eventId){
         <option value="text" ${f.type==='text'?'selected':''}>單行文字</option>
         <option value="textarea" ${f.type==='textarea'?'selected':''}>多行文字</option>
         <option value="select" ${f.type==='select'?'selected':''}>下拉選單</option>
+        <option value="radio" ${f.type==='radio'?'selected':''}>單選按鈕</option>
+        <option value="tel" ${f.type==='tel'?'selected':''}>電話</option>
+        <option value="number" ${f.type==='number'?'selected':''}>數字</option>
       </select>
-      <input type="text" class="ff_options" placeholder="選項，用逗號分隔，如：LINE,電話,現場,其他" value="${(f.options||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:160px;${f.type==='select'?'':'display:none;'}">
+      <input type="text" class="ff_options" placeholder="選項，用逗號分隔，如：補運,補運+補財庫" value="${(f.options||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:160px;${f.type==='select'||f.type==='radio'?'':'display:none;'}">
       <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;">
         <input type="checkbox" class="ff_req" ${f.required?'checked':''}> 必填
       </label>
       <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;" title="勾選後，這個欄位會顯示在報名表最上方的共用區塊，整張表單只需填一次（例如報名者姓名、聯絡電話）。不勾選則屬於「每一位」都要填的欄位，第1位跟之後按「新增一位」加入的每一位都會看到它">
         <input type="checkbox" class="ff_shared" ${f.isShared===true?'checked':''}> 共用欄位（只填一次，顯示於最上方）
       </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;" title="勾選後信眾報名頁不顯示這個欄位，只在後台編輯、匯出時使用（例如工作人員備註、牌位編號）">
+        <input type="checkbox" class="ff_admin" ${f.adminOnly?'checked':''}> 僅後台
+      </label>
+      <input type="text" class="ff_help" placeholder="填寫說明（選填，顯示在欄位名稱下方），如：請寫祖先牌位上的姓氏" value="${(f.help||'').replace(/"/g,'&quot;')}" style="flex:3;min-width:200px;">
       <input type="text" class="ff_keywords" placeholder="LINE貼上比對關鍵字，逗號分隔，如：報名者" value="${(f.keywords||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:180px;" title="從LINE貼上快速匯入時，貼上內容裡只要包含這些關鍵字之一，就會自動對應到這個欄位。留空則預設用「欄位名稱」本身當關鍵字">
       <button type="button" class="btn btn-danger btn-sm ff_del">刪</button>`;
     row.querySelector('.ff_del').onclick = ()=>row.remove();
     row.querySelector('.ff_type').addEventListener('change', e=>{
-      row.querySelector('.ff_options').style.display = e.target.value==='select' ? '' : 'none';
+      row.querySelector('.ff_options').style.display = (e.target.value==='select'||e.target.value==='radio') ? '' : 'none';
     });
     row.querySelector('.ff_up').onclick = ()=>{
       const prev = row.previousElementSibling;
@@ -3914,14 +4175,20 @@ function openFieldEditor(eventId){
         isShared: row.querySelector('.ff_shared').checked,
         keywords: row.querySelector('.ff_keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
       };
-      if(type==='select'){
-        obj.options = row.querySelector('.ff_options').value.split(',').map(s=>s.trim()).filter(Boolean);
+      if(type==='select' || type==='radio'){
+        obj.options = row.querySelector('.ff_options').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
       }
+      const help = row.querySelector('.ff_help').value.trim();
+      if(help) obj.help = help;
+      if(row.querySelector('.ff_admin').checked) obj.adminOnly = true;
       return obj;
     }).filter(f=>f.label);
     if(!newFields.length){ showToast('至少需要一個欄位'); return; }
-    const backup = {fields: ev.fields, items: ev.items, fees: ev.fees};
+    const backup = {fields: ev.fields, items: ev.items, fees: ev.fees, lineKeywords: ev.lineKeywords};
+    const badOpt = newFields.find(f=>(f.type==='select'||f.type==='radio') && !(f.options||[]).length);
+    if(badOpt){ showToast(`「${badOpt.label}」是選單／單選，請填選項（用逗號分隔）`, 3500); return; }
     ev.fields = newFields;
+    ev.lineKeywords = bg.querySelector('#fe_lineKw').value.split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
     if(ev.mode==='items'){
       ev.items = Array.from(itemsWrap.children).map(row=>({
         name: row.querySelector('.mi_name').value.trim(),
@@ -3938,7 +4205,7 @@ function openFieldEditor(eventId){
       })).filter(fl=>fl.label);
     }
     const ok = await saveEvents();
-    if(!ok){ ev.fields = backup.fields; ev.items = backup.items; ev.fees = backup.fees; return; }
+    if(!ok){ ev.fields = backup.fields; ev.items = backup.items; ev.fees = backup.fees; ev.lineKeywords = backup.lineKeywords; return; }
     bg.remove();
     render();
     showToast('已更新報名欄位設定');
@@ -4353,9 +4620,14 @@ function openEditModal(eventId, rec){
   bg.className = 'modal-bg';
   let inner = `<h2 style="font-family:'Noto Serif TC';margin:0 0 14px;">編輯報名資料</h2>`;
   (ev.fields||[]).forEach(f=>{
-    inner += `<div class="field"><label>${f.label}</label>`;
+    inner += `<div class="field"><label>${escHtml(f.label)}${f.adminOnly?'（僅後台）':''}</label>`;
     if(f.type==='textarea') inner += `<textarea class="e_${f.k}">${rec.f[f.k]||''}</textarea>`;
-    else if(f.type==='select') inner += `<select class="e_${f.k}"><option value="">請選擇</option>${(f.options||[]).map(o=>`<option value="${o.replace(/"/g,'&quot;')}" ${rec.f[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    else if(f.type==='select' || f.type==='radio'){
+      // v4.33：舊資料不在選項裡時保留原值當選項，不會被清掉
+      const cur = rec.f[f.k]||'';
+      const opts = (f.options||[]).slice(); if(cur && !opts.includes(cur)) opts.push(cur);
+      inner += `<select class="e_${f.k}"><option value="">請選擇</option>${opts.map(o=>`<option value="${escHtml(o)}" ${cur===o?'selected':''}>${escHtml(o)}</option>`).join('')}</select>`;
+    }
     else inner += `<input type="text" class="e_${f.k}" value="${(rec.f[f.k]||'').replace(/"/g,'&quot;')}">`;
     inner += `</div>`;
   });
@@ -4407,28 +4679,204 @@ function openEditModal(eventId, rec){
 }
 
 /* ---------------- export ---------------- */
+/* v4.33：匯出 Excel 可依場次設定欄位（要不要、順序、標題名稱）、排序、依某欄位分工作表。
+   沒設定過的場次照舊版欄位匯出。設定存在場次的 exportCfg（只有格式，沒有個資）。 */
+function exportColDefs(ev){
+  const fieldCols = (ev.fields||[]).map(f=>({id:'f:'+f.k, label:f.label, get:(r,it,j)=> j>0 ? '' : ((r.f||{})[f.k]||'')}));
+  const created = {id:'created', label:'報名時間', off:true, get:(r,it,j)=> j>0||!r.createdAt ? '' : new Date(r.createdAt).toLocaleString('zh-TW',{hour12:false})};
+  if(ev.mode==='items'){
+    return [
+      {id:'no', label:'編號', get:(r,it,j,i)=> j===0 ? i+1 : ''},
+      {id:'itemNo', label:'項次', get:(r,it)=> it ? it.itemIdx+1 : ''},
+      {id:'itemName', label:'品項名稱', get:(r,it)=> it ? it.itemName : ''},
+      {id:'price', label:'單價', get:(r,it)=> it ? it.price : ''},
+      ...fieldCols,
+      {id:'qty', label:'數量', get:(r,it)=> it ? it.qty : ''},
+      {id:'amount', label:'金額', get:(r,it)=> it ? it.qty*it.price : ''},
+      {id:'paid', label:'收款確認', get:(r,it,j)=> j===0 && r.paid ? '已收' : ''},
+      created,
+    ];
+  }
+  return [
+    {id:'no', label:'編號', get:(r,it,j,i)=> i+1},
+    ...fieldCols,
+    ...(ev.fees||[]).map(fl=>({id:'fee:'+fl.k, label: fl.label+(fl.mode==='amount'?'':`${fl.price}元`), get:r=>(r.fee||{})[fl.k]||''})),
+    {id:'total', label:'總費用', get:r=>r.total},
+    {id:'paid', label:'會計收款確認及金額', get:r=>r.paid?'已收':''},
+    {id:'confirmed', label: ev.confirmLabel||'登記資料確認', get:r=>r.confirmed?'OK':''},
+    created,
+  ];
+}
+// 目前場次的欄位清單＋已存的設定合併：已存的照順序，新加的欄位排在後面（預設勾選）
+function resolveExportCols(ev){
+  const defs = exportColDefs(ev);
+  const cfg = ev.exportCfg || {};
+  const out = [];
+  (cfg.cols||[]).forEach(c=>{
+    const d = defs.find(x=>x.id===c.id);
+    if(d && !out.some(o=>o.def.id===d.id)) out.push({def:d, on:c.on!==false, title:c.title||''});
+  });
+  defs.forEach(d=>{ if(!out.some(o=>o.def.id===d.id)) out.push({def:d, on: !d.off, title:''}); });
+  return out;
+}
+function safeSheetName(name, used){
+  let base = String(name||'未填').replace(/[\\\/\?\*\[\]:]/g,'').slice(0,28) || '未填';
+  let n = base, i = 2;
+  while(used.has(n)){ n = base.slice(0,25)+'_'+(i++); }
+  used.add(n);
+  return n;
+}
+function buildExportSheet(ev, regs, cols){
+  const headers = cols.map(c=>c.title || c.def.label);
+  const rows = [];
+  regs.forEach((r,i)=>{
+    if(ev.mode==='items'){
+      const its = (r.items||[]).length ? r.items : [null];
+      its.forEach((it,j)=> rows.push(cols.map(c=>c.def.get(r,it,j,i))));
+    } else {
+      rows.push(cols.map(c=>c.def.get(r,null,0,i)));
+    }
+  });
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map((h,ci)=>{
+    const w = Math.max(String(h).length*2, ...rows.slice(0,200).map(rw=>String(rw[ci]==null?'':rw[ci]).length*1.6));
+    return {wch: Math.min(40, Math.max(6, Math.ceil(w)))};
+  });
+  return ws;
+}
 function exportExcel(eventId){
   const ev = events.find(e=>e.id===eventId);
-  const regs = regsCache[eventId]||[];
-  let headers, rows = [];
-  if(ev.mode==='items'){
-    headers = ['編號','項次','品項名稱','單價', ...(ev.fields||[]).map(f=>f.label), '數量','金額','收款確認'];
-    regs.forEach((r,i)=>{
-      (r.items||[]).forEach((it,j)=>{
-        rows.push([j===0?i+1:'', it.itemIdx+1, it.itemName, it.price, ...(ev.fields||[]).map(f=>j===0?(r.f[f.k]||''):''), it.qty, it.qty*it.price, r.paid?'已收':'']);
-      });
-    });
-  } else {
-    headers = ['編號', ...(ev.fields||[]).map(f=>f.label), ...(ev.fees||[]).map(fl=>fl.label+(fl.mode==='amount'?'':`${fl.price}元`)), '總費用','會計收款確認及金額', ev.confirmLabel||'登記資料確認'];
-    regs.forEach((r,i)=>{
-      rows.push([i+1, ...(ev.fields||[]).map(f=>r.f[f.k]||''), ...(ev.fees||[]).map(fl=>r.fee[fl.k]||''), r.total, r.paid?'已收':'', r.confirmed?'OK':'']);
-    });
+  let regs = (regsCache[eventId]||[]).slice();
+  const cfg = ev.exportCfg || {};
+  const cols = resolveExportCols(ev).filter(c=>c.on);
+  if(!cols.length){ showToast('匯出設定沒有勾任何欄位，請到「⚙️ 匯出設定」勾選'); return; }
+  if(cfg.sortBy){
+    const val = r=> cfg.sortBy==='created' ? (Number(r.createdAt)||0) : String((r.f||{})[cfg.sortBy.slice(2)]||'');
+    regs.sort((a,b)=>{ const x=val(a), y=val(b); return typeof x==='number' ? x-y : String(x).localeCompare(String(y),'zh-Hant'); });
   }
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, ev.name.slice(0,28));
+  const used = new Set();
+  XLSX.utils.book_append_sheet(wb, buildExportSheet(ev, regs, cols), safeSheetName(cfg.splitBy ? '全部' : ev.name, used));
+  if(cfg.splitBy){
+    const key = cfg.splitBy.slice(2);
+    const fd = (ev.fields||[]).find(f=>f.k===key);
+    const groups = new Map();
+    if(fd && (fd.options||[]).length) fd.options.forEach(o=>groups.set(o, []));
+    regs.forEach(r=>{ const v = String((r.f||{})[key]||'').trim() || '未填'; if(!groups.has(v)) groups.set(v, []); groups.get(v).push(r); });
+    groups.forEach((list, v)=>{ if(list.length) XLSX.utils.book_append_sheet(wb, buildExportSheet(ev, list, cols), safeSheetName(v, used)); });
+  }
   XLSX.writeFile(wb, ev.name+'.xlsx');
   showToast('已匯出 Excel');
+}
+function openExportSettings(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const cols = resolveExportCols(ev);
+  const cfg = ev.exportCfg || {};
+  const fieldOpts = (ev.fields||[]).map(f=>`<option value="f:${f.k}">${escHtml(f.label)}</option>`).join('');
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 6px;">⚙️ 匯出 Excel 設定</h2>
+    <p class="hint" style="margin:0 0 10px;">只影響「${escHtml(ev.name)}」的匯出：勾選要匯出的欄位、用 ▲▼ 調整左右順序、可改 Excel 標題名稱（留空用原名稱）。複製場次或存成範本時，這個設定會一起帶過去。</p>
+    <div id="xc_cols"></div>
+    <div class="grid2" style="margin-top:12px;">
+      <div class="field"><label>排序</label><select id="xc_sort"><option value="">照報名順序</option><option value="created">報名時間</option>${fieldOpts}</select></div>
+      <div class="field"><label>另外依這個欄位分工作表</label><select id="xc_split"><option value="">不分（只有一個工作表）</option>${fieldOpts}</select>
+        <div class="hint">例：選「補運項目」，Excel 會多出「補運」「補運+補財庫」兩個工作表，第一個工作表仍是全部。</div></div>
+    </div>
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" id="xc_saveExport">儲存並匯出</button>
+      <button class="btn btn-ghost" id="xc_save">只儲存</button>
+      <button class="btn btn-ghost" id="xc_reset">恢復預設</button>
+      <button class="btn btn-ghost" id="xc_cancel">取消</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#xc_sort').value = cfg.sortBy || '';
+  bg.querySelector('#xc_split').value = cfg.splitBy || '';
+  const wrap = bg.querySelector('#xc_cols');
+  function addRow(c){
+    const row = document.createElement('div');
+    row.className = 'cfg-row';
+    row.dataset.id = c.def.id;
+    row.innerHTML = `<button type="button" class="btn btn-ghost btn-sm xc_up" style="padding:2px 8px;">▲</button>
+      <button type="button" class="btn btn-ghost btn-sm xc_down" style="padding:2px 8px;">▼</button>
+      <label style="display:flex;align-items:center;gap:6px;margin:0;min-width:140px;flex:1;font-weight:500;"><input type="checkbox" class="xc_on" style="width:auto;min-height:0;" ${c.on?'checked':''}> ${escHtml(c.def.label)}</label>
+      <input type="text" class="xc_title" placeholder="Excel 標題（選填）" value="${escHtml(c.title)}">`;
+    row.querySelector('.xc_up').onclick = ()=>{ const p=row.previousElementSibling; if(p) wrap.insertBefore(row,p); };
+    row.querySelector('.xc_down').onclick = ()=>{ const n=row.nextElementSibling; if(n) wrap.insertBefore(n,row); };
+    wrap.appendChild(row);
+  }
+  cols.forEach(addRow);
+  async function save(){
+    const backup = ev.exportCfg;
+    ev.exportCfg = {
+      cols: Array.from(wrap.children).map(row=>({id:row.dataset.id, on:row.querySelector('.xc_on').checked, title:row.querySelector('.xc_title').value.trim()})),
+      sortBy: bg.querySelector('#xc_sort').value,
+      splitBy: bg.querySelector('#xc_split').value,
+    };
+    if(!ev.exportCfg.cols.some(c=>c.on)){ ev.exportCfg = backup; showToast('至少要勾一個欄位'); return false; }
+    const ok = await saveEvents();
+    if(!ok){ ev.exportCfg = backup; return false; }
+    return true;
+  }
+  bg.querySelector('#xc_cancel').onclick = ()=>bg.remove();
+  bg.querySelector('#xc_reset').onclick = async ()=>{
+    if(!(await showConfirm('恢復成預設的匯出欄位（全部欄位、原本順序）？'))) return;
+    const backup = ev.exportCfg;
+    delete ev.exportCfg;
+    if(!(await saveEvents())){ ev.exportCfg = backup; return; }
+    bg.remove(); showToast('已恢復預設匯出設定');
+  };
+  bg.querySelector('#xc_save').onclick = async ()=>{ if(await save()){ bg.remove(); showToast('已儲存匯出設定'); } };
+  bg.querySelector('#xc_saveExport').onclick = async ()=>{
+    if(!(await save())) return;
+    bg.remove();
+    if(!regsCache[ev.id]) await loadRegs(ev.id);
+    exportExcel(ev.id);
+  };
+}
+
+/* v4.33：依場次欄位產生「LINE 報名格式」，貼到 LINE 群組讓信眾照著填，回傳的訊息貼回「從 LINE 貼上快速匯入」就能逐欄對應 */
+function buildLineFormatText(ev){
+  const lines = [`【${ev.name}】報名`];
+  let n = 1;
+  getPublicFields(ev).forEach(f=>{
+    const opt = (f.type==='select'||f.type==='radio') && (f.options||[]).length ? `（${f.options.join('／')}）` : '';
+    lines.push(`${n++}.${f.label}${opt}${f.required?'*':''}：`);
+  });
+  if(ev.mode!=='items'){
+    (ev.fees||[]).forEach(fl=>{ lines.push(`${n++}.${fl.label}${fl.mode==='amount'?'金額':'數量'}：`); });
+  }
+  lines.push('');
+  lines.push(ev.mode==='items' ? '（供品項目請在備註寫品名與數量）' : '（一次報名多位：每位之間空一行，再從「1.」開始寫）');
+  if(getPublicFields(ev).some(f=>f.required)) lines.push('（* 為必填）');
+  return lines.join('\n');
+}
+function openLineFormatModal(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const txt = buildLineFormatText(ev);
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 6px;">💬 LINE 報名格式</h2>
+    <p class="hint" style="margin:0 0 10px;">依「${escHtml(ev.name)}」目前的報名欄位自動產生。複製後貼到 LINE 群組，請信眾照格式填寫；收到的訊息整段貼回後台「從 LINE 貼上快速匯入」，會依欄位名稱逐欄對應、選項自動對到最接近的選項。改了欄位後再按一次就會更新。</p>
+    <textarea id="lf_txt" style="min-height:220px;font-size:14px;">${escHtml(txt)}</textarea>
+    <div class="row-actions" style="margin-top:12px;">
+      <button class="btn btn-primary" id="lf_copy">複製文字</button>
+      <button class="btn btn-ghost" id="lf_close">關閉</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#lf_close').onclick = ()=>bg.remove();
+  bg.querySelector('#lf_copy').onclick = async ()=>{
+    const ta = bg.querySelector('#lf_txt');
+    try{ await navigator.clipboard.writeText(ta.value); }
+    catch(e){ ta.select(); try{ document.execCommand('copy'); }catch(_){} }
+    showToast('已複製，可以貼到 LINE');
+  };
 }
 
 /* v4：記住登入狀態；登入且帳號啟用中才進得了後台 */
