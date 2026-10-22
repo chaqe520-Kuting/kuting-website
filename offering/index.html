@@ -1264,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v117";
+  var APP_VERSION = "v118";
   var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1275,6 +1275,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v118", date: "2026-10-22", changes: [
+      "匯出紅紙（A3）「佛號分列」：各師尊大壽金的佛號欄最上面多一行橫跨的標題「各大師尊大壽金　共 N 捆」，N 是所有佛號數量的合計",
+      "每個佛號下面的數量與單位（捆）維持原樣；其他品項的品名往上併用這一行，版面一樣是 1 張 A3；「原格式」不變，資料庫與規則未變更"
+    ]},
     { version: "v117", date: "2026-10-22", changes: [
       "修正：信眾在品項欄直接打「地母娘娘大壽金」這類仙佛名稱＋大壽金時找不到品項、送出鈕一直是灰的；現在會列出「各師尊大壽金」，選了之後仙佛名稱自動帶入「地母娘娘」",
       "品項欄打完沒有點下拉清單、只對到一個品項時自動選好",
@@ -1916,10 +1920,12 @@
       if(cols.length === 1) colW = Math.max(colW, fmtNum(it.total).length * (qtyPt + 2) * 0.62 + 8, chars(it.unit || "") * qtyPt + 8);
       return { item: it, cols: cols, colW: colW };
     });
-    var contentH = headNameH + totalH + unitH + topGap + R * slotH;
+    // v118 — 佛號分列時，各師尊大壽金上方多一行群組標題（各大師尊大壽金　共 N 捆）
+    var groupH = data.items.some(function(it){ return it.group; }) ? (qtyPt + 2) * 1.6 + 4 : 0;
+    var contentH = groupH + headNameH + totalH + unitH + topGap + R * slotH;
     var contentW = HEAD_W + items.reduce(function(s, pi){ return s + pi.colW * pi.cols.length; }, 0);
     return { namePt: namePt, qtyPt: qtyPt, R: R, maxch: maxch, nameRowH: nameRowH, qtyRowH: qtyRowH, gapH: gapH, slotH: slotH,
-      headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
+      groupH: groupH, headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
   }
 
   // 在所有組合裡找「印出來字最大」的（字級 × 縮放比例）。縮放比例 ＝ 內容塞進一張 A3 所需縮小的倍數。
@@ -1967,10 +1973,13 @@
     var lastCol = col - 1;
 
     // 列：1 品名、2 總量、3 單位、4 空隙、之後每個格位 3 列（姓名、數量、細縫）
-    var lastRow = 4 + 3 * R;
-    sh.rowHeights[1] = p.headNameH; sh.rowHeights[2] = p.totalH; sh.rowHeights[3] = p.unitH; sh.rowHeights[4] = p.topGap;
-    for(var s = 0; s < R; s++){ sh.rowHeights[5 + 3 * s] = p.nameRowH; sh.rowHeights[6 + 3 * s] = p.qtyRowH; sh.rowHeights[7 + 3 * s] = p.gapH; }
-    var nameRow = function(slot){ return 5 + 3 * slot; }, qtyRow = function(slot){ return 6 + 3 * slot; };
+    // v118 — 有群組標題時最上面多一列（G = 1），其他列全部往下移一列
+    var G = p.groupH ? 1 : 0;
+    var lastRow = 4 + G + 3 * R;
+    if(G) sh.rowHeights[1] = p.groupH;
+    sh.rowHeights[1 + G] = p.headNameH; sh.rowHeights[2 + G] = p.totalH; sh.rowHeights[3 + G] = p.unitH; sh.rowHeights[4 + G] = p.topGap;
+    for(var s = 0; s < R; s++){ sh.rowHeights[5 + G + 3 * s] = p.nameRowH; sh.rowHeights[6 + G + 3 * s] = p.qtyRowH; sh.rowHeights[7 + G + 3 * s] = p.gapH; }
+    var nameRow = function(slot){ return 5 + G + 3 * slot; }, qtyRow = function(slot){ return 6 + G + 3 * slot; };
 
     var nameSpec = { font: f(namePt), h: "center", v: "top", rot: 255, border: B };
     var smallSpec = { font: f(Math.round(namePt * 0.75)), h: "center", v: "top", rot: 255, border: B }; // 4 個字的姓名縮小，剛好放進 3 字高的格子
@@ -1980,9 +1989,10 @@
       var cc = itemCols[idx], it = pi.item;
       var nm = headName(it.name);
       var hf = p.fontFor(chars(nm));
-      putMerged(1, cc.c1, 1, cc.c2, nm, { font: f(hf), h: "center", v: "center", rot: 255, border: B });
-      putMerged(2, cc.c1, 2, cc.c2, it.total > 0 ? it.total : null, { font: f(qtyPt + 2), h: "center", v: "center", border: B, numFmt: 3, shrink: true });
-      putMerged(3, cc.c1, 3, cc.c2, it.unit || "", { font: f(qtyPt), h: "center", v: "center", border: B, shrink: true });
+      // 沒有群組的品項，品名往上併用群組標題那一列
+      putMerged(it.group ? 1 + G : 1, cc.c1, 1 + G, cc.c2, nm, { font: f(hf), h: "center", v: "center", rot: 255, border: B });
+      putMerged(2 + G, cc.c1, 2 + G, cc.c2, it.total > 0 ? it.total : null, { font: f(qtyPt + 2), h: "center", v: "center", border: B, numFmt: 3, shrink: true });
+      putMerged(3 + G, cc.c1, 3 + G, cc.c2, it.unit || "", { font: f(qtyPt), h: "center", v: "center", border: B, shrink: true });
       pi.cols.forEach(function(colEntries, ci){
         var c = cc.c2 - ci;  // 第 1 欄放在最右邊（直書由右往左讀）
         // 先把整欄每一格都鋪上樣式（空白格也要，之後直接打字就會是直書、粗體、有框線）
@@ -1996,6 +2006,21 @@
         });
       });
     });
+
+    // v118 — 群組標題：同一群組相鄰的品項欄合併成一格，橫寫「各大師尊大壽金　共 N 捆」
+    for(var gi = 0; gi < n; gi++){
+      var g0 = p.items[gi].item.group;
+      if(!g0) continue;
+      var gj = gi, gSum = 0, gUnit = "";
+      while(gj < n && p.items[gj].item.group && p.items[gj].item.group.key === g0.key){
+        gSum += Number(p.items[gj].item.total) || 0;
+        gUnit = gUnit || p.items[gj].item.unit || "";
+        gj++;
+      }
+      var gText = g0.name + (gSum > 0 ? "　共 " + fmtNum(gSum) + " " + gUnit : "");
+      putMerged(1, itemCols[gj - 1].c1, 1, itemCols[gi].c2, gText, { font: f(qtyPt + 2), h: "center", v: "center", border: B, shrink: true });
+      gi = gj - 1;
+    }
 
     // 標題欄
     var totalPt = p.contentH;
@@ -8202,6 +8227,8 @@
         byDeityName[deity].regs.push(r);
       });
       if(!groups.length){ items.push(buildRedPaperItem(occ, it, paidOnly)); return; }
+      // v118 — 這些佛號欄上面加一行橫跨的「各大師尊大壽金　共 N 捆」
+      var grp = { key: "deity-" + it.id, name: String(it.name || "").trim().replace(/^各師尊/, "各大師尊") };
       groups.forEach(function(g){
         var order = [], byKey = {};
         g.regs.forEach(function(r){
@@ -8211,7 +8238,7 @@
         });
         var entries = order.filter(function(e){ return e.qty > 0; });
         var sum = entries.reduce(function(acc, e){ return acc + e.qty; }, 0);
-        if(entries.length) items.push({ name: g.deity, total: sum, unit: it.unit || "", entries: entries });
+        if(entries.length) items.push({ name: g.deity, total: sum, unit: it.unit || "", entries: entries, group: grp });
       });
     });
     return { title: title, dateText: dateText, temple: "古亭院", pinText: "祝壽供品", items: items };
