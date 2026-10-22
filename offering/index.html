@@ -1264,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v118";
+  var APP_VERSION = "v119";
   var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1275,6 +1275,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v119", date: "2026-10-22", changes: [
+      "匯出紅紙（A3）「佛號分列」：「共 N 捆」不再和「各大師尊大壽金」寫在同一行，改成標題下面另起一行單獨列出"
+    ]},
     { version: "v118", date: "2026-10-22", changes: [
       "匯出紅紙（A3）「佛號分列」：各師尊大壽金的佛號欄最上面多一行橫跨的標題「各大師尊大壽金　共 N 捆」，N 是所有佛號數量的合計",
       "每個佛號下面的數量與單位（捆）維持原樣；其他品項的品名往上併用這一行，版面一樣是 1 張 A3；「原格式」不變，資料庫與規則未變更"
@@ -1922,7 +1925,7 @@
     });
     // v118 — 佛號分列時，各師尊大壽金上方多一行群組標題（各大師尊大壽金　共 N 捆）
     var groupH = data.items.some(function(it){ return it.group; }) ? (qtyPt + 2) * 1.6 + 4 : 0;
-    var contentH = groupH + headNameH + totalH + unitH + topGap + R * slotH;
+    var contentH = groupH * 2 + headNameH + totalH + unitH + topGap + R * slotH;
     var contentW = HEAD_W + items.reduce(function(s, pi){ return s + pi.colW * pi.cols.length; }, 0);
     return { namePt: namePt, qtyPt: qtyPt, R: R, maxch: maxch, nameRowH: nameRowH, qtyRowH: qtyRowH, gapH: gapH, slotH: slotH,
       groupH: groupH, headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
@@ -1974,9 +1977,10 @@
 
     // 列：1 品名、2 總量、3 單位、4 空隙、之後每個格位 3 列（姓名、數量、細縫）
     // v118 — 有群組標題時最上面多一列（G = 1），其他列全部往下移一列
-    var G = p.groupH ? 1 : 0;
+    // v119 — 群組標題下面再一列單獨寫「共 N 捆」（G = 2）
+    var G = p.groupH ? 2 : 0;
     var lastRow = 4 + G + 3 * R;
-    if(G) sh.rowHeights[1] = p.groupH;
+    if(G){ sh.rowHeights[1] = p.groupH; sh.rowHeights[2] = p.groupH; }
     sh.rowHeights[1 + G] = p.headNameH; sh.rowHeights[2 + G] = p.totalH; sh.rowHeights[3 + G] = p.unitH; sh.rowHeights[4 + G] = p.topGap;
     for(var s = 0; s < R; s++){ sh.rowHeights[5 + G + 3 * s] = p.nameRowH; sh.rowHeights[6 + G + 3 * s] = p.qtyRowH; sh.rowHeights[7 + G + 3 * s] = p.gapH; }
     var nameRow = function(slot){ return 5 + G + 3 * slot; }, qtyRow = function(slot){ return 6 + G + 3 * slot; };
@@ -2017,8 +2021,9 @@
         gUnit = gUnit || p.items[gj].item.unit || "";
         gj++;
       }
-      var gText = g0.name + (gSum > 0 ? "　共 " + fmtNum(gSum) + " " + gUnit : "");
-      putMerged(1, itemCols[gj - 1].c1, 1, itemCols[gi].c2, gText, { font: f(qtyPt + 2), h: "center", v: "center", border: B, shrink: true });
+      var gSpec = { font: f(qtyPt + 2), h: "center", v: "center", border: B, shrink: true };
+      putMerged(1, itemCols[gj - 1].c1, 1, itemCols[gi].c2, g0.name, gSpec);
+      putMerged(2, itemCols[gj - 1].c1, 2, itemCols[gi].c2, gSum > 0 ? "共 " + fmtNum(gSum) + " " + gUnit : "", gSpec);
       gi = gj - 1;
     }
 
