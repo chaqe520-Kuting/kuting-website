@@ -295,8 +295,13 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.35 ・ 2026-10-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.36 ・ 2026-10-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.36（2026-10-22）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>場次管理新增「🖨️ 列印報名表（A3）」：開出 A3 橫式報名表（有格線、每頁重複表頭、上方有筆數、總金額、已收款），可直接列印或另存 PDF，法會前核對用</li>
+        <li>報名表的欄位、順序、標題、排序跟「⚙️ 匯出設定」相同，改設定就會一起改</li>
+      </ul>
       <b>v4.35（2026-10-22）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上判斷場次更準：同時開放多場時，不只看標題，整則內容的欄位說法、選項、費用名稱都拿來跟每一場比對，只出現在某一場的說法加分最多；判斷不出來或兩場很像時標紅框「⚠️ 場次不確定」，並寫出判斷依據；沒有線索的那筆沿用上一筆的場次</li>
@@ -2242,6 +2247,7 @@ function renderEventManager(){
       <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
       <button class="btn btn-ghost btn-sm" id="lineFmtBtn">💬 LINE 報名格式</button>
       <button class="btn btn-ghost btn-sm" id="exportBtn">匯出 Excel</button>
+      <button class="btn btn-ghost btn-sm" id="printA3Btn">🖨️ 列印報名表（A3）</button>
       <button class="btn btn-ghost btn-sm" id="exportCfgBtn">⚙️ 匯出設定</button>
       <button class="btn btn-danger btn-sm" id="deleteEventBtn">刪除此場次</button>
     </div>`;
@@ -3500,6 +3506,8 @@ function bindEvents(){
   if(tplLibBtn) tplLibBtn.onclick = ()=>openTemplateLibrary();
   const lineFmtBtn = document.getElementById('lineFmtBtn');
   if(lineFmtBtn) lineFmtBtn.onclick = ()=>openLineFormatModal(adminSelectedEvent);
+  const printA3Btn = document.getElementById('printA3Btn');
+  if(printA3Btn) printA3Btn.onclick = async ()=>{ if(!regsCache[adminSelectedEvent]) await loadRegs(adminSelectedEvent); printRegFormA3(adminSelectedEvent); };
   const exportCfgBtn = document.getElementById('exportCfgBtn');
   if(exportCfgBtn) exportCfgBtn.onclick = ()=>openExportSettings(adminSelectedEvent);
 
@@ -4956,6 +4964,71 @@ function buildExportSheet(ev, regs, cols){
     return {wch: Math.min(40, Math.max(6, Math.ceil(w)))};
   });
   return ws;
+}
+/* v4.36：列印報名表（A3 橫式）——給法會前核對用。欄位、順序、標題、排序沿用「⚙️ 匯出設定」；
+   用瀏覽器列印（可直接印或另存 PDF），表頭每頁重複。格式之後再依需要調整。 */
+function printRegFormA3(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  let regs = (regsCache[eventId]||[]).slice();
+  const cfg = ev.exportCfg || {};
+  const cols = resolveExportCols(ev).filter(c=>c.on);
+  if(!cols.length){ showToast('匯出設定沒有勾任何欄位，請到「⚙️ 匯出設定」勾選'); return; }
+  if(!regs.length){ showToast('這個場次還沒有報名資料'); return; }
+  if(cfg.sortBy){
+    const val = r=> cfg.sortBy==='created' ? (Number(r.createdAt)||0) : String((r.f||{})[cfg.sortBy.slice(2)]||'');
+    regs.sort((a,b)=>{ const x=val(a), y=val(b); return typeof x==='number' ? x-y : String(x).localeCompare(String(y),'zh-Hant'); });
+  }
+  const headers = cols.map(c=>c.title || c.def.label);
+  const rows = [];
+  regs.forEach((r,i)=>{
+    if(ev.mode==='items'){
+      const its = (r.items||[]).length ? r.items : [null];
+      its.forEach((it,j)=> rows.push(cols.map(c=>c.def.get(r,it,j,i))));
+    } else rows.push(cols.map(c=>c.def.get(r,null,0,i)));
+  });
+  const total = regs.reduce((s,r)=>s+(Number(r.total)||0),0);
+  const paid = regs.filter(r=>r.paid);
+  const fontPx = cols.length<=8 ? 15 : cols.length<=12 ? 13 : cols.length<=16 ? 11.5 : 10;
+  const today = new Date();
+  const roc = `${today.getFullYear()-1911}/${today.getMonth()+1}/${today.getDate()}`;
+  const numCol = ci=>rows.length && rows.every(rw=>rw[ci]==='' || rw[ci]==null || typeof rw[ci]==='number');
+  const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escHtml(ev.name)} 報名表</title>
+<style>
+  @page{size:A3 landscape;margin:12mm 10mm;}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;color:#000;margin:0;padding:12px;}
+  h1{font-family:"Noto Serif TC","DFKai-SB","BiauKai",serif;text-align:center;font-size:26px;margin:0 0 4px;letter-spacing:2px;}
+  .sub{text-align:center;font-size:14px;margin:0 0 10px;}
+  table{width:100%;border-collapse:collapse;font-size:${fontPx}px;table-layout:auto;}
+  thead{display:table-header-group;}
+  th,td{border:1px solid #000;padding:5px 6px;vertical-align:top;word-break:break-word;white-space:pre-wrap;}
+  th{background:#eee;font-weight:700;text-align:center;}
+  td.num{text-align:right;white-space:nowrap;}
+  tr{page-break-inside:avoid;}
+  tfoot td{font-weight:700;}
+  .bar{position:sticky;top:0;background:#fff8e6;border:1px solid #c9a54a;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bar button{font-size:15px;padding:8px 16px;border-radius:8px;border:0;background:#9b2c1f;color:#fff;cursor:pointer;}
+  @media print{.bar{display:none;} body{padding:0;}}
+</style></head><body>
+<div class="bar"><button onclick="window.print()">🖨️ 列印／另存 PDF</button><span>列印時請選「A3」、「橫向」。欄位與順序可在後台「⚙️ 匯出設定」調整。</span></div>
+<h1>${escHtml(ev.name)}　報名表</h1>
+<p class="sub">${ev.date?'日期：'+escHtml(ev.date)+'　':''}共 ${regs.length} 筆　總金額 ${money(total)} 元　已收款 ${paid.length} 筆　列印日期 ${roc}</p>
+<table><thead><tr>${headers.map(h=>`<th>${escHtml(h)}</th>`).join('')}</tr></thead>
+<tbody>${rows.map(rw=>`<tr>${rw.map((v,ci)=>`<td class="${numCol(ci)?'num':''}">${escHtml(typeof v==='number'?money(v):(v==null?'':v))}</td>`).join('')}</tr>`).join('')}</tbody></table>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if(w){
+    w.document.open(); w.document.write(html); w.document.close();
+    return;
+  }
+  // 彈出視窗被擋（例如 LINE 內建瀏覽器）：改用下載 HTML 檔，開啟後再列印
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${ev.name}_報名表A3.html`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  showToast('瀏覽器擋住新視窗，已改成下載報名表檔案，開啟後按列印', 4500);
 }
 function exportExcel(eventId){
   const ev = events.find(e=>e.id===eventId);
