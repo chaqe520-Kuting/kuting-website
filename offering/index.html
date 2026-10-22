@@ -1264,7 +1264,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v121";
+  var APP_VERSION = "v122";
   var APP_UPDATED = "2026-10-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1275,6 +1275,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v122", date: "2026-10-22", changes: [
+      "匯出紅紙（A3）：個人法船品項不再列入（兩種格式都一樣），報名資料本身沒有刪除，登記清單、補運A4 照舊"
+    ]},
     { version: "v121", date: "2026-10-22", changes: [
       "後台登記清單：手機點「已收款／待收款」（或編輯、確認等按鈕）後，畫面不再跳回最上方，會停在剛才點的那一筆",
       "雲端同步更新清單、關掉收款確認詢問視窗時，也維持原本的捲動位置；資料庫與規則未變更"
@@ -8288,9 +8291,13 @@
   // 同一個人在同一個品項登記多次（或同一個敬致對象）→ 數量合併成一格，順序依第一次登記的先後
   // v88 — byDeity：「各師尊大壽金」改成每位佛號各成一個品項（佛號當品名、下面列信徒姓名），
   // 排在原本這個品項的位置，佛號順序依第一次登記的先後；沒填佛號的登記歸在原品名底下。
+  // v122 — 個人法船（第 20 項）不印在紅紙 A3（小朱要求），報名資料本身不動
+  function redPaperSkipItem(it){ return /個人.*法船/.test(String(it.name || "")); }
+
   function buildRedPaperData(occ, title, dateText, paidOnly, byDeity){
     var items = [];
     occ.items.forEach(function(it){
+      if(redPaperSkipItem(it)) return;
       if(!byDeity || !itemNeedsDedication(it.id, occ)){ items.push(buildRedPaperItem(occ, it, paidOnly)); return; }
       var groups = [], byDeityName = {};
       occ.registrations.forEach(function(r){
@@ -8354,9 +8361,12 @@
   function updateRedPaperSummary(){
     var occ = current();
     var paidOnly = document.getElementById("redPaperPaidOnly").checked;
-    var n = occ.registrations.filter(function(r){ return !paidOnly || r.paid; }).length;
+    var shownItems = occ.items.filter(function(it){ return !redPaperSkipItem(it); });
+    var shownIds = {}; shownItems.forEach(function(it){ shownIds[it.id] = true; });
+    var n = occ.registrations.filter(function(r){ return (!paidOnly || r.paid) && shownIds[r.catId]; }).length;
     document.getElementById("redPaperSummary").textContent =
-      "場次：" + occ.label + "。將列出 " + n + " 筆報名、" + occ.items.length + " 個供品品項（品項依場次設定的順序，由右到左排列）。名單只包含平台裡有登記到姓名的贊助者。";
+      "場次：" + occ.label + "。將列出 " + n + " 筆報名、" + shownItems.length + " 個供品品項（品項依場次設定的順序，由右到左排列）。名單只包含平台裡有登記到姓名的贊助者。" +
+      (shownItems.length < occ.items.length ? "個人法船不列入紅紙。" : "");
   }
 
   function openRedPaperModal(){
