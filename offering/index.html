@@ -1150,7 +1150,12 @@
     <p class="pdesc" style="margin:0 0 8px;">照片只在這台電腦／手機的瀏覽器裡處理，不會上傳到雲端；關掉視窗或重新整理後要重新選照片。</p>
 
     <div id="psRedPanel">
-      <p class="pdesc">① 選紅紙照片（可以一次選 2 張以上）→ ② 在照片上<b>點一下標題列最下面那條線</b>（單位那一列的下緣），線以上的標題、品名都會保留 → ③ 打信徒姓名或點選，AI 讀好會自動框出他的名字；沒框到就在名字上<b>點一下</b>（再點一下取消）→ ④ 按「產生這位的圖片」。框以外都打上馬賽克。</p>
+      <ol style="font-size:1rem; line-height:1.9; margin:4px 0 0 22px; padding:0;">
+        <li><b>選紅紙照片</b>（可以一次選好幾張）</li>
+        <li><b>打信徒姓名</b>（或點選），AI 會自動用<span style="color:#1a9e33; font-weight:700;">綠框</span>框出他的名字</li>
+        <li>確認綠框，按<b>「✅ 產生這位的圖片」</b>，再按「傳到 LINE」</li>
+      </ol>
+      <p class="pdesc" style="margin-top:4px;">綠框沒框到：在名字上點一下就會框；框錯了：再點一下就取消。黃線以上的標題會保留，綠框以外都打馬賽克。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
         <label class="ghost-btn" style="cursor:pointer;">📁 選紅紙照片（可多張）<input type="file" id="psRedFile" accept="image/*,.heic,.heif" multiple style="display:none;"></label>
         <span class="pdesc" id="psRedFileInfo" style="margin:0;"></span>
@@ -1168,13 +1173,11 @@
         <button type="button" class="ghost-btn" id="psZoomOut">－ 縮小</button>
         <button type="button" class="ghost-btn" id="psZoomIn">＋ 放大</button>
         <button type="button" class="ghost-btn" id="psClearName">清除這位的框</button>
-        <button type="button" class="ghost-btn" id="psResetHeader">重設標題範圍</button>
       </div>
       <details style="margin-top:6px;">
-        <summary class="pdesc" style="cursor:pointer;">更多（手動畫框、馬賽克）</summary>
+        <summary class="pdesc" style="cursor:pointer;">更多設定（平常不用）</summary>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px;">
-          <button type="button" class="occ-chip" id="psDrawName" aria-pressed="false">✏️ 拖曳畫姓名框</button>
-          <button type="button" class="occ-chip" id="psDrawFixed" aria-pressed="false">✏️ 拖曳畫保留框</button>
+          <button type="button" class="ghost-btn" id="psResetHeader">重新點黃線（標題範圍）</button>
           <button type="button" class="ghost-btn" id="psAiRetry">🤖 AI 重新讀這張</button>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;"><input type="checkbox" id="psPreview"> 預覽馬賽克</label>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">馬賽克粗細
@@ -1353,7 +1356,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v127";
+  var APP_VERSION = "v128";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1364,6 +1367,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v128", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）再簡化：畫面上方改成三個步驟說明；拿掉手動畫框（黃色保留框）按鈕",
+      "AI 讀完照片會自動畫出標題黃線（黃線以上保留），不用自己點；照片上標示「黃線以上會保留」",
+      "AI 加快（需小幫手 v1.20）：改用新版模型的最低思考設定、回傳格式更精簡；等待上限改 5 分鐘"
+    ]},
     { version: "v127", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：可以一次選 2 張以上紅紙照片，一位信徒的名字不管在哪一張都框得到，產生時每張各一張圖",
       "AI 加快：選好照片就在背景先讀出整張的姓名（需小幫手 v1.19），之後打姓名立刻自動框，不用每位等 AI",
@@ -9140,10 +9148,10 @@
   function psHintText(){
     var ph = psCurPhoto(), el = document.getElementById("psHint");
     if(!ph){ el.textContent = ""; return; }
-    if(psRed.draw) el.textContent = "手動畫框中：在照片上拖曳畫出" + (psRed.draw === "fixed" ? "保留框（黃）" : "姓名框（綠）") + "，畫完再按一次按鈕回到點選模式";
-    else if(!ph.header) el.textContent = "② 請在照片上點一下「標題列最下面那條線」（單位那一列的下緣）";
-    else if(!psRed.name) el.textContent = "③ 請打信徒姓名或點選";
-    else el.textContent = "④ 確認綠框都是「" + psRed.name + "」，沒框到的在名字上點一下，框錯的再點一下取消；好了按「產生這位的圖片」";
+    if(!ph.header && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，可以先打信徒姓名";
+    else if(!ph.header) el.textContent = "請先在照片上點一下「供品單位那一列的下緣」，黃線以上的標題會保留";
+    else if(!psRed.name) el.textContent = "請打信徒姓名或點選";
+    else el.textContent = "確認綠框都是「" + psRed.name + "」；沒框到在名字上點一下，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
   }
 
   var psMosaicCache = null;
@@ -9175,6 +9183,13 @@
       var hy = Math.round(ph.header * H);
       g.strokeStyle = "#ffcc00"; g.lineWidth = lw * 1.5; g.setLineDash([lw * 5, lw * 3]);
       g.beginPath(); g.moveTo(0, hy); g.lineTo(W, hy); g.stroke(); g.setLineDash([]);
+      var fs = Math.round(Math.max(W, H) / 45);
+      g.font = "bold " + fs + "px sans-serif";
+      var label = "↑ 黃線以上（標題）會保留";
+      g.fillStyle = "rgba(0,0,0,.7)";
+      g.fillRect(lw * 4, hy + lw * 2, g.measureText(label).width + fs * 0.6, fs * 1.4);
+      g.fillStyle = "#ffcc00";
+      g.fillText(label, lw * 4 + fs * 0.3, hy + lw * 2 + fs * 1.05);
     }
     ph.boxes.forEach(function(b){
       var p = psBoxPx(b, W, H);
@@ -9282,6 +9297,7 @@
     var ph = psCurPhoto();
     if(!ph) return;
     if(!ph.header){
+      if(ph.ai.state === "busy"){ showToast("AI 正在讀照片，讀完會自動畫黃線；可以先打信徒姓名"); return; }
       psPushUndo();
       ph.header = psSnapHLine(ph, nx, ny);
       psRedDraw();
@@ -9393,18 +9409,6 @@
   document.getElementById("psZoomIn").addEventListener("click", function(){ psSetZoom(psRed.zoom * 1.5); });
   document.getElementById("psZoomOut").addEventListener("click", function(){ psSetZoom(psRed.zoom / 1.5); });
 
-  function psSetDraw(kind){
-    psRed.draw = psRed.draw === kind ? "" : kind;
-    document.getElementById("psDrawName").setAttribute("aria-pressed", psRed.draw === "name" ? "true" : "false");
-    document.getElementById("psDrawFixed").setAttribute("aria-pressed", psRed.draw === "fixed" ? "true" : "false");
-    psRedCanvas.style.cursor = psRed.draw ? "crosshair" : "pointer";
-    psHintText();
-  }
-  document.getElementById("psDrawName").addEventListener("click", function(){
-    if(!psRed.name && psRed.draw !== "name"){ showToast("請先打信徒姓名"); return; }
-    psSetDraw("name");
-  });
-  document.getElementById("psDrawFixed").addEventListener("click", function(){ psSetDraw("fixed"); });
   document.getElementById("psClearName").addEventListener("click", function(){
     var ph = psCurPhoto();
     if(!ph) return;
@@ -9431,7 +9435,7 @@
     var el = document.getElementById("psAiStatus");
     var busy = psRed.photos.filter(function(ph){ return ph.ai.state === "busy"; });
     var parts = [];
-    if(busy.length) parts.push("🤖 AI 正在讀紅紙姓名…" + Math.round((Date.now() - busy[0].ai.t0) / 1000) + " 秒（可以先點標題線、打姓名）");
+    if(busy.length) parts.push("🤖 AI 正在讀紅紙姓名（約 20～60 秒）…" + Math.round((Date.now() - busy[0].ai.t0) / 1000) + " 秒（可以先打信徒姓名）");
     psRed.photos.forEach(function(ph, i){ if(ph.ai.state === "error") parts.push("紅紙 " + (i + 1) + " AI 沒讀成功：" + ph.ai.err + "（可以直接在名字上點一下）"); });
     if(psRed.name && psRed.aiFound != null && !busy.length) parts.push(psRed.aiFound ? "🤖 AI 找到「" + psRed.name + "」" + psRed.aiFound + " 格，請確認綠框" : "🤖 AI 沒找到「" + psRed.name + "」，請在名字上點一下");
     el.textContent = parts.join("　");
@@ -9450,7 +9454,7 @@
     ph.ai = { state: "busy", t0: Date.now(), cells: [] };
     psAiTick();
     var ctrl = window.AbortController ? new AbortController() : null;
-    var timeout = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 180000);
+    var timeout = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 300000);
     var b64 = ph.work.toDataURL("image/jpeg", 0.85).split(",")[1];
     fsAuth.currentUser.getIdToken().then(function(idToken){
       return fetch(url, { method: "POST", signal: ctrl ? ctrl.signal : undefined, body: JSON.stringify({ action: "readnames", idToken: idToken, image: { mime: "image/jpeg", base64: b64 } }) });
@@ -9460,11 +9464,21 @@
       try { out = JSON.parse(txt); } catch(e){ out = { ok: false, error: "小幫手還沒更新到 v1.14" }; }
       if(!out.ok){ ph.ai = { state: "error", err: out.error || "讀取失敗" }; psAiTick(); return; }
       ph.ai = { state: "done", cells: out.cells || [] };
+      // 標題範圍自動判斷：AI 給的標題列下緣、最上面那排姓名格的上緣，取比較上面的（寧可少保留，
+      // 也不要把別人的名字露出來），再對齊到格線
+      if(!ph.header && ph.ai.cells.length){
+        var tops = ph.ai.cells.map(function(c){ return c.box[0] / 1000; });
+        if(out.header) tops.push(out.header / 1000);
+        var top = Math.min.apply(null, tops);
+        var y = psSnapHLine(ph, 0.5, top);
+        ph.header = y <= top + 0.015 && y > 0.02 ? y : Math.max(0.02, top - 0.004);
+      }
       psAiTick();
+      psRedDraw();
       if(psRed.name) psAiApply();
     }).catch(function(err){
       clearTimeout(timeout);
-      ph.ai = { state: "error", err: err && err.name === "AbortError" ? "超過 3 分鐘沒回應" : "連不到小幫手" };
+      ph.ai = { state: "error", err: err && err.name === "AbortError" ? "超過 5 分鐘沒回應" : "連不到小幫手" };
       psAiTick();
     });
   }
