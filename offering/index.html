@@ -1357,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v131";
+  var APP_VERSION = "v132";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1368,6 +1368,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v132", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：上方黃線畫太下面、蓋到姓名欄的問題。改用本場次報名的姓名找第一排姓名格，黃線畫在它上緣；照片上方拍到上一張紅紙的名字也不會被誤判"
+    ]},
     { version: "v131", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：修正有右邊直書標題的紅紙，AI 判斷的標題邊界偏左時，右半邊的信徒名字被略過、找不到；右邊黃線一定畫在所有姓名格的右邊"
     ]},
@@ -9501,6 +9504,34 @@
     if(busy && !psAiTimer) psAiTimer = setInterval(psAiTick, 1000);
     if(!busy && psAiTimer){ clearInterval(psAiTimer); psAiTimer = null; }
   }
+  // 上方黃線＝第一排信徒姓名格的上緣。v132 — AI 給的品項列下緣 h 有時偏下（蓋到姓名欄），
+  // 照片上方也可能拍到上一張紅紙的姓名。所以優先用「本場次有報名的姓名」那些格子：
+  // 黃線畫在第一排姓名格的上緣
+  function psAutoHeaderTop(cells, h){
+    var people = psRedPeople(current());
+    var known = cells.filter(function(c){
+      return psSplitNames(String(c.text || "").replace(/[()（）]/g, "、")).some(function(n){ return !!people.map[n]; });
+    });
+    var hy = h && h / 1000 > 0.05 && h / 1000 < 0.7 ? h / 1000 : null;
+    var use = known.length >= 3 ? known : cells;
+    var list = use.map(function(c){ return { t: c.box[0] / 1000, b: c.box[2] / 1000 }; }).sort(function(a, b){ return a.t - b.t; });
+    if(use === cells && hy != null){
+      // 認不出報名姓名時維持舊做法：只採用在 AI 品項列下緣下面的格子（AI 有時把品名格當姓名格）
+      list = list.filter(function(c){ return c.t > hy - 0.03; });
+      return list.length ? Math.min(list[0].t, hy) : hy;
+    }
+    if(!list.length) return hy;
+    // 最上面一小段（照片頂端 15% 內）若是上一張紅紙的姓名，跳過它下面那段空白（品名、數量、單位），
+    // 取空白段下面第一格；否則就是最上面那格的上緣。不找「最大」空白，以免跳到姓名欄中間
+    var top = list[0].t, maxB = list[0].b;
+    for(var i = 1; i < list.length && list[i - 1].t < 0.15; i++){
+      if(list[i].t - maxB >= 0.06){ top = list[i].t; break; }
+      maxB = Math.max(maxB, list[i].b);
+    }
+    // AI 的 h 若剛好在這排姓名格上面一點點，用 h（比較貼近格線）
+    if(hy != null && hy <= top + 0.01 && hy >= top - 0.06) top = Math.min(top, hy);
+    return top;
+  }
   function psAiRead(ph){
     if(!(fsAuth && fsAuth.currentUser)){ ph.ai = { state: "error", err: "請先登入志工帳號" }; psAiTick(); return; }
     var url = linebotUrl(false);
@@ -9521,12 +9552,7 @@
       // 標題範圍自動判斷：AI 給的標題列下緣、最上面那排姓名格的上緣，取比較上面的（寧可少保留，
       // 也不要把別人的名字露出來），再對齊到格線
       if(!ph.header && ph.ai.cells.length){
-        // AI 有時把上方品名格也當成姓名格，所以以 AI 給的品項列下緣為主，只採用在它下面的姓名格
-        var hy = out.header && out.header / 1000 > 0.05 && out.header / 1000 < 0.7 ? out.header / 1000 : null;
-        var tops = ph.ai.cells.map(function(c){ return c.box[0] / 1000; })
-          .filter(function(t){ return hy == null || t > hy - 0.03; });
-        if(hy != null) tops.push(hy);
-        var top = tops.length ? Math.min.apply(null, tops) : hy;
+        var top = psAutoHeaderTop(ph.ai.cells, out.header);
         if(top != null){
           var y = psSnapHLine(ph, 0.5, top);
           ph.header = y <= top + 0.015 && y > 0.02 ? y : Math.max(0.02, top - 0.004);
