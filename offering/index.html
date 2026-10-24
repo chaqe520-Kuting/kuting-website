@@ -966,6 +966,16 @@
         <strong>各師尊大壽金</strong>要寫敬致的仙佛／師尊時，用 4 欄「姓名,項次,仙佛名稱,數量」，例如：
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">王小明,17,觀世音菩薩,1</code><br>
         項次可填數字（比對「項次」欄）或品項名稱都可以。只要整段貼上的內容「每一行都有逗號分隔成2～4欄」，系統就會優先用這個方式解析，最準確、最不會有辨識落差。若沒有逗號，系統仍會嘗試辨識「供品項次：」「贊助數量：」「贊助者姓名：」標籤格式，或「陳小姐 壽桃 2」這種舊格式，但正確率不如逗號格式。解析結果請務必核對後再匯入。</p>
+        <div id="histBox" style="margin:10px 0 12px; padding:10px 12px; border:1px dashed var(--gold, #b8860b); border-radius:8px; background:var(--paper-sunken);">
+          <div style="font-weight:700; margin-bottom:6px;">📜 打姓名帶出去年的報名</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="histNameInput" placeholder="輸入姓名，多位用逗號或空白分開" style="flex:1; min-width:200px;">
+            <button class="ghost-btn" id="histLookupBtn">帶出去年報名</button>
+            <button class="ghost-btn" id="histImportBtn">📥 匯入去年登記 Excel</button>
+            <input type="file" id="histImportFile" accept=".xlsx,.xls" style="display:none;">
+          </div>
+          <p class="pdesc" id="histHint" style="margin:6px 0 0;">找到的品項和數量會加到下方預覽表，可以直接改品項、數量再按「確認加入登記清單」。下方大框只打姓名（每行一位）再按「解析預覽」也可以。</p>
+        </div>
         <textarea id="bulkText" placeholder="建議格式，每行「姓名,項次或品項,數量」：&#10;王張牡丹,4,10&#10;陳小姐,壽桃,2"></textarea>
         <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
           <button class="ghost-btn" id="bulkParseBtn">解析預覽</button>
@@ -1341,7 +1351,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v125";
+  var APP_VERSION = "v126";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1352,6 +1362,12 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v126", date: "2026-10-24", changes: [
+      "LINE 訊息貼上快速登記加「📜 打姓名帶出去年的報名」：輸入姓名（可多位）按「帶出去年報名」，就把這位去年的品項、數量（含敬致仙佛、補運）帶進預覽表，改好數量或品項再按「確認加入登記清單」；大框每行只打姓名再按「解析預覽」也可以",
+      "「去年」優先找同一個節日（場次名稱裡的農曆月日相同，例如九月十九）最近一屆有這個姓名的，找不到再找最近一場有這個姓名的；預覽表會標出是哪一場、去年的品項和金額",
+      "去年品項名稱和今年不同時（例如長壽麵→長壽麵線、五菓→五果）會自動對到；對不到或有兩個可能（例如法船）時請在下拉選單自己選，選到單位是「元」的品項會自動帶去年的金額",
+      "新增「📥 匯入去年登記 Excel」：平台上線前的手工登記表（每個品項一列姓名、一列數量）可以匯入成「歷史場次」，一尊一列的師尊大壽金會併成「各師尊大壽金」並帶仙佛名稱；歷史場次是已關閉狀態，信眾看不到也不能報名，資料庫規則不用改"
+    ]},
     { version: "v125", date: "2026-10-24", changes: [
       "LINE 小幫手待確認可收語音報名：信眾傳 LINE 語音訊息，小幫手的 AI 轉成「姓名,品項,數量」，顯示「🎤 語音」標籤和 AI 聽到的原文，可以修改後帶入解析（需小幫手 v1.14）",
       "錄音不存檔，只存 AI 聽寫的文字；台語或口音重時姓名可能是同音字，請核對；資料庫規則未變更"
@@ -3521,7 +3537,8 @@
       confirmFieldName: o.confirmFieldName, banner: sanitizeBannerForFirestore(o.banner),
       deities: o.deities, deityPrice: o.deityPrice,
       baseDeityQty: o.baseDeityQty, baseDonationAmt: o.baseDonationAmt,
-      itemIdSeq: o.itemIdSeq, regSeq: o.regSeq
+      itemIdSeq: o.itemIdSeq, regSeq: o.regSeq,
+      history: !!o.history // v126 從 Excel 匯入的歷史場次（只給「打姓名帶出去年報名」參考）
     };
   }
 
@@ -3563,6 +3580,7 @@
       deities: data.deities || [], deityPrice: data.deityPrice || 0,
       baseDeityQty: data.baseDeityQty || 0, baseDonationAmt: data.baseDonationAmt || 0,
       itemIdSeq: data.itemIdSeq || 1, regSeq: data.regSeq || 1,
+      history: !!data.history,
       items: [],
       registrations: []
     };
@@ -4376,7 +4394,8 @@
     // 場次的信眾）時，優先挑「開放報名中」的場次，而不是單純取清單第一個
     // （雲端清單是依文件 id 排序，第一個可能剛好是已經關閉的舊場次）。
     // v116 — 準備中（draft）的場次不能報名，信眾第一次打開時優先停在開放中、其次已關閉的場次
-    var openFallback = occasions.filter(function(o){ return o.status === "open"; })[0] || occasions.filter(function(o){ return o.status !== "draft"; })[0];
+    // v126 — 從 Excel 匯入的歷史場次不當成信眾的預設場次
+    var openFallback = occasions.filter(function(o){ return o.status === "open"; })[0] || occasions.filter(function(o){ return o.status !== "draft" && !o.history; })[0];
     var resolvedId = occasions.some(function(o){ return o.id === keepId; }) ? keepId : (openFallback || occasions[0]).id;
     var occasionChanged = resolvedId !== currentOccasionId;
     // currentOccasionId itself is always updated synchronously — current(),
@@ -5228,7 +5247,7 @@
       b.type = "button";
       b.className = "occ-chip" + (o.status !== "open" ? " closed" : "");
       b.setAttribute("aria-pressed", o.id === currentOccasionId ? "true" : "false");
-      b.textContent = o.label + (o.status === "closed" ? "（已關閉）" : o.status === "draft" ? "（準備中）" : "");
+      b.textContent = o.label + (o.history ? "（歷史資料）" : o.status === "closed" ? "（已關閉）" : o.status === "draft" ? "（準備中）" : "");
       b.addEventListener("click", function(){ setOccasion(o.id); });
       occChipRow.appendChild(b);
     });
@@ -6881,6 +6900,13 @@
     var rawLines = bulkText.value.split("\n").map(function(l){ return normalizeLine(l.trim()); }).filter(Boolean);
     if(!rawLines.length){ showToast("請先貼上 LINE 訊息內容"); return; }
 
+    // v126 — 每一行都只有姓名：帶出這些人去年的報名
+    if(histAllNameLines(rawLines)){
+      previewRows = [];
+      histLookupNames(histSplitNames(rawLines.join("\n"))).then(function(){ if(previewRows.length) bulkText.value = ""; });
+      return;
+    }
+
     if(looksLikeCsv(rawLines)){
       previewRows = parseCsvRecords(rawLines, occ);
       annotateRowsWithCapacity(previewRows);
@@ -6938,7 +6964,8 @@
       tr.innerHTML =
         '<td><input type="checkbox" class="preview-check" ' + (checkable && !row.unchecked ? "checked" : "") + (row.overCapacity ? " disabled" : "") + ' data-idx="' + idx + '" data-role="check"></td>' +
         '<td><input type="text" value="' + row.name.replace(/"/g,"&quot;") + '" data-idx="' + idx + '" data-role="name" style="width:170px;"></td>' +
-        '<td><select data-idx="' + idx + '" data-role="item" style="max-width:220px;">' + itemOpts + '</select>' + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') + '</td>' +
+        '<td><select data-idx="' + idx + '" data-role="item" style="max-width:220px;">' + itemOpts + '</select>' + (row.overCapacity ? '<div class="type-tag" style="color:var(--full-text);">' + row.overCapacityMsg + '</div>' : '') +
+          (row.histNote ? '<div class="type-tag" style="white-space:normal; max-width:260px; margin-top:4px;">📜 ' + escHtml(row.histNote) + '</div>' : '') + '</td>' +
         '<td>' + (row.matched && itemNeedsDedication(row.matched.catId)
           ? '<input type="text" value="' + (row.dedicateTo || "").replace(/"/g,"&quot;") + '" placeholder="仙佛名稱" data-idx="' + idx + '" data-role="dedicate" style="width:110px;">'
           : (row.matched && itemNeedsBuyun(row.matched.catId)
@@ -6969,6 +6996,8 @@
       sel.addEventListener("change", function(){
         var row = previewRows[+sel.getAttribute("data-idx")];
         row.matched = current().catalog.filter(function(c){ return String(c.catId) === sel.value; })[0] || null;
+        // v126 — 去年帶入的列改選「元」的品項（例如法船）：數量欄改帶去年的金額
+        if(row.histAmount && row.matched && String(row.matched.unit || "").trim() === "元") row.qty = row.histAmount;
         refreshPreviewRow(row);
       });
     });
@@ -7016,6 +7045,328 @@
     showToast(msg);
     if(added){ bulkText.value = ""; previewRows = []; renderPreview(); lineInboxMarkInPreview("done"); openRegNotice(addedRegs); }
   });
+
+  /* ---------------- v126 打姓名帶出去年報名 ----------------
+     小朱：LINE 快速報名時，只要打出姓名，就撈出這位去年的報名（品項、數量）帶進
+     預覽表，志工改數量／品項後再登記。去年的資料來源是平台裡其他場次的
+     registrations：優先找「同一個節日」（場次名稱裡的農曆月日相同，例如九月十九）
+     最近一屆有這個姓名的，找不到再找最近一場有這個姓名的。平台上線前的舊場次
+     （手工登記 Excel）可用「📥 匯入去年登記 Excel」匯入成「歷史場次」（history:true、
+     已關閉，信眾頁不會停在這種場次，LINE 小幫手也只收開放中的場次）。
+     registrations 只有啟用中的志工讀得到，資料庫規則不用改。 */
+  var histRegCache = {}; // occId -> registrations（目前場次以外的場次，讀一次就留著）
+
+  function histOccYear(o){
+    var m = String(o.label || "").match(/(?:^|\D)(1\d{2})(?=[\u4e00-\u9fff年\/.\-])/) || String(o.date || "").match(/^(1\d{2})/);
+    return m ? +m[1] : 0;
+  }
+  function histFestKey(o){
+    var m = String(o.label || "").match(/([正一二三四五六七八九十冬臘]{1,2}月(?:初|廿|卅)?[一二三四五六七八九十]{1,2})/);
+    return m ? m[1] : "";
+  }
+  // 同一個節日的場次排前面（新到舊），其他場次接在後面（新到舊）
+  function histCandidates(){
+    var cur = current(), key = histFestKey(cur);
+    return occasions.filter(function(o){ return o.id !== cur.id && !demoSeedOccIds[o.id]; }).map(function(o){
+      return { occ: o, same: !!key && histFestKey(o) === key, year: histOccYear(o) };
+    }).sort(function(a, b){
+      if(a.same !== b.same) return a.same ? -1 : 1;
+      return b.year - a.year;
+    });
+  }
+  function histLoadRegs(occ){
+    if(histRegCache[occ.id]) return Promise.resolve(histRegCache[occ.id]);
+    if(occ.registrations && occ.registrations.length && fsSubscribedOccId === occ.id) return Promise.resolve(occ.registrations);
+    return fsGetOccRef(occ.id).collection("registrations").get().then(function(snap){
+      var list = [];
+      snap.forEach(function(d){ list.push(docDataToObj(d.id, d.data())); });
+      histRegCache[occ.id] = list;
+      return list;
+    });
+  }
+  // 「劉友結、劉孟綱」「黃喬茵 （家妤）」這種合寫姓名拆開來比對
+  function histNameParts(s){
+    return String(s || "").replace(/[（(][^）)]*[）)]/g, "").split(/[、,，.．\/\s]+|和|與|及/)
+      .map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function histNameMatch(regName, name){
+    var n = histNameParts(name)[0] || String(name || "").trim();
+    if(!n) return false;
+    return String(regName || "").trim() === n || histNameParts(regName).indexOf(n) >= 0;
+  }
+  function histNorm(s){
+    return String(s || "").replace(/^\d+[、.．]\s*/, "").replace(/[\s　]/g, "").replace(/＋/g, "+").replace(/菓/g, "果").replace(/\d+[捆付份個]$/, "");
+  }
+  // 去年的品項名稱對到今年的品項：名稱一樣最好；不一樣時只有「剛好一項」互相包含才算（法船有兩項就讓志工自己選）
+  function histMatchItem(oldName, occ){
+    var o = histNorm(oldName);
+    if(!o) return null;
+    var exact = occ.items.filter(function(it){ return histNorm(it.name) === o; })[0];
+    if(exact) return findCatalog(exact.id, occ);
+    var near = occ.items.filter(function(it){
+      var n = histNorm(it.name);
+      return Math.min(n.length, o.length) >= 2 && (n.indexOf(o) >= 0 || o.indexOf(n) >= 0);
+    });
+    return near.length === 1 ? findCatalog(near[0].id, occ) : null;
+  }
+  function histShortLabel(o){
+    var y = histOccYear(o), k = histFestKey(o);
+    return (y && k) ? (y + " " + k) : o.label;
+  }
+  function histRegToRow(reg, srcOcc, typedName){
+    var occ = current();
+    var oldName = String(reg.label || "").replace(/^\d+[、.．]\s*/, "");
+    var matched = histMatchItem(oldName, occ);
+    var qty = Number(reg.qty) || 1;
+    var oldAmount = Number(reg.amount) || (qty * (Number(reg.unitPrice) || 0));
+    // 今年是「金額」品項（單位元，例如法船）、去年是算數量的：數量欄帶去年的金額
+    if(matched && String(matched.unit || "").trim() === "元" && oldAmount) qty = oldAmount;
+    var group = histNameParts(reg.name).length > 1;
+    var note = "去年（" + histShortLabel(srcOcc) + "）：" + oldName + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : "") + " " + (Number(reg.qty) || 0) +
+      (oldAmount ? "，" + Math.round(oldAmount).toLocaleString() + " 元" : "") + (group ? "；去年是多人合寫，姓名照去年帶入" : "");
+    return {
+      raw: note, name: group ? String(reg.name).trim() : (histNameParts(typedName)[0] || String(reg.name).trim()),
+      matched: matched, qty: qty,
+      amount: matched ? (matched.type === "donation" ? qty : qty * matched.price) : 0,
+      dedicateTo: reg.dedicateTo || "", buyunName: reg.buyunName || "", buyunAddr: reg.buyunAddr || "",
+      histNote: note, histAmount: oldAmount
+    };
+  }
+
+  function histLookupNames(names){
+    names = names.map(function(n){ return String(n || "").trim(); }).filter(Boolean);
+    if(!names.length){ showToast("請先輸入姓名"); return Promise.resolve(); }
+    if(!fsCanEdit() || !fsReady){ showToast("請先用志工帳號登入後台，才能讀去年的報名資料"); return Promise.resolve(); }
+    var cands = histCandidates();
+    if(!cands.length){ showToast("平台上還沒有其他場次的資料，可以先按「📥 匯入去年登記 Excel」"); return Promise.resolve(); }
+    showToast("正在找去年的報名…");
+    var rows = [], missing = [];
+    return names.reduce(function(chain, name){
+      return chain.then(function(){
+        var i = 0;
+        function next(){
+          if(i >= cands.length){ missing.push(name); return; }
+          var c = cands[i++];
+          return histLoadRegs(c.occ).then(function(regs){
+            var hits = regs.filter(function(r){ return histNameMatch(r.name, name); });
+            if(!hits.length) return next();
+            hits.forEach(function(r){ rows.push(histRegToRow(r, c.occ, name)); });
+          });
+        }
+        return next();
+      });
+    }, Promise.resolve()).then(function(){
+      if(rows.length){
+        previewRows = previewRows.concat(rows);
+        annotateRowsWithCapacity(previewRows);
+        renderPreview();
+        scrollFlash(bulkPreviewWrap);
+      }
+      var msg = rows.length ? ("已帶出 " + rows.length + " 筆去年的報名，請核對品項與數量") : "沒有找到去年的報名";
+      if(missing.length) msg += "；找不到：" + missing.join("、");
+      showToast(msg);
+    }).catch(function(e){
+      console.error("hist lookup", e);
+      showToast("讀取去年的報名失敗：" + (e && e.message || e));
+    });
+  }
+
+  function histSplitNames(text){
+    return String(text || "").split(/[\n、,，;；\s]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  // 大框裡每一行都只有姓名（中文 2～5 字、對不到任何品項）時，當成「帶出去年報名」
+  function histAllNameLines(lines){
+    if(!lines.length) return false;
+    return lines.every(function(l){
+      return histSplitNames(l).every(function(t){ return /^[\u4e00-\u9fff]{2,5}$/.test(t) && !resolveItemToken(t, current()); });
+    });
+  }
+
+  document.getElementById("histLookupBtn").addEventListener("click", function(){
+    var inp = document.getElementById("histNameInput");
+    histLookupNames(histSplitNames(inp.value)).then(function(){ inp.value = ""; });
+  });
+  document.getElementById("histNameInput").addEventListener("keydown", function(e){
+    if(e.key === "Enter" && !e.isComposing){ e.preventDefault(); document.getElementById("histLookupBtn").click(); }
+  });
+
+  // ---- 匯入去年登記 Excel（手工登記表）成歷史場次 ----
+  function histEnsureSheetJs(){
+    if(window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise(function(resolve, reject){
+      var sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      sc.onload = function(){ window.XLSX ? resolve(window.XLSX) : reject(new Error("Excel 讀取元件載入失敗")); };
+      sc.onerror = function(){ reject(new Error("Excel 讀取元件載入失敗，請確認網路")); };
+      document.head.appendChild(sc);
+    });
+  }
+  // v126 — 讀「登記」Excel（每個品項一列姓名、下一列數量，舊的手工登記表格式）。
+  // 數量空白的姓名併到前一位（例如「劉友結 1、劉孟綱、劉宇哲、劉庭毓」是一家合捐 1 籠）。
+  // 「XX菩薩 大壽金1捆250元」這種一尊一列的品項，統一成「各師尊大壽金」並把仙佛名稱放進 dedicateTo。
+  function parseHistDesc(desc){
+    desc = String(desc || "").replace(/\s+/g, " ").trim();
+    var info = { name: "", dedicateTo: "", price: 0, unit: "" };
+    var deity = desc.match(/^(.+?)\s+大壽金\s*1\s*捆/);
+    if(deity){ info.name = "各師尊大壽金"; info.dedicateTo = deity[1].replace(/師尊$/, "").trim() || deity[1].trim(); }
+    else {
+      info.name = desc.split(/[:：︰]/)[0].replace(/\s*\d.*$/, "").trim() || desc;
+    }
+    var prices = desc.match(/(\d[\d,]*)\s*元/g);
+    if(prices) info.price = parseFloat(prices[prices.length - 1].replace(/[^\d.]/g, "")) || 0;
+    else { var tail = desc.match(/1\s*\D\s*(\d[\d,]*)\s*$/); if(tail) info.price = parseFloat(tail[1].replace(/,/g, "")) || 0; }
+    var u = desc.match(/1\s*([^\d\s元*＊:：︰,，])\s*\d[\d,]*\s*元/) || desc.match(/[:：︰]\s*[\d,一二三四五六七八九十兩]+\s*([^\d\s元,，])/);
+    info.unit = u ? u[1] : "";
+    info.perUnit = /(^|[^\d])1\s*[^\d\s元]\s*[\d,]+\s*(元|$)/.test(desc);
+    info.hasCount = /\d\s*[^\d\s元,，.]/.test(desc.replace(/\d[\d,]*\s*元/g, ""));
+    if(!info.price){ info.price = 1; info.unit = "元"; } // 祝壽金這種只寫金額的
+    return info;
+  }
+
+  function parseHistSheet(rows){
+    var title = "";
+    var nameCol = -1, sumCol = -1, cur = null;
+    var items = [], regs = [];
+    for(var i = 0; i < rows.length; i++){
+      var r = rows[i] || [];
+      if(!title){ var t = r.filter(function(c){ return String(c).trim(); })[0]; if(t && nameCol < 0 && String(t).trim() !== "項次") title = String(t).trim(); }
+      if(nameCol < 0){
+        var hc = r.map(String).indexOf("項次");
+        if(hc >= 0){
+          r.forEach(function(c, k){ var s = String(c); if(/姓名/.test(s) && nameCol < 0) nameCol = k; if(/合計/.test(s)) sumCol = k; });
+        }
+        continue;
+      }
+      if(String(r[nameCol]).trim() !== "姓名") continue;
+      var q = rows[i + 1] || [];
+      if(String(q[nameCol]).trim() !== "數量") continue;
+      var no = String(r[0] == null ? "" : r[0]).trim();
+      if(no){
+        var info = parseHistDesc(r[1]);
+        cur = { no: no, name: info.name, dedicateTo: info.dedicateTo, price: info.price, unit: info.unit, desc: String(r[1] || "").replace(/\s+/g, " ").trim(), setOf: 0 };
+        // 「紅湯圓︰108碗 1500元」這種整組一個價錢：登記的碗數換算成幾組
+        var setTotal = parseFloat(String(r[2] == null ? "" : r[2]).replace(/[,\s]/g, ""));
+        if(!info.perUnit && info.hasCount && info.unit !== "元" && setTotal > 1){ cur.setOf = setTotal; cur.unit = "組"; }
+        items.push(cur);
+      }
+      if(!cur) continue;
+      var end = sumCol > nameCol ? sumCol : r.length;
+      var last = null;
+      for(var k = nameCol + 1; k < end; k++){
+        var nm = String(r[k] == null ? "" : r[k]).replace(/\s+/g, " ").trim();
+        if(!nm || /^[\d,.$\s]+$/.test(nm)) continue;
+        var qv = parseFloat(String(q[k] == null ? "" : q[k]).replace(/[,，\s]/g, ""));
+        if(isNaN(qv) || qv <= 0){
+          if(last){ last.name += "、" + nm; continue; }
+          qv = 1;
+        }
+        if(cur.setOf) qv = Math.round(qv / cur.setOf * 10000) / 10000;
+        last = { name: nm, item: cur, qty: qv };
+        regs.push(last);
+      }
+      i++; // 數量列已處理
+    }
+    return { title: title, items: items, regs: regs };
+  }
+  document.getElementById("histImportBtn").addEventListener("click", function(){
+    if(!fsCanEdit() || !fsReady){ showToast("請先用志工帳號登入後台"); return; }
+    document.getElementById("histImportFile").click();
+  });
+  document.getElementById("histImportFile").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if(!file) return;
+    Promise.all([histEnsureSheetJs(), file.arrayBuffer()]).then(function(res){
+      var wb = res[0].read(new Uint8Array(res[1]), { type: "array" });
+      var sheets = wb.SheetNames.map(function(sn){
+        var p = parseHistSheet(res[0].utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" }));
+        p.sheet = sn;
+        return p;
+      }).filter(function(p){ return p.regs.length; });
+      if(!sheets.length){ showToast("這個檔案找不到「姓名／數量」登記表格，請確認是供品登記 Excel"); return; }
+      var pick = sheets[0];
+      if(sheets.length > 1){
+        var ans = prompt("這個檔案有 " + sheets.length + " 個登記工作表，要匯入哪一個？請輸入編號：\n" +
+          sheets.map(function(p, i){ return (i + 1) + ". " + p.sheet + "（" + p.regs.length + " 筆）"; }).join("\n"), "1");
+        if(ans == null) return;
+        pick = sheets[(parseInt(ans, 10) || 1) - 1];
+        if(!pick){ showToast("編號不正確"); return; }
+      }
+      histImportSheet(pick, sheets.length > 1);
+    }).catch(function(err){
+      console.error("hist import", err);
+      showToast("讀取 Excel 失敗：" + (err && err.message || err));
+    });
+  });
+
+  function histImportSheet(p, multi){
+    var defLabel = (p.title || p.sheet) + (multi ? "（" + p.sheet + "）" : "");
+    var label = prompt("歷史場次名稱（請確認年份與節日，例如「114乙巳年九月十九…」，會用來判斷是不是「去年同一個節日」）：", defLabel);
+    if(label == null) return;
+    label = label.trim();
+    if(!label){ showToast("請輸入場次名稱"); return; }
+    if(occasions.some(function(o){ return o.label === label; }) && !confirm("已經有同名的場次「" + label + "」，確定要再匯入一份嗎？")) return;
+
+    // 品項：一尊一列的師尊大壽金併成一項「各師尊大壽金」，其他照原本項次
+    var o = makeDefaultOccasion(label);
+    o.status = "closed";
+    o.history = true;
+    o.notes = "從 Excel 匯入的歷史資料（" + p.sheet + "），只供「打姓名帶出去年報名」參考";
+    var itemByKey = {}, seq = 0;
+    p.items.forEach(function(src){
+      var key = src.dedicateTo ? "deity:" + src.name : "no:" + src.no;
+      if(itemByKey[key]){ src.target = itemByKey[key]; return; }
+      seq++;
+      var it = { id: "h" + seq, no: String(seq), name: src.name, spec: src.dedicateTo ? "" : src.desc, unit: src.unit, price: src.price, total: 0, sponsored: 0 };
+      itemByKey[key] = it; src.target = it;
+      o.items.push(it);
+    });
+    o.itemIdSeq = seq + 1;
+    var base = newRegId(), total = 0;
+    p.regs.forEach(function(r, k){
+      var it = r.item.target;
+      var amount = Math.round(r.qty * it.price);
+      it.sponsored = Math.round((it.sponsored + r.qty) * 10000) / 10000;
+      total += amount;
+      o.registrations.push({
+        id: base + k, name: r.name, phone: "", catId: it.id, label: it.no + "、" + it.name, type: "item",
+        qty: r.qty, unitPrice: it.price, amount: amount, paid: false, confirmed: false,
+        dedicateTo: r.item.dedicateTo || "", buyunName: "", buyunAddr: "", time: "", source: "history"
+      });
+    });
+    o.items.forEach(function(it){ it.total = it.sponsored; });
+    o.regSeq = o.registrations.length + 1;
+    buildCatalog(o);
+    if(!confirm("要新增歷史場次「" + label + "」嗎？\n\n" + o.items.length + " 個品項、" + o.registrations.length + " 筆登記，合計 " + total.toLocaleString() + " 元。\n\n" +
+      "歷史場次是「已關閉」狀態，信眾看不到也不能報名，只給「打姓名帶出去年報名」參考。匯入後可在「法會場次管理」點這個場次查看或刪除。")) return;
+
+    showToast("正在匯入 " + o.registrations.length + " 筆歷史登記…");
+    var occRef = fsGetOccRef(o.id);
+    var meta = occToFirestoreMetaFields(o);
+    var first = fsDb.batch();
+    first.set(occRef, meta);
+    o.items.forEach(function(it){ first.set(occRef.collection("items").doc(it.id), it); });
+    var chunks = [];
+    for(var i = 0; i < o.registrations.length; i += 400) chunks.push(o.registrations.slice(i, i + 400));
+    first.commit().then(function(){
+      return chunks.reduce(function(chain, part){
+        return chain.then(function(){
+          var b = fsDb.batch();
+          part.forEach(function(r){ b.set(occRef.collection("registrations").doc(String(r.id)), r); });
+          return b.commit();
+        });
+      }, Promise.resolve());
+    }).then(function(){
+      histRegCache[o.id] = o.registrations;
+      markOccConfirmed(o.id);
+      if(!occasions.some(function(x){ return x.id === o.id; })) occasions.push(o);
+      renderOccasionChips();
+      showToast("已匯入歷史場次「" + label + "」（" + o.registrations.length + " 筆），現在可以打姓名帶出去年報名");
+    }).catch(function(err){
+      console.error("hist import write", err);
+      showToast("匯入失敗：" + (err && err.message || err) + "。可到「法會場次管理」刪掉不完整的歷史場次再匯入一次");
+    });
+  }
 
   /* ---------------- v100 LINE 小幫手待確認 ----------------
      LINE 官方帳號「古亭院報名小幫手」收到的群組／私訊報名訊息，由 Google Apps
