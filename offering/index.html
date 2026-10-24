@@ -1357,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v134";
+  var APP_VERSION = "v135";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1368,6 +1368,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v135", date: "2026-10-24", changes: [
+      "照片傳信徒：電腦「複製圖片」在 LINE 按 Ctrl+V 貼不上的問題，改成按下按鈕當下就複製，圖片縮到長邊 1600（原本太大 LINE 收不下）",
+      "沒打姓名時 AI 不會開始讀照片（直接點格子就好，也省 AI 額度）；打了姓名才讓 AI 幫忙找"
+    ]},
     { version: "v134", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：產生的圖片加「📋 複製圖片」；同一位有兩張以上時變成「合併成一張・複製圖片」，到 LINE 直接貼上；另有「合併下載」"
     ]},
@@ -9056,6 +9060,39 @@
     if(files.length > 1){ showToast("電腦一次只能複製一張，請按每張照片下面的「複製」，或按「全部下載」"); return; }
     psCopyFile(files[0], label);
   }
+  // v135 — 紅紙照片很大（合併後近 2000×3000），轉成 PNG 動輒十幾 MB，LINE 電腦版貼不上；
+  // 而且要在按下按鈕的當下就呼叫剪貼簿（合併等太久會失去「使用者操作」而被瀏覽器擋掉）。
+  // 所以：按鈕當下就寫剪貼簿，內容用 Promise 慢慢準備，並縮到長邊 1600 以內
+  function psCopyCanvases(canvases, label){
+    if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)){
+      psCanvasFile(psStackCanvases(canvases), "紅紙_" + psSafeName(label) + ".jpg").then(function(f){
+        triggerBrowserDownload(f.name, f, f.type);
+        showToast("這個瀏覽器不能複製圖片，已改下載，請到 LINE 選圖片傳送");
+      });
+      return;
+    }
+    if(canvases.length > 1) showToast("正在合併圖片，請稍等…");
+    var png = new Promise(function(resolve){
+      setTimeout(function(){
+        var src = psStackCanvases(canvases);
+        var k = Math.min(1, 1600 / Math.max(src.width, src.height));
+        var c = document.createElement("canvas");
+        c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+        var g = c.getContext("2d");
+        g.imageSmoothingQuality = "high";
+        g.drawImage(src, 0, 0, c.width, c.height);
+        c.toBlob(resolve, "image/png");
+      }, 30);
+    });
+    navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(function(){
+      showToast("已複製「" + label + "」的圖片" + (canvases.length > 1 ? "（已合併成一張）" : "") + "，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
+    }).catch(function(){
+      psCanvasFile(psStackCanvases(canvases), "紅紙_" + psSafeName(label) + ".jpg").then(function(f){
+        triggerBrowserDownload(f.name, f, f.type);
+        showToast("複製失敗，已改下載，請到 LINE 選圖片傳送");
+      });
+    });
+  }
   function psCopyFile(file, label){
     if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)){
       triggerBrowserDownload(file.name, file, file.type);
@@ -9069,8 +9106,9 @@
       img.onload = function(){
         URL.revokeObjectURL(url);
         var c = document.createElement("canvas");
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        c.getContext("2d").drawImage(img, 0, 0);
+        var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));  // 太大的 PNG LINE 電腦版貼不上
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         c.toBlob(resolve, "image/png");
       };
       img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("img")); };
@@ -9139,6 +9177,7 @@
         ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name" || !b.who || (keepAny && names.indexOf(b.who) >= 0); });
       });
       psRed.undo = [];
+      if(names.length) psRed.photos.forEach(function(ph){ if(ph.ai.state === "idle") psAiRead(ph); });
       if(names.length && !hits.length) psAiApply();
       else psAiStatusText();
       psRedDraw();
@@ -9188,7 +9227,7 @@
   function psHintText(){
     var ph = psCurPhoto(), el = document.getElementById("psHint");
     if(!ph){ el.textContent = ""; return; }
-    if(!ph.header && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，可以先打信徒姓名";
+    if(!ph.header && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，讀完會自動畫黃線；也可以自己點一下「供品單位那一列的下緣」";
     else if(!ph.header) el.textContent = "請先在照片上點一下「供品單位那一列的下緣」，黃線以上的標題會保留";
     else if(!psRed.name) el.textContent = "直接在信徒名字那一格點一下就框（名字＋數量），框錯再點一下取消；好了按「✅ 產生這位的圖片」";
     else el.textContent = "確認綠框都是「" + psRed.name + "」；沒框到在名字上點一下，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
@@ -9368,7 +9407,6 @@
     }
     if(psRed.tapMode === "header"){ psRed.tapMode = ""; ph.header = null; }
     if(!ph.header){
-      if(ph.ai.state === "busy"){ showToast("AI 正在讀照片，讀完會自動畫黃線；可以先打信徒姓名"); return; }
       psPushUndo();
       ph.header = psSnapHLine(ph, nx, ny);
       psRedDraw();
@@ -9653,7 +9691,8 @@
         return psLoadCanvas(f).then(function(full){
           var ph = { file: f.name || "", full: full, work: psScaled(full, PS_WORK_EDGE), header: null, boxes: [], ai: { state: "idle" } };
           psRed.photos.push(ph);
-          psAiRead(ph);
+          // v135 — 沒打姓名就不叫 AI（直接點格子的人用不到，也省 AI 額度）；打了姓名才開始讀
+          if(psRed.name) psAiRead(ph);
         }).catch(function(err){ showToast(err && err.message ? err.message : "照片讀取失敗"); });
       });
     }, Promise.resolve()).then(function(){
@@ -9743,14 +9782,13 @@
     var act = btn.getAttribute("data-act");
     if(act === "share"){
       if(regNoticeIsMobile || o.files.length === 1) psShareFiles(o.files, o.name);
-      else psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + ".jpg").then(function(f){ psCopyFile(f, o.name); });
+      else psCopyCanvases(o.canvases, o.name);
     }
-    else if(act === "copy" || act === "mergedl"){
-      if(o.files.length > 1) showToast("正在合併圖片，請稍等幾秒…");
-      var merged = o.files.length > 1 ? psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + "_合併.jpg") : Promise.resolve(o.files[0]);
-      merged.then(function(f){
-        if(act === "copy") psCopyFile(f, o.name);
-        else { triggerBrowserDownload(f.name, f, f.type); showToast("已下載合併的圖片"); }
+    else if(act === "copy") psCopyCanvases(o.canvases, o.name);
+    else if(act === "mergedl"){
+      showToast("正在合併圖片，請稍等幾秒…");
+      psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + "_合併.jpg").then(function(f){
+        triggerBrowserDownload(f.name, f, f.type); showToast("已下載合併的圖片");
       });
     }
     else if(act === "download"){ o.files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); }); showToast("已下載"); }
