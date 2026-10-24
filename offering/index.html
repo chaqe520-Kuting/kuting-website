@@ -1357,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v133";
+  var APP_VERSION = "v134";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1368,6 +1368,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v134", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：產生的圖片加「📋 複製圖片」；同一位有兩張以上時變成「合併成一張・複製圖片」，到 LINE 直接貼上；另有「合併下載」"
+    ]},
     { version: "v133", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：不用先打姓名，直接在名字那一格點一下就框（姓名可不填，圖片名稱用「信徒1、信徒2…」）",
       "「清除這位的框」改成「🧹 清除已點選（換下一位）」：兩張紅紙上點選的格子和姓名一起清掉，紅紙照片和黃線保留，可以直接點下一位",
@@ -9074,7 +9077,7 @@
       img.src = url;
     });
     navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(function(){
-      showToast("已複製「" + label + "」的照片，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
+      showToast("已複製「" + label + "」的照片，到 LINE 打開信徒的聊天視窗，貼上（電腦按 Ctrl+V，手機長按輸入框選「貼上」）再送出");
     }).catch(function(){
       triggerBrowserDownload(file.name, file, file.type);
       showToast("複製失敗，已改下載，請到 LINE 選圖片傳送");
@@ -9571,7 +9574,7 @@
       ph.ai = { state: "done", cells: out.cells || [] };
       // 標題範圍自動判斷：AI 給的標題列下緣、最上面那排姓名格的上緣，取比較上面的（寧可少保留，
       // 也不要把別人的名字露出來），再對齊到格線
-      if(!ph.header && ph.ai.cells.length){
+      if(!ph.header && (ph.ai.cells.length || out.header)){
         var top = psAutoHeaderTop(ph.ai.cells, out.header);
         if(top != null){
           var y = psSnapHLine(ph, 0.5, top);
@@ -9724,6 +9727,9 @@
           o.urls.map(function(u){ return '<img src="' + u + '" alt="' + escAttr(o.name) + ' 的紅紙照片" style="width:100%; max-width:520px; border-radius:6px; border:1px solid var(--border); margin-bottom:6px;">'; }).join("") +
           '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
             '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
+            // v134 — 多張合併成一張再複製，到 LINE 直接貼上
+            '<button type="button" class="ghost-btn" data-act="copy" data-i="' + i + '">📋 ' + (o.files.length > 1 ? "合併成一張・複製圖片" : "複製圖片") + '</button>' +
+            (o.files.length > 1 ? '<button type="button" class="ghost-btn" data-act="mergedl" data-i="' + i + '">合併下載</button>' : '') +
             '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載</button>' +
             '<button type="button" class="ghost-btn" data-act="remove" data-i="' + i + '">移除</button>' +
           '</div></div>';
@@ -9738,6 +9744,14 @@
     if(act === "share"){
       if(regNoticeIsMobile || o.files.length === 1) psShareFiles(o.files, o.name);
       else psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + ".jpg").then(function(f){ psCopyFile(f, o.name); });
+    }
+    else if(act === "copy" || act === "mergedl"){
+      if(o.files.length > 1) showToast("正在合併圖片，請稍等幾秒…");
+      var merged = o.files.length > 1 ? psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + "_合併.jpg") : Promise.resolve(o.files[0]);
+      merged.then(function(f){
+        if(act === "copy") psCopyFile(f, o.name);
+        else { triggerBrowserDownload(f.name, f, f.type); showToast("已下載合併的圖片"); }
+      });
     }
     else if(act === "download"){ o.files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); }); showToast("已下載"); }
     else if(act === "remove"){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); psRed.outs.splice(i, 1); psRenderRedOuts(); }
