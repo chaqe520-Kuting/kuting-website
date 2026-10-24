@@ -1357,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v129";
+  var APP_VERSION = "v130";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1368,6 +1368,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v130", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：名字和下方的數量格一定合成一個框。修正一格裡有「仙佛名＋信徒名」兩行時，AI 只框到名字、沒框到數量",
+      "數量格偵測：格線較粗或照片較模糊時，也找得到數量格下緣"
+    ]},
     { version: "v129", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：右邊直書標題（古亭院、恭祝、法會名稱、祝壽供品）自動保留，AI 畫出右邊黃線（需小幫手 v1.21）",
       "上方品項與數量列自動保留：AI 找標題黃線時排除照片上方的空白與桌面，線改畫在品項數量列下緣",
@@ -9291,7 +9295,11 @@
     for(y = py; y <= Math.min(H - 1, py + maxH); y++){ if(isHLine(y)){ bottom = y; break; } }
     if(top < 0 || bottom < 0 || bottom - top < 8) return null;
     // v129 — 名字下面緊接著的數量格（比名字格矮很多）一起框
-    for(y = bottom + 5; y <= Math.min(H - 1, bottom + Math.round((bottom - top) * 0.6)); y++){ if(isHLine(y)){ bottom = y; break; } }
+    // v130 — 先跳過名字格下緣那條線本身（線粗、照片模糊時會有好幾個像素），再往下找數量格下緣
+    var lineEnd = bottom;
+    while(lineEnd < H - 1 && isHLine(lineEnd + 1)) lineEnd++;
+    var qtyMax = Math.min(H - 1, lineEnd + Math.round((bottom - top) * 0.6));
+    for(y = lineEnd + 4; y <= qtyMax; y++){ if(isHLine(y)){ bottom = y; break; } }
     var pad = 2;
     return { x: Math.max(0, left - pad) / W, y: Math.max(0, top - pad) / H,
              w: (Math.min(W, right + pad) - Math.max(0, left - pad)) / W, h: (Math.min(H, bottom + pad) - Math.max(0, top - pad)) / H, kind: "name" };
@@ -9549,7 +9557,10 @@
         if(!who) return;
         var ai = { x: c.box[1] / 1000, y: c.box[0] / 1000, w: (c.box[3] - c.box[1]) / 1000, h: (c.box[2] - c.box[0]) / 1000 };
         var cell = psSnapCell(ph, ai.x + ai.w / 2, ai.y + ai.h / 2);
-        var box = cell && cell.w < ai.w * 2.5 && cell.h < ai.h * 2.5 && cell.w > ai.w * 0.4 && cell.h > ai.h * 0.4 ? cell : { x: ai.x, y: ai.y, w: ai.w, h: ai.h };
+        // v130 — 一格裡常有「仙佛名＋信徒名」兩行直書，AI 只框信徒名那一行，格子會寬很多，寬度放寬到 5 倍
+        var ok = cell && cell.w < ai.w * 5 && cell.h < ai.h * 3.5 && cell.w > ai.w * 0.4 && cell.h > ai.h * 0.4 &&
+          ai.x + ai.w / 2 > cell.x && ai.x + ai.w / 2 < cell.x + cell.w;
+        var box = ok ? cell : { x: ai.x, y: ai.y, w: ai.w, h: ai.h };
         box.kind = "name"; box.ai = true; box.who = who;
         if(ph.header && box.y + box.h <= ph.header) return;
         if(ph.titleX && box.x >= ph.titleX) return;
