@@ -1341,7 +1341,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v124";
+  var APP_VERSION = "v125";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1352,6 +1352,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v125", date: "2026-10-24", changes: [
+      "LINE 小幫手待確認可收語音報名：信眾傳 LINE 語音訊息，小幫手的 AI 轉成「姓名,品項,數量」，顯示「🎤 語音」標籤和 AI 聽到的原文，可以修改後帶入解析（需小幫手 v1.14）",
+      "錄音不存檔，只存 AI 聽寫的文字；台語或口音重時姓名可能是同音字，請核對；資料庫規則未變更"
+    ]},
     { version: "v124", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙照片）：輸入姓名後按「🤖 AI 找名字」（或點選姓名、按 Enter），由報名小幫手的 AI 找出這位的名字並自動畫綠框，再對齊到整格；請確認後再產生圖片（需小幫手 v1.13）",
       "在名字上點一下，會依格線自動框出那一格，不用再拖曳畫框",
@@ -7078,7 +7082,14 @@
         '<td>' + when + '</td>' +
         '<td>' + escHtml(src) + '</td>' +
         '<td>' + escHtml(m.displayName || "（未知）") + '</td>' +
-        (m.image
+        (m.kind === "audio"
+          // v125 — 語音報名：沒有存錄音，只顯示 AI 聽寫的原文，解析結果可以改
+          ? '<td style="min-width:220px;"><div class="type-tag" style="font-weight:700;">🎤 語音' + (m.audioSec ? ' ' + m.audioSec + ' 秒' : '') + '</div>' +
+              '<textarea data-line-edit="' + escAttr(m.id) + '" rows="3" placeholder="依下方聽寫內容輸入：姓名,品項,數量（每行一筆）" style="width:100%; min-height:64px; font-size:.9rem;">' + escHtml(lineInboxEdits[m.id] != null ? lineInboxEdits[m.id] : (m.text || "")) + '</textarea>' +
+              (m.aiRaw ? '<div class="type-tag" style="white-space:pre-wrap;">AI 聽到：' + escHtml(m.aiRaw) + '</div>' : '') +
+              '<div class="type-tag">姓名可能是同音字，請核對</div>' +
+              (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>'
+          : m.image
           ? '<td style="min-width:220px;"><div style="display:flex; gap:8px; align-items:flex-start;">' +
               '<img src="' + escAttr(m.image) + '" alt="報名照片" data-line-img="' + escAttr(m.id) + '" title="點一下放大" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border); cursor:zoom-in; flex:none;">' +
               '<div style="flex:1;"><textarea data-line-edit="' + escAttr(m.id) + '" rows="3" placeholder="看照片輸入：姓名,品項,數量（每行一筆）" style="width:100%; min-height:64px; font-size:.9rem;">' + escHtml(lineInboxEdits[m.id] != null ? lineInboxEdits[m.id] : (m.text || "")) + '</textarea>' +
