@@ -1177,7 +1177,8 @@
       <details style="margin-top:6px;">
         <summary class="pdesc" style="cursor:pointer;">更多設定（平常不用）</summary>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px;">
-          <button type="button" class="ghost-btn" id="psResetHeader">重新點黃線（標題範圍）</button>
+          <button type="button" class="ghost-btn" id="psResetHeader">重新點上方黃線</button>
+          <button type="button" class="ghost-btn" id="psResetTitle">重新點右邊黃線</button>
           <button type="button" class="ghost-btn" id="psAiRetry">🤖 AI 重新讀這張</button>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;"><input type="checkbox" id="psPreview"> 預覽馬賽克</label>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">馬賽克粗細
@@ -1356,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v128";
+  var APP_VERSION = "v129";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1367,6 +1368,13 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v129", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：右邊直書標題（古亭院、恭祝、法會名稱、祝壽供品）自動保留，AI 畫出右邊黃線（需小幫手 v1.21）",
+      "上方品項與數量列自動保留：AI 找標題黃線時排除照片上方的空白與桌面，線改畫在品項數量列下緣",
+      "一次可選多位信徒：姓名用「、」隔開（點建議姓名會自動加「、」），產生一張同時留下這幾位的圖",
+      "點名字時連同下方的數量格一起框（沒選到的名字和數量都馬賽克）",
+      "黃線位置不對時，在「更多設定」可重新點上方或右邊黃線"
+    ]},
     { version: "v128", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）再簡化：畫面上方改成三個步驟說明；拿掉手動畫框（黃色保留框）按鈕",
       "AI 讀完照片會自動畫出標題黃線（黃線以上保留），不用自己點；照片上標示「黃線以上會保留」",
@@ -9085,23 +9093,33 @@
     return { map: map, order: order };
   }
 
+  // v129 — 一張圖可以放好幾位（例如一家人）：姓名用「、」分開，或連續點選下面的姓名
+  function psNames(){ return psSplitNames(psRed.name); }
   function psRedNameChanged(){
-    var q = document.getElementById("psRedName").value.trim();
+    var raw = document.getElementById("psRedName").value;
+    var q = raw.trim();
     var people = psRedPeople(current());
     var list = document.getElementById("psRedNameList");
     var info = document.getElementById("psRedNameInfo");
-    var hits = q ? people.order.filter(function(n){ return n.indexOf(q) >= 0 && n !== q; }).slice(0, 12) : [];
+    var names = psSplitNames(q);
+    var typing = /[、,，;；\/\s]$/.test(raw) ? "" : (names[names.length - 1] || "");
+    var hits = typing ? people.order.filter(function(n){ return n.indexOf(typing) >= 0 && n !== typing; }).slice(0, 12) : [];
     list.innerHTML = hits.map(function(n){
       return '<button type="button" class="occ-chip" data-name="' + escAttr(n) + '">' + escHtml(n) + '</button>';
     }).join("");
-    if(q && people.map[q]) info.textContent = "這位登記：" + people.map[q].join("、");
-    else info.textContent = q ? (hits.length ? "點下面的姓名選取" : "本場次紅紙上沒有這個姓名（仍可直接點名字框選）") : "";
+    info.textContent = names.map(function(n){
+      return people.map[n] ? n + " 登記：" + people.map[n].join("、") : "";
+    }).filter(Boolean).join("　") || (typing && hits.length ? "點下面的姓名選取" : "");
     if(q !== psRed.name){
-      // 換人：前一位的姓名框都清掉（固定的標題範圍保留）
+      var prev = psSplitNames(psRed.name);
       psRed.name = q;
-      psRed.photos.forEach(function(ph){ ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name"; }); });
+      // 拿掉的人：他的框清掉；換成完全不同的人：全部姓名框清掉（標題範圍保留）
+      var keepAny = names.some(function(n){ return prev.indexOf(n) >= 0; });
+      psRed.photos.forEach(function(ph){
+        ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name" || (keepAny && (!b.who || names.indexOf(b.who) >= 0)); });
+      });
       psRed.undo = [];
-      if(q && (people.map[q] || !hits.length)) psAiApply();
+      if(names.length && !hits.length) psAiApply();
       else psAiStatusText();
       psRedDraw();
     }
@@ -9132,6 +9150,8 @@
   function psKeepBoxes(ph){
     var keep = ph.boxes.slice();
     if(ph.header) keep.push({ x: 0, y: 0, w: 1, h: ph.header, kind: "fixed" });
+    // v129 — 紅紙右邊的直書標題（古亭院、恭祝、法會名稱、祝壽供品）
+    if(ph.titleX) keep.push({ x: ph.titleX, y: 0, w: 1 - ph.titleX, h: 1, kind: "fixed" });
     return keep;
   }
   function psCompose(src, boxes, blockDiv){
@@ -9190,6 +9210,19 @@
       g.fillRect(lw * 4, hy + lw * 2, g.measureText(label).width + fs * 0.6, fs * 1.4);
       g.fillStyle = "#ffcc00";
       g.fillText(label, lw * 4 + fs * 0.3, hy + lw * 2 + fs * 1.05);
+    }
+    if(ph.titleX){
+      var tx = Math.round(ph.titleX * W);
+      g.strokeStyle = "#ffcc00"; g.lineWidth = lw * 1.5; g.setLineDash([lw * 5, lw * 3]);
+      g.beginPath(); g.moveTo(tx, 0); g.lineTo(tx, H); g.stroke(); g.setLineDash([]);
+      var fs2 = Math.round(Math.max(W, H) / 45);
+      g.font = "bold " + fs2 + "px sans-serif";
+      var label2 = "黃線右邊（標題）會保留 →";
+      var lw2 = g.measureText(label2).width + fs2 * 0.6;
+      g.fillStyle = "rgba(0,0,0,.7)";
+      g.fillRect(Math.max(0, tx - lw2 - lw * 2), H - fs2 * 2.2, lw2, fs2 * 1.4);
+      g.fillStyle = "#ffcc00";
+      g.fillText(label2, Math.max(0, tx - lw2 - lw * 2) + fs2 * 0.3, H - fs2 * 2.2 + fs2 * 1.05);
     }
     ph.boxes.forEach(function(b){
       var p = psBoxPx(b, W, H);
@@ -9257,6 +9290,8 @@
     for(y = py; y >= Math.max(0, py - maxH); y--){ if(isHLine(y)){ top = y; break; } }
     for(y = py; y <= Math.min(H - 1, py + maxH); y++){ if(isHLine(y)){ bottom = y; break; } }
     if(top < 0 || bottom < 0 || bottom - top < 8) return null;
+    // v129 — 名字下面緊接著的數量格（比名字格矮很多）一起框
+    for(y = bottom + 5; y <= Math.min(H - 1, bottom + Math.round((bottom - top) * 0.6)); y++){ if(isHLine(y)){ bottom = y; break; } }
     var pad = 2;
     return { x: Math.max(0, left - pad) / W, y: Math.max(0, top - pad) / H,
              w: (Math.min(W, right + pad) - Math.max(0, left - pad)) / W, h: (Math.min(H, bottom + pad) - Math.max(0, top - pad)) / H, kind: "name" };
@@ -9296,6 +9331,11 @@
   function psTap(nx, ny){
     var ph = psCurPhoto();
     if(!ph) return;
+    if(psRed.tapMode === "title"){
+      psPushUndo(); ph.titleX = nx > 0.3 ? nx : null; psRed.tapMode = ""; psRedDraw();
+      showToast(ph.titleX ? "已設定：黃線右邊的標題會保留" : "已取消右邊標題範圍"); return;
+    }
+    if(psRed.tapMode === "header"){ psRed.tapMode = ""; ph.header = null; }
     if(!ph.header){
       if(ph.ai.state === "busy"){ showToast("AI 正在讀照片，讀完會自動畫黃線；可以先打信徒姓名"); return; }
       psPushUndo();
@@ -9312,10 +9352,10 @@
         psPushUndo(); ph.boxes.splice(i, 1); psRedDraw(); return;
       }
     }
-    if(ny < ph.header){ showToast("這裡是標題範圍，本來就會保留；要改請按「重設標題範圍」"); return; }
+    if(ny < ph.header || (ph.titleX && nx > ph.titleX)){ showToast("這裡是標題範圍，本來就會保留"); return; }
     if(!psRed.name){ showToast("請先打信徒姓名"); document.getElementById("psRedName").focus(); return; }
     var cell = psSnapCell(ph, nx, ny);
-    if(!cell){ showToast("這裡找不到格線，可以在「更多」裡用拖曳畫姓名框"); return; }
+    if(!cell){ showToast("這裡找不到格線，請點在名字那一格的中間"); return; }
     psPushUndo(); ph.boxes.push(cell); psRedDraw();
   }
 
@@ -9417,11 +9457,14 @@
     psRedDraw();
   });
   document.getElementById("psResetHeader").addEventListener("click", function(){
-    var ph = psCurPhoto();
-    if(!ph) return;
-    psPushUndo();
-    ph.header = null;
-    psRedDraw();
+    if(!psCurPhoto()) return;
+    psRed.tapMode = "header";
+    showToast("請在照片上點一下「上方數量那一列的下緣」");
+  });
+  document.getElementById("psResetTitle").addEventListener("click", function(){
+    if(!psCurPhoto()) return;
+    psRed.tapMode = "title";
+    showToast("請在照片上點一下「右邊直書標題的左邊」；點在照片左半邊＝不保留右邊標題");
   });
   document.getElementById("psPreview").addEventListener("change", psRedDraw);
   document.getElementById("psBlock").addEventListener("change", function(){
@@ -9467,11 +9510,22 @@
       // 標題範圍自動判斷：AI 給的標題列下緣、最上面那排姓名格的上緣，取比較上面的（寧可少保留，
       // 也不要把別人的名字露出來），再對齊到格線
       if(!ph.header && ph.ai.cells.length){
-        var tops = ph.ai.cells.map(function(c){ return c.box[0] / 1000; });
-        if(out.header) tops.push(out.header / 1000);
-        var top = Math.min.apply(null, tops);
-        var y = psSnapHLine(ph, 0.5, top);
-        ph.header = y <= top + 0.015 && y > 0.02 ? y : Math.max(0.02, top - 0.004);
+        // AI 有時把上方品名格也當成姓名格，所以以 AI 給的品項列下緣為主，只採用在它下面的姓名格
+        var hy = out.header && out.header / 1000 > 0.05 && out.header / 1000 < 0.7 ? out.header / 1000 : null;
+        var tops = ph.ai.cells.map(function(c){ return c.box[0] / 1000; })
+          .filter(function(t){ return hy == null || t > hy - 0.03; });
+        if(hy != null) tops.push(hy);
+        var top = tops.length ? Math.min.apply(null, tops) : hy;
+        if(top != null){
+          var y = psSnapHLine(ph, 0.5, top);
+          ph.header = y <= top + 0.015 && y > 0.02 ? y : Math.max(0.02, top - 0.004);
+        }
+      }
+      // 右邊直書標題：以 AI 給的左邊界為準，但不能蓋到任何姓名格（寧可少保留）
+      if(ph.titleX == null && out.titleX && out.titleX / 1000 > 0.3){
+        var tx = out.titleX / 1000;
+        ph.ai.cells.forEach(function(c){ if(c.box[3] / 1000 > tx - 0.05 && c.box[1] / 1000 < tx) tx = Math.max(tx, c.box[3] / 1000 + 0.003); });
+        ph.titleX = tx < 0.97 ? tx : null;
       }
       psAiTick();
       psRedDraw();
@@ -9484,19 +9538,21 @@
   }
   // 把 AI 讀到、含這個姓名的格子框起來（再用格線對齊整格）；手動點的框保留
   function psAiApply(){
-    var name = psAiNorm(psRed.name), found = 0, anyDone = false;
+    var names = psNames().map(psAiNorm).filter(Boolean), found = 0, anyDone = false;
     psRed.photos.forEach(function(ph){
       if(ph.ai.state !== "done") return;
       anyDone = true;
-      if(!name) return;
+      if(!names.length) return;
       ph.boxes = ph.boxes.filter(function(b){ return !b.ai; });
       ph.ai.cells.forEach(function(c){
-        if(psAiNorm(c.text).indexOf(name) < 0) return;
+        var who = names.filter(function(n){ return psAiNorm(c.text).indexOf(n) >= 0; })[0];
+        if(!who) return;
         var ai = { x: c.box[1] / 1000, y: c.box[0] / 1000, w: (c.box[3] - c.box[1]) / 1000, h: (c.box[2] - c.box[0]) / 1000 };
         var cell = psSnapCell(ph, ai.x + ai.w / 2, ai.y + ai.h / 2);
         var box = cell && cell.w < ai.w * 2.5 && cell.h < ai.h * 2.5 && cell.w > ai.w * 0.4 && cell.h > ai.h * 0.4 ? cell : { x: ai.x, y: ai.y, w: ai.w, h: ai.h };
-        box.kind = "name"; box.ai = true;
+        box.kind = "name"; box.ai = true; box.who = who;
         if(ph.header && box.y + box.h <= ph.header) return;
+        if(ph.titleX && box.x >= ph.titleX) return;
         ph.boxes.push(box); found++;
       });
     });
@@ -9549,17 +9605,21 @@
   document.getElementById("psRedNameList").addEventListener("click", function(e){
     var b = e.target.closest("button[data-name]");
     if(!b) return;
-    document.getElementById("psRedName").value = b.getAttribute("data-name");
+    // 點選的姓名取代正在打的那一個，後面加「、」方便接著打下一位
+    var input = document.getElementById("psRedName");
+    var names = psSplitNames(input.value);
+    names[Math.max(0, names.length - 1)] = b.getAttribute("data-name");
+    input.value = names.join("、") + "、";
     psRedNameChanged();
   });
 
   document.getElementById("psRedMake").addEventListener("click", function(){
     if(!psRed.photos.length){ showToast("請先選紅紙照片"); return; }
-    var name = psRed.name;
+    var name = psNames().join("、");
     if(!name){ showToast("請先輸入信徒姓名"); document.getElementById("psRedName").focus(); return; }
     var used = psRed.photos.filter(function(ph){ return ph.boxes.some(function(b){ return b.kind === "name"; }); });
     if(!used.length){ showToast("還沒框到「" + name + "」的名字，請在名字上點一下"); return; }
-    if(used.some(function(ph){ return !ph.header && !ph.boxes.some(function(b){ return b.kind === "fixed"; }); }) &&
+    if(used.some(function(ph){ return !ph.header && !ph.titleX && !ph.boxes.some(function(b){ return b.kind === "fixed"; }); }) &&
        !confirm("有紅紙還沒設定標題範圍，標題也會被馬賽克。要繼續嗎？")) return;
     var canvases = used.map(function(ph){ return psCompose(ph.full, psKeepBoxes(ph), psBlockDiv()); });
     Promise.all(canvases.map(function(c, k){
@@ -9817,7 +9877,7 @@
   function psReset(){
     psRed.outs.forEach(function(o){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); });
     psBuyun.photos.forEach(function(p){ if(p.url) URL.revokeObjectURL(p.url); });
-    psRed.photos = []; psRed.cur = -1; psRed.undo = []; psRed.outs = []; psRed.aiFound = null; psMosaicCache = null;
+    psRed.photos = []; psRed.cur = -1; psRed.undo = []; psRed.tapMode = null; psRed.outs = []; psRed.aiFound = null; psMosaicCache = null;
     psBuyun.photos = []; psBuyun.cur = -1;
     psRedWrap.style.display = "none";
     document.getElementById("psRedFileInfo").textContent = "";
