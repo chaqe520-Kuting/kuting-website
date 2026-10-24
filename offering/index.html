@@ -1150,41 +1150,43 @@
     <p class="pdesc" style="margin:0 0 8px;">照片只在這台電腦／手機的瀏覽器裡處理，不會上傳到雲端；關掉視窗或重新整理後要重新選照片。</p>
 
     <div id="psRedPanel">
-      <p class="pdesc">① 選紅紙照片 → ② 選「固定保留」框住右邊標題（古亭院、恭祝、法會名稱、祝壽供品）和上方供品品名列 → ③ 輸入信徒姓名，按「🤖 AI 找名字」自動框出他的名字（綠框，請確認；找不到就在名字上點一下或拖曳畫框，同一人多格可框多個）→ ④ 按「產生這位的圖片」。框以外都會打上馬賽克。</p>
+      <p class="pdesc">① 選紅紙照片（可以一次選 2 張以上）→ ② 在照片上<b>點一下標題列最下面那條線</b>（單位那一列的下緣），線以上的標題、品名都會保留 → ③ 打信徒姓名或點選，AI 讀好會自動框出他的名字；沒框到就在名字上<b>點一下</b>（再點一下取消）→ ④ 按「產生這位的圖片」。框以外都打上馬賽克。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
-        <label class="ghost-btn" style="cursor:pointer;">📁 選紅紙照片<input type="file" id="psRedFile" accept="image/*,.heic,.heif" style="display:none;"></label>
+        <label class="ghost-btn" style="cursor:pointer;">📁 選紅紙照片（可多張）<input type="file" id="psRedFile" accept="image/*,.heic,.heif" multiple style="display:none;"></label>
         <span class="pdesc" id="psRedFileInfo" style="margin:0;"></span>
       </div>
+      <div id="psRedTabs" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"></div>
       <div class="field" style="margin-top:10px;">
         <label for="psRedName">信徒姓名（打一個字會列出本場次報名的姓名）</label>
         <input type="text" id="psRedName" autocomplete="off" placeholder="例：王小明">
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px;">
-          <button type="button" class="add-btn" id="psAiFind">🤖 AI 找名字</button>
-          <span class="pdesc" id="psAiStatus" style="margin:0;"></span>
-        </div>
         <div id="psRedNameList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;"></div>
         <div class="pdesc" id="psRedNameInfo" style="margin-top:4px;"></div>
+        <div class="pdesc" id="psAiStatus" style="margin-top:4px; font-weight:700;"></div>
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px;">
-        <span style="font-size:.9rem;">畫框：</span>
-        <button type="button" class="occ-chip" id="psKindFixed" aria-pressed="true">🟨 固定保留（標題、品名）</button>
-        <button type="button" class="occ-chip" id="psKindName" aria-pressed="false">🟩 這位姓名</button>
-        <button type="button" class="occ-chip" id="psPanBtn" aria-pressed="false" style="display:none;">✋ 移動畫面</button>
-      </div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px;">
-        <button type="button" class="ghost-btn" id="psDelBox">🗑 刪除選取的框</button>
-        <button type="button" class="ghost-btn" id="psClearName">清除姓名框</button>
+        <button type="button" class="ghost-btn" id="psUndo">↩ 復原上一步</button>
         <button type="button" class="ghost-btn" id="psZoomOut">－ 縮小</button>
         <button type="button" class="ghost-btn" id="psZoomIn">＋ 放大</button>
-        <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;"><input type="checkbox" id="psPreview"> 預覽馬賽克</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">馬賽克粗細
-          <select id="psBlock"><option value="70">細</option><option value="45" selected>中</option><option value="28">粗</option></select>
-        </label>
+        <button type="button" class="ghost-btn" id="psClearName">清除這位的框</button>
+        <button type="button" class="ghost-btn" id="psResetHeader">重設標題範圍</button>
       </div>
-      <p class="pdesc" id="psHint" style="margin-top:6px;">在名字上<b>點一下</b>會依格線自動框出那一格；也可以拖曳畫框。拖框內可移動，拖框的角可調整大小。</p>
-      <div id="psRedWrap" style="margin-top:6px; max-height:70vh; overflow:auto; border:1px solid var(--border); border-radius:8px; background:#222; display:none;">
-        <canvas id="psRedCanvas" style="display:block; width:100%; touch-action:none; cursor:crosshair;"></canvas>
+      <details style="margin-top:6px;">
+        <summary class="pdesc" style="cursor:pointer;">更多（手動畫框、馬賽克）</summary>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px;">
+          <button type="button" class="occ-chip" id="psDrawName" aria-pressed="false">✏️ 拖曳畫姓名框</button>
+          <button type="button" class="occ-chip" id="psDrawFixed" aria-pressed="false">✏️ 拖曳畫保留框</button>
+          <button type="button" class="ghost-btn" id="psAiRetry">🤖 AI 重新讀這張</button>
+          <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;"><input type="checkbox" id="psPreview"> 預覽馬賽克</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">馬賽克粗細
+            <select id="psBlock"><option value="70">細</option><option value="45" selected>中</option><option value="28">粗</option></select>
+          </label>
+        </div>
+      </details>
+      <p class="pdesc" id="psHint" style="margin-top:6px; color:var(--cinnabar); font-weight:700;"></p>
+      <div id="psRedWrap" style="margin-top:6px; max-height:72vh; overflow:auto; border:1px solid var(--border); border-radius:8px; background:#222; display:none;">
+        <canvas id="psRedCanvas" style="display:block; width:100%; touch-action:none; cursor:pointer;"></canvas>
       </div>
+      <p class="pdesc" style="margin-top:4px;">照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
         <button type="button" class="add-btn" id="psRedMake">✅ 產生這位的圖片</button>
       </div>
@@ -1351,7 +1353,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v126";
+  var APP_VERSION = "v127";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1362,6 +1364,12 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v127", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：可以一次選 2 張以上紅紙照片，一位信徒的名字不管在哪一張都框得到，產生時每張各一張圖",
+      "AI 加快：選好照片就在背景先讀出整張的姓名（需小幫手 v1.19），之後打姓名立刻自動框，不用每位等 AI",
+      "操作簡化：第一下點標題列下緣，線以上自動保留；之後在名字上點一下就框、再點一下取消；手指拖曳移動畫面、兩指（電腦 Ctrl＋滾輪）放大；加「↩ 復原上一步」",
+      "電腦傳到 LINE：同一位有多張時自動合併成一張再複製"
+    ]},
     { version: "v126", date: "2026-10-24", changes: [
       "LINE 訊息貼上快速登記加「📜 打姓名帶出去年的報名」：輸入姓名（可多位）按「帶出去年報名」，就把這位去年的品項、數量（含敬致仙佛、補運）帶進預覽表，改好數量或品項再按「確認加入登記清單」；大框每行只打姓名再按「解析預覽」也可以",
       "「去年」優先找同一個節日（場次名稱裡的農曆月日相同，例如九月十九）最近一屆有這個姓名的，找不到再找最近一場有這個姓名的；預覽表會標出是哪一場、去年的品項和金額",
@@ -9043,9 +9051,17 @@
 
   var psState = { occId: null, tab: "red" };
 
-  /* ---- 紅紙 A3 照片 ---- */
-  var psRed = { full: null, work: null, boxes: [], sel: -1, kind: "fixed", zoom: 1, pan: false, name: "", outs: [], drag: null };
+  /* ---- 紅紙 A3 照片 ----
+     v127（小朱回報：要能選兩張、AI 太久、步驟太複雜）改成：
+     - 可以一次選多張紅紙；每張各自記標題範圍與框，產生時這位有框到的每一張都出一張圖
+     - 選照片後馬上在背景請小幫手 AI 讀出整張的姓名格（readnames，一張只讀一次），
+       打姓名時直接比對，不用每個人等 AI
+     - 照片上只用「點一下」：第一下設定標題列下緣，之後點名字那一格＝框，再點一次＝取消；
+       拖曳＝移動畫面、兩指＝放大；每一步都可以「復原」 */
+  var psRed = { photos: [], cur: -1, name: "", zoom: 1, draw: "", undo: [], outs: [] };
   var psRedCanvas = document.getElementById("psRedCanvas");
+  var psRedWrap = document.getElementById("psRedWrap");
+  function psCurPhoto(){ return psRed.photos[psRed.cur] || null; }
 
   function psRedPeople(occ){
     var map = {}, order = [];
@@ -9063,7 +9079,6 @@
 
   function psRedNameChanged(){
     var q = document.getElementById("psRedName").value.trim();
-    psRed.name = q;
     var people = psRedPeople(current());
     var list = document.getElementById("psRedNameList");
     var info = document.getElementById("psRedNameInfo");
@@ -9071,24 +9086,17 @@
     list.innerHTML = hits.map(function(n){
       return '<button type="button" class="occ-chip" data-name="' + escAttr(n) + '">' + escHtml(n) + '</button>';
     }).join("");
-    if(q && people.map[q]) info.textContent = "這位登記：" + people.map[q].join("、") + "（請在照片上找這些品項底下的名字）";
-    else info.textContent = q ? (hits.length ? "點下面的姓名選取" : "本場次紅紙上沒有這個姓名（仍可直接框選產生）") : "";
-    if(q && psRed.kind !== "name") psSetKind("name");
-  }
-
-  function psSetKind(k){
-    psRed.kind = k;
-    document.getElementById("psKindFixed").setAttribute("aria-pressed", k === "fixed" ? "true" : "false");
-    document.getElementById("psKindName").setAttribute("aria-pressed", k === "name" ? "true" : "false");
-  }
-  function psSetPan(on){
-    psRed.pan = on;
-    document.getElementById("psPanBtn").setAttribute("aria-pressed", on ? "true" : "false");
-    psRedCanvas.style.touchAction = on ? "auto" : "none";
-    psRedCanvas.style.cursor = on ? "grab" : "crosshair";
-  }
-  function psApplyZoom(){
-    psRedCanvas.style.width = Math.round(psRed.zoom * 100) + "%";
+    if(q && people.map[q]) info.textContent = "這位登記：" + people.map[q].join("、");
+    else info.textContent = q ? (hits.length ? "點下面的姓名選取" : "本場次紅紙上沒有這個姓名（仍可直接點名字框選）") : "";
+    if(q !== psRed.name){
+      // 換人：前一位的姓名框都清掉（固定的標題範圍保留）
+      psRed.name = q;
+      psRed.photos.forEach(function(ph){ ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name"; }); });
+      psRed.undo = [];
+      if(q && (people.map[q] || !hits.length)) psAiApply();
+      else psAiStatusText();
+      psRedDraw();
+    }
   }
 
   function psMosaic(src, blockDiv){
@@ -9112,7 +9120,12 @@
     var x2 = Math.min(W, Math.round((b.x + b.w) * W)), y2 = Math.min(H, Math.round((b.y + b.h) * H));
     return { x: x, y: y, w: Math.max(1, x2 - x), h: Math.max(1, y2 - y) };
   }
-  // 框以外打馬賽克，框內放原圖
+  // 要保留（不打馬賽克）的範圍：標題列以上整條＋手動保留框＋姓名框
+  function psKeepBoxes(ph){
+    var keep = ph.boxes.slice();
+    if(ph.header) keep.push({ x: 0, y: 0, w: 1, h: ph.header, kind: "fixed" });
+    return keep;
+  }
   function psCompose(src, boxes, blockDiv){
     var out = psMosaic(src, blockDiv);
     var g = out.getContext("2d");
@@ -9124,184 +9137,397 @@
   }
   function psBlockDiv(){ return +document.getElementById("psBlock").value || 45; }
 
+  function psHintText(){
+    var ph = psCurPhoto(), el = document.getElementById("psHint");
+    if(!ph){ el.textContent = ""; return; }
+    if(psRed.draw) el.textContent = "手動畫框中：在照片上拖曳畫出" + (psRed.draw === "fixed" ? "保留框（黃）" : "姓名框（綠）") + "，畫完再按一次按鈕回到點選模式";
+    else if(!ph.header) el.textContent = "② 請在照片上點一下「標題列最下面那條線」（單位那一列的下緣）";
+    else if(!psRed.name) el.textContent = "③ 請打信徒姓名或點選";
+    else el.textContent = "④ 確認綠框都是「" + psRed.name + "」，沒框到的在名字上點一下，框錯的再點一下取消；好了按「產生這位的圖片」";
+  }
+
   var psMosaicCache = null;
   function psRedDraw(){
-    var src = psRed.work;
-    if(!src) return;
-    var c = psRedCanvas;
+    psHintText();
+    psRenderRedTabs();
+    var ph = psCurPhoto();
+    if(!ph) return;
+    var src = ph.work, c = psRedCanvas;
     if(c.width !== src.width || c.height !== src.height){ c.width = src.width; c.height = src.height; }
     var g = c.getContext("2d");
     var W = src.width, H = src.height;
+    var keep = psKeepBoxes(ph);
     if(document.getElementById("psPreview").checked){
       var key = psBlockDiv();
       if(!psMosaicCache || psMosaicCache.key !== key || psMosaicCache.src !== src) psMosaicCache = { key: key, src: src, c: psMosaic(src, key) };
       g.drawImage(psMosaicCache.c, 0, 0);
     } else {
       g.drawImage(src, 0, 0);
-      g.fillStyle = "rgba(0,0,0,.5)";  // 框以外調暗，表示會被遮住
+      g.fillStyle = "rgba(0,0,0,.45)";  // 會被遮住的地方調暗
       g.fillRect(0, 0, W, H);
     }
-    psRed.boxes.forEach(function(b){
+    keep.forEach(function(b){
       var p = psBoxPx(b, W, H);
       g.drawImage(src, p.x, p.y, p.w, p.h, p.x, p.y, p.w, p.h);
     });
     var lw = Math.max(2, Math.round(Math.max(W, H) / 400));
-    psRed.boxes.forEach(function(b, i){
+    if(ph.header){
+      var hy = Math.round(ph.header * H);
+      g.strokeStyle = "#ffcc00"; g.lineWidth = lw * 1.5; g.setLineDash([lw * 5, lw * 3]);
+      g.beginPath(); g.moveTo(0, hy); g.lineTo(W, hy); g.stroke(); g.setLineDash([]);
+    }
+    ph.boxes.forEach(function(b){
       var p = psBoxPx(b, W, H);
-      var col = b.kind === "name" ? "#2e9d3a" : "#e0a800";
-      g.lineWidth = i === psRed.sel ? lw * 2 : lw;
-      g.strokeStyle = col;
-      g.setLineDash(b.kind === "name" ? [] : [lw * 4, lw * 3]);
+      g.lineWidth = lw * 1.5;
+      g.strokeStyle = b.kind === "name" ? "#2ee04a" : "#ffcc00";
       g.strokeRect(p.x, p.y, p.w, p.h);
-      g.setLineDash([]);
-      var hs = lw * 5;
-      g.fillStyle = col;
-      [[p.x, p.y], [p.x + p.w, p.y], [p.x, p.y + p.h], [p.x + p.w, p.y + p.h]].forEach(function(q){
-        g.fillRect(q[0] - hs / 2, q[1] - hs / 2, hs, hs);
-      });
     });
   }
 
-  function psPoint(e){
-    var r = psRedCanvas.getBoundingClientRect();
-    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)), tx: 16 / r.width, ty: 16 / r.height };
+  function psRenderRedTabs(){
+    var el = document.getElementById("psRedTabs");
+    if(psRed.photos.length < 2){ el.innerHTML = ""; return; }
+    el.innerHTML = psRed.photos.map(function(ph, i){
+      var n = ph.boxes.filter(function(b){ return b.kind === "name"; }).length;
+      return '<button type="button" class="occ-chip" data-pi="' + i + '" aria-pressed="' + (i === psRed.cur ? "true" : "false") + '">紅紙 ' + (i + 1) +
+        (n ? "（框 " + n + " 格）" : "") + '</button>';
+    }).join("");
   }
-  psRedCanvas.addEventListener("pointerdown", function(e){
-    if(psRed.pan || !psRed.work) return;
-    e.preventDefault();
-    try { psRedCanvas.setPointerCapture(e.pointerId); } catch(err){}
-    var p = psPoint(e), boxes = psRed.boxes, i, b;
-    for(i = boxes.length - 1; i >= 0; i--){
-      b = boxes[i];
-      var corners = [[b.x, b.y, b.x + b.w, b.y + b.h], [b.x + b.w, b.y, b.x, b.y + b.h], [b.x, b.y + b.h, b.x + b.w, b.y], [b.x + b.w, b.y + b.h, b.x, b.y]];
-      for(var k = 0; k < 4; k++){
-        if(Math.abs(p.x - corners[k][0]) <= p.tx && Math.abs(p.y - corners[k][1]) <= p.ty){
-          psRed.drag = { mode: "size", i: i, ax: corners[k][2], ay: corners[k][3] };
-          psRed.sel = i; psRedDraw(); return;
-        }
-      }
-    }
-    for(i = boxes.length - 1; i >= 0; i--){
-      b = boxes[i];
-      // 只拖得動目前這一類的框；在別類的框裡面拖曳是畫新框（姓名常在固定框旁邊或裡面）
-      if(b.kind === psRed.kind && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h){
-        psRed.drag = { mode: "move", i: i, dx: p.x - b.x, dy: p.y - b.y };
-        psRed.sel = i; psRedDraw(); return;
-      }
-    }
-    boxes.push({ x: p.x, y: p.y, w: 0, h: 0, kind: psRed.kind });
-    psRed.sel = boxes.length - 1;
-    psRed.drag = { mode: "new", i: psRed.sel, ax: p.x, ay: p.y };
-  });
-  psRedCanvas.addEventListener("pointermove", function(e){
-    var d = psRed.drag;
-    if(!d) return;
-    e.preventDefault();
-    var p = psPoint(e), b = psRed.boxes[d.i];
-    if(d.mode === "move"){
-      b.x = Math.min(1 - b.w, Math.max(0, p.x - d.dx));
-      b.y = Math.min(1 - b.h, Math.max(0, p.y - d.dy));
-    } else {
-      b.x = Math.min(d.ax, p.x); b.y = Math.min(d.ay, p.y);
-      b.w = Math.abs(p.x - d.ax); b.h = Math.abs(p.y - d.ay);
-    }
+  document.getElementById("psRedTabs").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-pi]");
+    if(!b) return;
+    psRed.cur = +b.getAttribute("data-pi");
+    psMosaicCache = null;
     psRedDraw();
   });
-  function psDragEnd(){
-    var d = psRed.drag;
-    if(!d) return;
-    psRed.drag = null;
-    var b = psRed.boxes[d.i];
-    if(b && (b.w < 0.006 || b.h < 0.006)){
-      psRed.boxes.splice(d.i, 1); psRed.sel = -1;
-      // 只點一下（沒拖曳）：依格線自動框出點到的那一格
-      if(d.mode === "new"){
-        var cell = psSnapCell(d.ax, d.ay);
-        if(cell){
-          cell.kind = psRed.kind;
-          psRed.boxes.push(cell);
-          psRed.sel = psRed.boxes.length - 1;
-        } else showToast("這裡找不到格線，請用拖曳的方式畫框");
-      }
-    }
-    psRedDraw();
-  }
 
-  // v124 — 點一下框格子：從點的位置往左右找「很長的直線」（格線），再在左右之間往上下找橫線。
-  // 字的筆畫都比格線短，所以用連續深色的長度分辨。只在瀏覽器裡算，不用 AI。
-  function psSnapCell(nx, ny){
-    var src = psRed.work;
-    if(!src) return null;
-    var W = src.width, H = src.height;
-    var data = src.getContext("2d").getImageData(0, 0, W, H).data;
-    // 用紅色通道：紅紙在紅色通道很亮，黑色格線、字很暗，對比比亮度大（白紙也一樣適用）
-    function lum(x, y){ return data[(y * W + x) * 4]; }
-    var px = Math.round(nx * (W - 1)), py = Math.round(ny * (H - 1));
-    // 紙的亮度：點附近取樣的中位數；比紙暗很多才算墨線
+  /* 影像分析：紅色通道（紅紙在紅色通道很亮，黑色格線、字很暗；白紙也適用） */
+  function psPixels(ph){
+    if(!ph.px) ph.px = ph.work.getContext("2d").getImageData(0, 0, ph.work.width, ph.work.height).data;
+    return ph.px;
+  }
+  function psInk(ph, px, py){
+    var W = ph.work.width, H = ph.work.height, data = psPixels(ph);
     var samples = [];
     for(var sy = -40; sy <= 40; sy += 8) for(var sx = -40; sx <= 40; sx += 8){
       var xx = px + sx, yy = py + sy;
-      if(xx >= 0 && yy >= 0 && xx < W && yy < H) samples.push(lum(xx, yy));
+      if(xx >= 0 && yy >= 0 && xx < W && yy < H) samples.push(data[(yy * W + xx) * 4]);
     }
     samples.sort(function(a, b){ return a - b; });
-    var paper = samples[Math.floor(samples.length * 0.6)] || 128;
-    var cut = paper * 0.8;
-    function dark(x, y){ return x >= 0 && y >= 0 && x < W && y < H && lum(x, y) < cut; }
-    var vLen = Math.round(H * 0.035), hMin = 0.8;
-    // 直線：x 附近（±1px，照片會有點斜）上下 vLen 範圍內幾乎全暗
+    var cut = (samples[Math.floor(samples.length * 0.6)] || 128) * 0.8;
+    return function(x, y){ return x >= 0 && y >= 0 && x < W && y < H && data[(y * W + x) * 4] < cut; };
+  }
+  // 點一下框格子：從點的位置往左右找很長的直線（格線），再在兩線之間往上下找橫線。字的筆畫比格線短。
+  function psSnapCell(ph, nx, ny){
+    var W = ph.work.width, H = ph.work.height;
+    var px = Math.round(nx * (W - 1)), py = Math.round(ny * (H - 1));
+    var dark = psInk(ph, px, py);
+    var vLen = Math.round(H * 0.035);
     function isVLine(x){
       var n = 0, t = 0;
-      for(var y = py - vLen; y <= py + vLen; y++){
-        t++;
-        if(dark(x, y) || dark(x - 1, y) || dark(x + 1, y)) n++;
-      }
+      for(var y = py - vLen; y <= py + vLen; y++){ t++; if(dark(x, y) || dark(x - 1, y) || dark(x + 1, y)) n++; }
       return n >= t * 0.85;
     }
-    var maxW = Math.round(W * 0.25), left = -1, right = -1, x;
+    var maxW = Math.round(W * 0.15), left = -1, right = -1, x;
     for(x = px; x >= Math.max(0, px - maxW); x--){ if(isVLine(x)){ left = x; break; } }
     for(x = px; x <= Math.min(W - 1, px + maxW); x++){ if(isVLine(x)){ right = x; break; } }
     if(left < 0 || right < 0 || right - left < 8) return null;
     var x1 = left + 3, x2 = right - 3;
     function isHLine(y){
       var n = 0, t = 0;
-      for(var xx = x1; xx <= x2; xx++){
-        t++;
-        if(dark(xx, y) || dark(xx, y - 1) || dark(xx, y + 1)) n++;
-      }
-      return n >= t * hMin;
+      for(var xx = x1; xx <= x2; xx++){ t++; if(dark(xx, y) || dark(xx, y - 1) || dark(xx, y + 1)) n++; }
+      return n >= t * 0.8;
     }
-    var maxH = Math.round(H * 0.4), top = -1, bottom = -1, y;
+    var maxH = Math.round(H * 0.3), top = -1, bottom = -1, y;
     for(y = py; y >= Math.max(0, py - maxH); y--){ if(isHLine(y)){ top = y; break; } }
     for(y = py; y <= Math.min(H - 1, py + maxH); y++){ if(isHLine(y)){ bottom = y; break; } }
     if(top < 0 || bottom < 0 || bottom - top < 8) return null;
-    // 框稍微包到格線，看起來是完整的一格
     var pad = 2;
     return { x: Math.max(0, left - pad) / W, y: Math.max(0, top - pad) / H,
-             w: (Math.min(W, right + pad) - Math.max(0, left - pad)) / W, h: (Math.min(H, bottom + pad) - Math.max(0, top - pad)) / H };
+             w: (Math.min(W, right + pad) - Math.max(0, left - pad)) / W, h: (Math.min(H, bottom + pad) - Math.max(0, top - pad)) / H, kind: "name" };
   }
-  psRedCanvas.addEventListener("pointerup", psDragEnd);
-  psRedCanvas.addEventListener("pointercancel", psDragEnd);
+  // 標題列下緣：點的位置上下 4% 內，找左右一段都是深色的橫線，取最近的一條
+  function psSnapHLine(ph, nx, ny){
+    var W = ph.work.width, H = ph.work.height;
+    var px = Math.round(nx * (W - 1)), py = Math.round(ny * (H - 1));
+    var dark = psInk(ph, px, py);
+    var half = Math.round(W * 0.08), range = Math.round(H * 0.04), best = -1;
+    for(var d = 0; d <= range && best < 0; d++){
+      [py - d, py + d].forEach(function(y){
+        if(best >= 0) return;
+        var n = 0, t = 0;
+        for(var x = px - half; x <= px + half; x++){ t++; if(dark(x, y) || dark(x, y - 1) || dark(x, y + 1)) n++; }
+        if(n >= t * 0.75) best = y;
+      });
+    }
+    return best >= 0 ? (best + 3) / H : ny;
+  }
+
+  function psPushUndo(){
+    var ph = psCurPhoto();
+    if(!ph) return;
+    psRed.undo.push({ pi: psRed.cur, header: ph.header, boxes: ph.boxes.map(function(b){ return Object.assign({}, b); }) });
+    if(psRed.undo.length > 50) psRed.undo.shift();
+  }
+  document.getElementById("psUndo").addEventListener("click", function(){
+    var u = psRed.undo.pop();
+    if(!u){ showToast("沒有可以復原的步驟"); return; }
+    var ph = psRed.photos[u.pi];
+    if(!ph) return;
+    ph.header = u.header; ph.boxes = u.boxes; psRed.cur = u.pi;
+    psRedDraw();
+  });
+
+  function psTap(nx, ny){
+    var ph = psCurPhoto();
+    if(!ph) return;
+    if(!ph.header){
+      psPushUndo();
+      ph.header = psSnapHLine(ph, nx, ny);
+      psRedDraw();
+      showToast(psRed.name ? "已設定標題範圍" : "已設定標題範圍，接著打信徒姓名");
+      if(!psRed.name && !regNoticeIsMobile) document.getElementById("psRedName").focus();
+      return;
+    }
+    // 點到已經框好的格子＝取消
+    for(var i = ph.boxes.length - 1; i >= 0; i--){
+      var b = ph.boxes[i];
+      if(nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h){
+        psPushUndo(); ph.boxes.splice(i, 1); psRedDraw(); return;
+      }
+    }
+    if(ny < ph.header){ showToast("這裡是標題範圍，本來就會保留；要改請按「重設標題範圍」"); return; }
+    if(!psRed.name){ showToast("請先打信徒姓名"); document.getElementById("psRedName").focus(); return; }
+    var cell = psSnapCell(ph, nx, ny);
+    if(!cell){ showToast("這裡找不到格線，可以在「更多」裡用拖曳畫姓名框"); return; }
+    psPushUndo(); ph.boxes.push(cell); psRedDraw();
+  }
+
+  /* 照片上的手勢：點一下＝框／取消；拖曳＝移動畫面（手動畫框模式時是畫框）；兩指＝放大縮小 */
+  var psPtrs = {}, psGesture = null;
+  function psNorm(cx, cy){
+    var r = psRedCanvas.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (cx - r.left) / r.width)), y: Math.min(1, Math.max(0, (cy - r.top) / r.height)) };
+  }
+  function psSetZoom(z, cx, cy){
+    z = Math.max(1, Math.min(6, z));
+    var wr = psRedWrap.getBoundingClientRect();
+    var mx = (cx == null ? wr.left + wr.width / 2 : cx) - wr.left, my = (cy == null ? wr.top + wr.height / 2 : cy) - wr.top;
+    var oldW = psRedCanvas.offsetWidth || 1, oldH = psRedCanvas.offsetHeight || 1;
+    var fx = (psRedWrap.scrollLeft + mx) / oldW, fy = (psRedWrap.scrollTop + my) / oldH;
+    psRed.zoom = z;
+    psRedCanvas.style.width = Math.round(z * 100) + "%";
+    psRedWrap.scrollLeft = fx * psRedCanvas.offsetWidth - mx;
+    psRedWrap.scrollTop = fy * psRedCanvas.offsetHeight - my;
+  }
+  psRedCanvas.addEventListener("pointerdown", function(e){
+    if(!psCurPhoto()) return;
+    e.preventDefault();
+    try { psRedCanvas.setPointerCapture(e.pointerId); } catch(err){}
+    psPtrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ids = Object.keys(psPtrs);
+    if(ids.length === 2){
+      var a = psPtrs[ids[0]], b = psPtrs[ids[1]];
+      if(psGesture && psGesture.box){ var ph0 = psCurPhoto(); ph0.boxes.splice(ph0.boxes.indexOf(psGesture.box), 1); psRed.undo.pop(); }
+      psGesture = { mode: "pinch", d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: psRed.zoom };
+      psRedDraw();
+    } else if(ids.length === 1){
+      psGesture = { mode: "down", sx: e.clientX, sy: e.clientY, sl: psRedWrap.scrollLeft, st: psRedWrap.scrollTop };
+    }
+  });
+  psRedCanvas.addEventListener("pointermove", function(e){
+    if(!psPtrs[e.pointerId] || !psGesture) return;
+    e.preventDefault();
+    psPtrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var g = psGesture;
+    if(g.mode === "pinch"){
+      var ids = Object.keys(psPtrs);
+      if(ids.length < 2) return;
+      var a = psPtrs[ids[0]], b = psPtrs[ids[1]];
+      psSetZoom(g.z * (Math.hypot(a.x - b.x, a.y - b.y) / g.d), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      return;
+    }
+    var dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+    if(g.mode === "down" && Math.hypot(dx, dy) > 8){
+      if(psRed.draw){
+        var p0 = psNorm(g.sx, g.sy);
+        psPushUndo();
+        g.box = { x: p0.x, y: p0.y, w: 0, h: 0, kind: psRed.draw };
+        g.ax = p0.x; g.ay = p0.y;
+        psCurPhoto().boxes.push(g.box);
+        g.mode = "draw";
+      } else g.mode = "pan";
+    }
+    if(g.mode === "pan"){
+      psRedWrap.scrollLeft = g.sl - dx;
+      psRedWrap.scrollTop = g.st - dy;
+    } else if(g.mode === "draw"){
+      var p = psNorm(e.clientX, e.clientY);
+      g.box.x = Math.min(g.ax, p.x); g.box.y = Math.min(g.ay, p.y);
+      g.box.w = Math.abs(p.x - g.ax); g.box.h = Math.abs(p.y - g.ay);
+      psRedDraw();
+    }
+  });
+  function psPtrEnd(e){
+    if(!psPtrs[e.pointerId]) return;
+    delete psPtrs[e.pointerId];
+    var g = psGesture;
+    if(!g) return;
+    if(g.mode === "pinch"){ if(!Object.keys(psPtrs).length) psGesture = null; return; }
+    psGesture = null;
+    if(e.type === "pointercancel") return;
+    if(g.mode === "down"){ var p = psNorm(e.clientX, e.clientY); psTap(p.x, p.y); }
+    else if(g.mode === "draw"){
+      var ph = psCurPhoto();
+      if(g.box.w < 0.006 || g.box.h < 0.006){ ph.boxes.splice(ph.boxes.indexOf(g.box), 1); psRed.undo.pop(); }
+      psRedDraw();
+    }
+  }
+  psRedCanvas.addEventListener("pointerup", psPtrEnd);
+  psRedCanvas.addEventListener("pointercancel", psPtrEnd);
+  psRedWrap.addEventListener("wheel", function(e){
+    if(!e.ctrlKey || !psCurPhoto()) return;
+    e.preventDefault();
+    psSetZoom(psRed.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+  }, { passive: false });
+  document.getElementById("psZoomIn").addEventListener("click", function(){ psSetZoom(psRed.zoom * 1.5); });
+  document.getElementById("psZoomOut").addEventListener("click", function(){ psSetZoom(psRed.zoom / 1.5); });
+
+  function psSetDraw(kind){
+    psRed.draw = psRed.draw === kind ? "" : kind;
+    document.getElementById("psDrawName").setAttribute("aria-pressed", psRed.draw === "name" ? "true" : "false");
+    document.getElementById("psDrawFixed").setAttribute("aria-pressed", psRed.draw === "fixed" ? "true" : "false");
+    psRedCanvas.style.cursor = psRed.draw ? "crosshair" : "pointer";
+    psHintText();
+  }
+  document.getElementById("psDrawName").addEventListener("click", function(){
+    if(!psRed.name && psRed.draw !== "name"){ showToast("請先打信徒姓名"); return; }
+    psSetDraw("name");
+  });
+  document.getElementById("psDrawFixed").addEventListener("click", function(){ psSetDraw("fixed"); });
+  document.getElementById("psClearName").addEventListener("click", function(){
+    var ph = psCurPhoto();
+    if(!ph) return;
+    psPushUndo();
+    ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name"; });
+    psRedDraw();
+  });
+  document.getElementById("psResetHeader").addEventListener("click", function(){
+    var ph = psCurPhoto();
+    if(!ph) return;
+    psPushUndo();
+    ph.header = null;
+    psRedDraw();
+  });
+  document.getElementById("psPreview").addEventListener("change", psRedDraw);
+  document.getElementById("psBlock").addEventListener("change", function(){
+    document.getElementById("psPreview").checked = true;
+    psRedDraw();
+  });
+
+  /* AI：選照片後在背景請小幫手讀出整張的姓名格（一張只讀一次），打姓名時直接比對 */
+  function psAiNorm(s){ return String(s || "").replace(/[\s、,，.。;；:：()（）「」\[\]\-－_\/]/g, ""); }
+  function psAiStatusText(){
+    var el = document.getElementById("psAiStatus");
+    var busy = psRed.photos.filter(function(ph){ return ph.ai.state === "busy"; });
+    var parts = [];
+    if(busy.length) parts.push("🤖 AI 正在讀紅紙姓名…" + Math.round((Date.now() - busy[0].ai.t0) / 1000) + " 秒（可以先點標題線、打姓名）");
+    psRed.photos.forEach(function(ph, i){ if(ph.ai.state === "error") parts.push("紅紙 " + (i + 1) + " AI 沒讀成功：" + ph.ai.err + "（可以直接在名字上點一下）"); });
+    if(psRed.name && psRed.aiFound != null && !busy.length) parts.push(psRed.aiFound ? "🤖 AI 找到「" + psRed.name + "」" + psRed.aiFound + " 格，請確認綠框" : "🤖 AI 沒找到「" + psRed.name + "」，請在名字上點一下");
+    el.textContent = parts.join("　");
+  }
+  var psAiTimer = null;
+  function psAiTick(){
+    psAiStatusText();
+    var busy = psRed.photos.some(function(ph){ return ph.ai.state === "busy"; });
+    if(busy && !psAiTimer) psAiTimer = setInterval(psAiTick, 1000);
+    if(!busy && psAiTimer){ clearInterval(psAiTimer); psAiTimer = null; }
+  }
+  function psAiRead(ph){
+    if(!(fsAuth && fsAuth.currentUser)){ ph.ai = { state: "error", err: "請先登入志工帳號" }; psAiTick(); return; }
+    var url = linebotUrl(false);
+    if(!url){ ph.ai = { state: "error", err: "沒有設定小幫手網址" }; psAiTick(); return; }
+    ph.ai = { state: "busy", t0: Date.now(), cells: [] };
+    psAiTick();
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timeout = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 180000);
+    var b64 = ph.work.toDataURL("image/jpeg", 0.85).split(",")[1];
+    fsAuth.currentUser.getIdToken().then(function(idToken){
+      return fetch(url, { method: "POST", signal: ctrl ? ctrl.signal : undefined, body: JSON.stringify({ action: "readnames", idToken: idToken, image: { mime: "image/jpeg", base64: b64 } }) });
+    }).then(function(res){ return res.text(); }).then(function(txt){
+      clearTimeout(timeout);
+      var out;
+      try { out = JSON.parse(txt); } catch(e){ out = { ok: false, error: "小幫手還沒更新到 v1.14" }; }
+      if(!out.ok){ ph.ai = { state: "error", err: out.error || "讀取失敗" }; psAiTick(); return; }
+      ph.ai = { state: "done", cells: out.cells || [] };
+      psAiTick();
+      if(psRed.name) psAiApply();
+    }).catch(function(err){
+      clearTimeout(timeout);
+      ph.ai = { state: "error", err: err && err.name === "AbortError" ? "超過 3 分鐘沒回應" : "連不到小幫手" };
+      psAiTick();
+    });
+  }
+  // 把 AI 讀到、含這個姓名的格子框起來（再用格線對齊整格）；手動點的框保留
+  function psAiApply(){
+    var name = psAiNorm(psRed.name), found = 0, anyDone = false;
+    psRed.photos.forEach(function(ph){
+      if(ph.ai.state !== "done") return;
+      anyDone = true;
+      if(!name) return;
+      ph.boxes = ph.boxes.filter(function(b){ return !b.ai; });
+      ph.ai.cells.forEach(function(c){
+        if(psAiNorm(c.text).indexOf(name) < 0) return;
+        var ai = { x: c.box[1] / 1000, y: c.box[0] / 1000, w: (c.box[3] - c.box[1]) / 1000, h: (c.box[2] - c.box[0]) / 1000 };
+        var cell = psSnapCell(ph, ai.x + ai.w / 2, ai.y + ai.h / 2);
+        var box = cell && cell.w < ai.w * 2.5 && cell.h < ai.h * 2.5 && cell.w > ai.w * 0.4 && cell.h > ai.h * 0.4 ? cell : { x: ai.x, y: ai.y, w: ai.w, h: ai.h };
+        box.kind = "name"; box.ai = true;
+        if(ph.header && box.y + box.h <= ph.header) return;
+        ph.boxes.push(box); found++;
+      });
+    });
+    psRed.aiFound = anyDone ? found : null;
+    psAiStatusText();
+    psRedDraw();
+    // 在別張找到、這張沒有時，切到有框的那張
+    var cur = psCurPhoto();
+    if(found && cur && !cur.boxes.some(function(b){ return b.kind === "name"; })){
+      for(var i = 0; i < psRed.photos.length; i++){
+        if(psRed.photos[i].boxes.some(function(b){ return b.kind === "name"; })){ psRed.cur = i; psMosaicCache = null; psRedDraw(); break; }
+      }
+    }
+  }
+  document.getElementById("psAiRetry").addEventListener("click", function(){
+    var ph = psCurPhoto();
+    if(!ph){ showToast("請先選紅紙照片"); return; }
+    if(ph.ai.state === "busy"){ showToast("AI 還在讀這張"); return; }
+    psAiRead(ph);
+  });
 
   document.getElementById("psRedFile").addEventListener("change", function(e){
-    var f = e.target.files && e.target.files[0];
+    var files = Array.prototype.slice.call(e.target.files || []);
     e.target.value = "";
-    if(!f) return;
+    if(!files.length) return;
     var info = document.getElementById("psRedFileInfo");
     info.textContent = "讀取中…";
-    psLoadCanvas(f).then(function(full){
-      // 換照片：位置都不一樣了，框全部重畫；已產生的圖片保留
-      psRed.full = full;
-      psRed.work = psScaled(full, PS_WORK_EDGE);
-      psRed.boxes = []; psRed.sel = -1; psRed.zoom = 1; psMosaicCache = null;
-      psApplyZoom();
-      psSetKind("fixed");
-      document.getElementById("psRedWrap").style.display = "block";
-      info.textContent = (f.name || "照片") + "（" + full.width + "×" + full.height + "）";
-      psRedDraw();
-      showToast("先用「固定保留」框住右邊標題和上方品名列");
-    }).catch(function(err){
-      info.textContent = "";
-      showToast(err && err.message ? err.message : "照片讀取失敗");
+    var first = psRed.photos.length;
+    files.reduce(function(chain, f){
+      return chain.then(function(){
+        return psLoadCanvas(f).then(function(full){
+          var ph = { file: f.name || "", full: full, work: psScaled(full, PS_WORK_EDGE), header: null, boxes: [], ai: { state: "idle" } };
+          psRed.photos.push(ph);
+          psAiRead(ph);
+        }).catch(function(err){ showToast(err && err.message ? err.message : "照片讀取失敗"); });
+      });
+    }, Promise.resolve()).then(function(){
+      info.textContent = psRed.photos.length ? "共 " + psRed.photos.length + " 張紅紙" : "";
+      if(psRed.photos.length > first){
+        psRed.cur = first; psMosaicCache = null;
+        psRedWrap.style.display = "block";
+        psSetZoom(1);
+        psRedDraw();
+        psRedWrap.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     });
   });
 
@@ -9311,110 +9537,45 @@
     if(!b) return;
     document.getElementById("psRedName").value = b.getAttribute("data-name");
     psRedNameChanged();
-    psAiFind();
-  });
-  document.getElementById("psRedName").addEventListener("keydown", function(e){
-    if(e.key === "Enter"){ e.preventDefault(); psAiFind(); }
-  });
-  document.getElementById("psAiFind").addEventListener("click", psAiFind);
-
-  // v124 — AI 找名字：把編輯用的縮圖和姓名送給報名小幫手（Gemini），回傳寫這個姓名的格子位置
-  // （0～1000 比例），再用格線把框對齊到整格。小幫手驗證志工登入憑證，照片不存。
-  var psAiBusy = false;
-  function psAiFind(){
-    var name = document.getElementById("psRedName").value.trim();
-    var status = document.getElementById("psAiStatus");
-    if(!psRed.work){ showToast("請先選紅紙照片"); return; }
-    if(!name){ showToast("請先輸入信徒姓名"); return; }
-    if(psAiBusy) return;
-    if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
-    var url = linebotUrl(false);
-    if(!url) return;
-    psAiBusy = true;
-    var btn = document.getElementById("psAiFind");
-    btn.disabled = true;
-    var t0 = Date.now();
-    status.textContent = "AI 找「" + name + "」中…";
-    var timer = setInterval(function(){ status.textContent = "AI 找「" + name + "」中…" + Math.round((Date.now() - t0) / 1000) + " 秒"; }, 1000);
-    function done(msg){ clearInterval(timer); psAiBusy = false; btn.disabled = false; status.textContent = msg || ""; }
-    var b64 = psRed.work.toDataURL("image/jpeg", 0.85).split(",")[1];
-    fsAuth.currentUser.getIdToken().then(function(idToken){
-      return fetch(url, { method: "POST", body: JSON.stringify({ action: "findname", idToken: idToken, name: name, image: { mime: "image/jpeg", base64: b64 } }) });
-    }).then(function(res){ return res.text(); }).then(function(txt){
-      var out;
-      try { out = JSON.parse(txt); } catch(e){ out = { ok: false, error: "小幫手還沒更新到 v1.13（回應不是 JSON），請先部署新版小幫手" }; }
-      if(!out.ok){ done(""); alert(out.error || "AI 找名字失敗"); return; }
-      if(document.getElementById("psRedName").value.trim() !== name){ done(""); return; }  // 等的時候已經換人
-      var boxes = (out.boxes || []).map(function(b){
-        var ai = { x: b.box[1] / 1000, y: b.box[0] / 1000, w: (b.box[3] - b.box[1]) / 1000, h: (b.box[2] - b.box[0]) / 1000, kind: "name" };
-        // 用格線對齊：AI 框中心點一下的結果，大小差不多才採用
-        var cell = psSnapCell(ai.x + ai.w / 2, ai.y + ai.h / 2);
-        if(cell && cell.w < ai.w * 2.5 && cell.h < ai.h * 2.5 && cell.w > ai.w * 0.4 && cell.h > ai.h * 0.4){ cell.kind = "name"; return cell; }
-        return ai;
-      });
-      psRed.boxes = psRed.boxes.filter(function(b){ return b.kind !== "name"; }).concat(boxes);
-      psRed.sel = -1;
-      psSetKind("name");
-      psRedDraw();
-      if(boxes.length){
-        document.getElementById("psRedWrap").scrollIntoView({ behavior: "smooth", block: "start" });
-        done("AI 找到 " + boxes.length + " 格，請確認綠框；漏掉的在名字上點一下補框，框錯的點選後按「刪除選取的框」");
-      } else {
-        done("AI 沒找到「" + name + "」，請在名字上點一下或拖曳畫框");
-      }
-    }).catch(function(err){
-      done("");
-      linebotUnreachable(err);
-    });
-  }
-  document.getElementById("psKindFixed").addEventListener("click", function(){ psSetKind("fixed"); });
-  document.getElementById("psKindName").addEventListener("click", function(){ psSetKind("name"); });
-  document.getElementById("psPanBtn").addEventListener("click", function(){ psSetPan(!psRed.pan); });
-  document.getElementById("psDelBox").addEventListener("click", function(){
-    if(psRed.sel < 0 || !psRed.boxes[psRed.sel]){ showToast("先點一下要刪除的框"); return; }
-    psRed.boxes.splice(psRed.sel, 1); psRed.sel = -1; psRedDraw();
-  });
-  document.getElementById("psClearName").addEventListener("click", function(){
-    psRed.boxes = psRed.boxes.filter(function(b){ return b.kind !== "name"; }); psRed.sel = -1; psRedDraw();
-  });
-  var PS_ZOOMS = [1, 1.5, 2, 3, 4];
-  document.getElementById("psZoomIn").addEventListener("click", function(){
-    var i = PS_ZOOMS.indexOf(psRed.zoom); psRed.zoom = PS_ZOOMS[Math.min(PS_ZOOMS.length - 1, i + 1)]; psApplyZoom();
-  });
-  document.getElementById("psZoomOut").addEventListener("click", function(){
-    var i = PS_ZOOMS.indexOf(psRed.zoom); psRed.zoom = PS_ZOOMS[Math.max(0, i - 1)]; psApplyZoom();
-  });
-  document.getElementById("psPreview").addEventListener("change", psRedDraw);
-  document.getElementById("psBlock").addEventListener("change", function(){
-    if(!document.getElementById("psPreview").checked) document.getElementById("psPreview").checked = true;
-    psRedDraw();
   });
 
   document.getElementById("psRedMake").addEventListener("click", function(){
-    if(!psRed.full){ showToast("請先選紅紙照片"); return; }
-    var name = document.getElementById("psRedName").value.trim();
+    if(!psRed.photos.length){ showToast("請先選紅紙照片"); return; }
+    var name = psRed.name;
     if(!name){ showToast("請先輸入信徒姓名"); document.getElementById("psRedName").focus(); return; }
-    var nameBoxes = psRed.boxes.filter(function(b){ return b.kind === "name"; });
-    if(!nameBoxes.length){ psSetKind("name"); showToast("請在照片上框出「" + name + "」的名字（綠框）"); return; }
-    if(!psRed.boxes.some(function(b){ return b.kind === "fixed"; }) &&
-       !confirm("還沒有框「固定保留」（標題、品名列），這些地方也會被馬賽克。要繼續嗎？")) return;
-    var canvas = psCompose(psRed.full, psRed.boxes, psBlockDiv());
-    psCanvasFile(canvas, "紅紙_" + psSafeName(name) + ".jpg").then(function(file){
+    var used = psRed.photos.filter(function(ph){ return ph.boxes.some(function(b){ return b.kind === "name"; }); });
+    if(!used.length){ showToast("還沒框到「" + name + "」的名字，請在名字上點一下"); return; }
+    if(used.some(function(ph){ return !ph.header && !ph.boxes.some(function(b){ return b.kind === "fixed"; }); }) &&
+       !confirm("有紅紙還沒設定標題範圍，標題也會被馬賽克。要繼續嗎？")) return;
+    var canvases = used.map(function(ph){ return psCompose(ph.full, psKeepBoxes(ph), psBlockDiv()); });
+    Promise.all(canvases.map(function(c, k){
+      return psCanvasFile(c, "紅紙_" + psSafeName(name) + (canvases.length > 1 ? "_" + (k + 1) : "") + ".jpg");
+    })).then(function(files){
       psRed.outs = psRed.outs.filter(function(o){
-        if(o.name === name){ URL.revokeObjectURL(o.url); return false; }
+        if(o.name === name){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); return false; }
         return true;
       });
-      psRed.outs.unshift({ name: name, file: file, url: URL.createObjectURL(file) });
+      psRed.outs.unshift({ name: name, files: files, canvases: canvases, urls: files.map(function(f){ return URL.createObjectURL(f); }) });
       psRenderRedOuts();
-      // 換下一位：保留固定框，清掉姓名框
-      psRed.boxes = psRed.boxes.filter(function(b){ return b.kind !== "name"; });
-      psRed.sel = -1;
       document.getElementById("psRedName").value = "";
       psRedNameChanged();
-      psRedDraw();
-      showToast("已產生「" + name + "」的圖片，請在下方確認後傳送；可以接著輸入下一位");
+      showToast("已產生「" + name + "」的圖片（" + files.length + " 張），在下方確認後傳送；可以接著打下一位");
     });
   });
+
+  // 電腦剪貼簿一次只能放一張：多張時上下合併成一張再複製
+  function psStackCanvases(list){
+    if(list.length === 1) return list[0];
+    var W = Math.max.apply(null, list.map(function(c){ return c.width; }));
+    var H = list.reduce(function(s, c){ return s + Math.round(c.height * W / c.width); }, 0) + (list.length - 1) * 12;
+    var out = document.createElement("canvas");
+    out.width = W; out.height = H;
+    var g = out.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    var y = 0;
+    list.forEach(function(c){ var h = Math.round(c.height * W / c.width); g.drawImage(c, 0, y, W, h); y += h + 12; });
+    return out;
+  }
 
   function psRenderRedOuts(){
     var el = document.getElementById("psRedOut");
@@ -9422,9 +9583,9 @@
     el.innerHTML = '<h4 style="margin:0 0 6px;">已產生（' + psRed.outs.length + ' 位）— 請確認只看得到該信徒的名字</h4>' +
       psRed.outs.map(function(o, i){
         return '<div style="border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:10px;">' +
-          '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(o.name) + '</div>' +
-          '<img src="' + o.url + '" alt="' + escAttr(o.name) + ' 的紅紙照片" style="width:100%; max-width:520px; border-radius:6px; border:1px solid var(--border);">' +
-          '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">' +
+          '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(o.name) + (o.files.length > 1 ? "（" + o.files.length + " 張）" : "") + '</div>' +
+          o.urls.map(function(u){ return '<img src="' + u + '" alt="' + escAttr(o.name) + ' 的紅紙照片" style="width:100%; max-width:520px; border-radius:6px; border:1px solid var(--border); margin-bottom:6px;">'; }).join("") +
+          '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
             '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
             '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載</button>' +
             '<button type="button" class="ghost-btn" data-act="remove" data-i="' + i + '">移除</button>' +
@@ -9434,12 +9595,15 @@
   document.getElementById("psRedOut").addEventListener("click", function(e){
     var btn = e.target.closest("button[data-act]");
     if(!btn) return;
-    var o = psRed.outs[+btn.getAttribute("data-i")];
+    var i = +btn.getAttribute("data-i"), o = psRed.outs[i];
     if(!o) return;
     var act = btn.getAttribute("data-act");
-    if(act === "share") psShareFiles([o.file], o.name);
-    else if(act === "download"){ triggerBrowserDownload(o.file.name, o.file, o.file.type); showToast("已下載"); }
-    else if(act === "remove"){ URL.revokeObjectURL(o.url); psRed.outs.splice(+btn.getAttribute("data-i"), 1); psRenderRedOuts(); }
+    if(act === "share"){
+      if(regNoticeIsMobile || o.files.length === 1) psShareFiles(o.files, o.name);
+      else psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + ".jpg").then(function(f){ psCopyFile(f, o.name); });
+    }
+    else if(act === "download"){ o.files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); }); showToast("已下載"); }
+    else if(act === "remove"){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); psRed.outs.splice(i, 1); psRenderRedOuts(); }
   });
 
   /* ---- 補運照片 ---- */
@@ -9637,23 +9801,21 @@
     document.getElementById("psBuyunPanel").style.display = t === "buyun" ? "block" : "none";
   }
   function psReset(){
-    psRed.outs.forEach(function(o){ URL.revokeObjectURL(o.url); });
+    psRed.outs.forEach(function(o){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); });
     psBuyun.photos.forEach(function(p){ if(p.url) URL.revokeObjectURL(p.url); });
-    psRed.full = psRed.work = null; psRed.boxes = []; psRed.sel = -1; psRed.outs = []; psMosaicCache = null;
+    psRed.photos = []; psRed.cur = -1; psRed.undo = []; psRed.outs = []; psRed.aiFound = null; psMosaicCache = null;
     psBuyun.photos = []; psBuyun.cur = -1;
-    document.getElementById("psRedWrap").style.display = "none";
+    psRedWrap.style.display = "none";
     document.getElementById("psRedFileInfo").textContent = "";
     document.getElementById("psRedName").value = "";
     document.getElementById("psBuyunCur").style.display = "none";
-    psRedNameChanged(); psRenderRedOuts(); psRenderBuyunOuts(); psBuyunInfo();
+    psRedNameChanged(); psRedDraw(); psRenderRedOuts(); psRenderBuyunOuts(); psBuyunInfo(); psAiStatusText();
   }
 
   function openPhotoSendModal(){
     var occ = current();
     // 換了場次：配對的報名、姓名都不一樣，清掉重來
     if(psState.occId !== occ.id){ psState.occId = occ.id; psReset(); }
-    document.getElementById("psPanBtn").style.display = regNoticeIsMobile ? "" : "none";
-    if(regNoticeIsMobile) psSetPan(psRed.pan);
     psSetTab(psState.tab);
     document.getElementById("photoSendOverlay").style.display = "flex";
   }
