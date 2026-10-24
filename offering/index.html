@@ -1357,7 +1357,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v130";
+  var APP_VERSION = "v131";
   var APP_UPDATED = "2026-10-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1368,6 +1368,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v131", date: "2026-10-24", changes: [
+      "照片傳信徒（紅紙）：修正有右邊直書標題的紅紙，AI 判斷的標題邊界偏左時，右半邊的信徒名字被略過、找不到；右邊黃線一定畫在所有姓名格的右邊"
+    ]},
     { version: "v130", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：名字和下方的數量格一定合成一個框。修正一格裡有「仙佛名＋信徒名」兩行時，AI 只框到名字、沒框到數量",
       "數量格偵測：格線較粗或照片較模糊時，也找得到數量格下緣"
@@ -9529,10 +9532,15 @@
           ph.header = y <= top + 0.015 && y > 0.02 ? y : Math.max(0.02, top - 0.004);
         }
       }
-      // 右邊直書標題：以 AI 給的左邊界為準，但不能蓋到任何姓名格（寧可少保留）
+      // 右邊直書標題：以 AI 給的左邊界為準，但一定在所有姓名格的右邊（寧可少保留）
+      // v131 — AI 給的邊界有時偏左，原本只往右推「靠近邊界」的格子，右半邊的姓名格會被當成標題略過
       if(ph.titleX == null && out.titleX && out.titleX / 1000 > 0.3){
         var tx = out.titleX / 1000;
-        ph.ai.cells.forEach(function(c){ if(c.box[3] / 1000 > tx - 0.05 && c.box[1] / 1000 < tx) tx = Math.max(tx, c.box[3] / 1000 + 0.003); });
+        ph.ai.cells.forEach(function(c){
+          if(/古亭院|恭祝|千秋|聖誕|法會/.test(c.text || "")) return;
+          if(ph.header && c.box[2] / 1000 <= ph.header) return;
+          tx = Math.max(tx, c.box[3] / 1000 + 0.003);
+        });
         ph.titleX = tx < 0.97 ? tx : null;
       }
       psAiTick();
@@ -9563,7 +9571,6 @@
         var box = ok ? cell : { x: ai.x, y: ai.y, w: ai.w, h: ai.h };
         box.kind = "name"; box.ai = true; box.who = who;
         if(ph.header && box.y + box.h <= ph.header) return;
-        if(ph.titleX && box.x >= ph.titleX) return;
         ph.boxes.push(box); found++;
       });
     });
