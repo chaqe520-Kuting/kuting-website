@@ -1371,7 +1371,8 @@
     { version: "v133", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：不用先打姓名，直接在名字那一格點一下就框（姓名可不填，圖片名稱用「信徒1、信徒2…」）",
       "「清除這位的框」改成「🧹 清除已點選（換下一位）」：兩張紅紙上點選的格子和姓名一起清掉，紅紙照片和黃線保留，可以直接點下一位",
-      "產生圖片後自動清除已點選，紅紙留著接著點下一位"
+      "產生圖片後自動清除已點選，紅紙留著接著點下一位",
+      "「黃線以上／右邊會保留」的說明字移到黃線上方的標題區，不再蓋住要點選的姓名"
     ]},
     { version: "v132", date: "2026-10-24", changes: [
       "照片傳信徒（紅紙）：上方黃線畫太下面、蓋到姓名欄的問題。改用本場次報名的姓名找第一排姓名格，黃線畫在它上緣；照片上方拍到上一張紅紙的名字也不會被誤判"
@@ -9222,10 +9223,13 @@
       var fs = Math.round(Math.max(W, H) / 45);
       g.font = "bold " + fs + "px sans-serif";
       var label = "↑ 黃線以上（標題）會保留";
+      // v133 — 字放在黃線上方（標題區），不蓋住下面要點選的姓名格；黃線太靠上放不下才放下面
+      var ly = hy - lw * 2 - fs * 1.4;
+      if(ly < 0) ly = hy + lw * 2;
       g.fillStyle = "rgba(0,0,0,.7)";
-      g.fillRect(lw * 4, hy + lw * 2, g.measureText(label).width + fs * 0.6, fs * 1.4);
+      g.fillRect(lw * 4, ly, g.measureText(label).width + fs * 0.6, fs * 1.4);
       g.fillStyle = "#ffcc00";
-      g.fillText(label, lw * 4 + fs * 0.3, hy + lw * 2 + fs * 1.05);
+      g.fillText(label, lw * 4 + fs * 0.3, ly + fs * 1.05);
     }
     if(ph.titleX){
       var tx = Math.round(ph.titleX * W);
@@ -9235,10 +9239,14 @@
       g.font = "bold " + fs2 + "px sans-serif";
       var label2 = "黃線右邊（標題）會保留 →";
       var lw2 = g.measureText(label2).width + fs2 * 0.6;
+      // 同樣放在上方黃線以上（標題區），不蓋住姓名格；沒有上方黃線時放最上面
+      var ly2 = ph.header ? Math.round(ph.header * H) - lw * 2 - fs2 * 2.9 : lw * 4;
+      if(ly2 < 0) ly2 = lw * 4;
+      var lx2 = Math.max(0, tx - lw2 - lw * 2);
       g.fillStyle = "rgba(0,0,0,.7)";
-      g.fillRect(Math.max(0, tx - lw2 - lw * 2), H - fs2 * 2.2, lw2, fs2 * 1.4);
+      g.fillRect(lx2, ly2, lw2, fs2 * 1.4);
       g.fillStyle = "#ffcc00";
-      g.fillText(label2, Math.max(0, tx - lw2 - lw * 2) + fs2 * 0.3, H - fs2 * 2.2 + fs2 * 1.05);
+      g.fillText(label2, lx2 + fs2 * 0.3, ly2 + fs2 * 1.05);
     }
     ph.boxes.forEach(function(b){
       var p = psBoxPx(b, W, H);
