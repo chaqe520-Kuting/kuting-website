@@ -295,8 +295,14 @@
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.37 ・ 2026-10-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.38 ・ 2026-10-25（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.38（2026-10-25）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>新增「📨 LINE 小幫手待確認」：信眾傳給 LINE 報名小幫手的法會報名（打字、語音、照片）會出現在這裡，勾選後按「帶入解析」就送進下方「從 LINE 貼上快速匯入」，自動判斷場次與欄位，確認匯入後自動標成已處理</li>
+        <li>小幫手依內容判斷是法會還是供品；分錯邊時按「轉到供品贊助」就移到供品贊助平台的待確認清單（第一次要貼上小幫手網址，跟供品贊助共用）</li>
+        <li>只有「開放報名中」的場次才會收到小幫手的報名；準備中的場次不會</li>
+      </ul>
       <b>v4.37（2026-10-22）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：信眾沒寫欄位名稱時不再看順序，改成先判斷每段內容是什麼（電話、地址、補運選項、祖先／先人、人名、數量），再放進對的欄位；同一行用空白或逗號隔開的多段內容會自動拆開</li>
@@ -1636,12 +1642,206 @@ async function confirmImport(){
     if(!ok) allOk = false;
   }
   if(learnedEvents.size) await saveEvents();
+  // v4.38：從 LINE 小幫手帶入的訊息，匯入成功後標成已處理
+  if(allOk && count) lineInboxMarkImported('done');
   importBlocks = [];
   importRaw = '';
   importForceEventId = '';
   showToast((allOk ? `已匯入 ${count} 筆報名資料` : '部分資料匯入失敗，請檢查網路後再試一次') + (learnedEvents.size ? '，並記住新的欄位說法' : ''), 3500);
   render();
 }
+
+/* ---------------- v4.38：LINE 小幫手待確認 ----------------
+   LINE 官方帳號「古亭院報名小幫手」（kuting-platforms/linebot，v1.25 起）判斷像法會報名的訊息，
+   寫進這個專案的 linePending（status: "new"）。只有啟用中的工作人員讀得到（資料庫規則把關）。
+   勾選後帶入「從 LINE 貼上快速匯入」，沿用同一套場次判斷與欄位對應；確認匯入成功才標 done，略過標 skipped。
+   分錯邊時「轉到供品贊助」請小幫手搬到 kuting1027 的 linePending（小幫手驗證這個帳號是啟用中的工作人員）。 */
+let lineInboxDocs = [];
+let lineInboxUnsub = null;
+let lineInboxErr = '';
+let lineInboxInImport = [];
+const lineInboxEdits = {};
+function lineInboxSync(){
+  const want = !!(adminUnlocked && staffActive());
+  if(!want){
+    if(lineInboxUnsub){ lineInboxUnsub(); lineInboxUnsub = null; }
+    lineInboxDocs = []; lineInboxInImport = [];
+    return;
+  }
+  if(lineInboxUnsub) return;
+  lineInboxUnsub = db.collection('linePending').where('status','==','new').onSnapshot(snap=>{
+    lineInboxErr = '';
+    lineInboxDocs = [];
+    snap.forEach(d=>lineInboxDocs.push({id:d.id, ...d.data()}));
+    lineInboxDocs.sort((a,b)=>lineInboxMillis(a)-lineInboxMillis(b));
+    refreshLineInbox();
+  }, err=>{
+    console.error('linePending', err);
+    lineInboxUnsub = null;
+    lineInboxDocs = [];
+    lineInboxErr = err && err.code==='permission-denied' ? 'LINE 小幫手尚未開通（資料庫規則還沒加入 linePending）。' : 'LINE 待確認清單讀取失敗，請重新整理頁面。';
+    refreshLineInbox();
+  });
+}
+function lineInboxMillis(m){
+  const t = m.createdAt;
+  if(t && typeof t.toMillis==='function') return t.toMillis();
+  return +t || 0;
+}
+function lineInboxText(m){ return lineInboxEdits[m.id]!=null ? lineInboxEdits[m.id] : (m.text||''); }
+function renderLineInboxCard(){
+  const n = lineInboxDocs.length;
+  const p2 = x=>String(x).padStart(2,'0');
+  let html = `<div class="card" id="lineInboxCard"><h2>📨 LINE 小幫手待確認${n?` <span style="font-size:14px;color:var(--vermilion);">${n} 則</span>`:''}</h2>
+    <p class="hint">信眾傳給 LINE 報名小幫手的法會報名（打字、語音、照片）。勾選後按「帶入解析」，會送進下方「從 LINE 貼上快速匯入」自動判斷場次與欄位，確認匯入後就會從這裡消失。內容可以先在框裡修改。</p>`;
+  if(!n){
+    html += `<p class="hint" style="margin:0;">${escHtml(lineInboxErr || '目前沒有待確認的 LINE 訊息。')}</p></div>`;
+    return html;
+  }
+  html += `<div class="row-actions" style="margin-bottom:8px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:0;"><input type="checkbox" id="linAll" style="width:auto;min-height:0;"> 全選</label>
+      <button class="btn btn-primary btn-sm" data-lin-act="parseSel">帶入解析（勾選的）</button>
+      <button class="btn btn-ghost btn-sm" data-lin-act="skipSel">略過（勾選的）</button>
+    </div>`;
+  lineInboxDocs.forEach(m=>{
+    const ms = lineInboxMillis(m), d = new Date(ms);
+    const when = ms && !isNaN(d.getTime()) ? `${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}` : '—';
+    const src = m.sourceType==='group' ? ('群組'+(m.groupName?'：'+m.groupName:'')) : (m.sourceType==='room' ? '多人聊天' : '私訊');
+    const inImp = lineInboxInImport.includes(m.id);
+    const tag = m.kind==='audio' ? `🎤 語音${m.audioSec?' '+m.audioSec+' 秒':''}（AI 聽寫，姓名可能是同音字）` : (m.image ? '📷 照片（AI 照抄，請對照照片）' : '');
+    html += `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;${inImp?'border-color:var(--gold);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin:0;"><input type="checkbox" class="lin-chk" data-id="${escHtml(m.id)}" style="width:auto;min-height:0;"> ${escHtml(m.displayName||'（未知）')}</label>
+        <span class="hint" style="margin:0;">${when}・${escHtml(src)}${m.movedFrom==='offering'?'・從供品贊助轉來':''}</span>
+      </div>
+      ${tag ? `<div class="hint" style="margin:4px 0;font-weight:700;">${tag}</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px;">
+        ${m.image ? `<img src="${escHtml(m.image)}" alt="報名照片" data-lin-img="${escHtml(m.id)}" title="點一下放大" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:zoom-in;flex:none;">` : ''}
+        <textarea data-lin-edit="${escHtml(m.id)}" rows="3" style="flex:1;min-height:64px;font-size:14px;">${escHtml(lineInboxText(m))}</textarea>
+      </div>
+      ${inImp ? '<div class="hint" style="margin:4px 0 0;color:#9a6a00;font-weight:700;">已帶入下方解析，確認匯入後會自動標成已處理</div>' : ''}
+      <div class="row-actions" style="margin-top:6px;">
+        <button class="btn btn-ghost btn-sm" data-lin-act="parse" data-id="${escHtml(m.id)}">帶入解析</button>
+        <button class="btn btn-ghost btn-sm" data-lin-act="skip" data-id="${escHtml(m.id)}">略過</button>
+        <button class="btn btn-ghost btn-sm" data-lin-act="move" data-id="${escHtml(m.id)}">轉到供品贊助</button>
+      </div>
+    </div>`;
+  });
+  return html + '</div>';
+}
+function refreshLineInbox(){
+  const el = document.getElementById('lineInboxCard');
+  if(!el) return;
+  const focused = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.linEdit;
+  const pos = focused ? document.activeElement.selectionStart : 0;
+  const checked = Array.from(el.querySelectorAll('.lin-chk:checked')).map(c=>c.dataset.id);
+  el.outerHTML = renderLineInboxCard();
+  checked.forEach(id=>{ const c = document.querySelector(`.lin-chk[data-id="${CSS.escape(id)}"]`); if(c) c.checked = true; });
+  if(focused){
+    const ta = document.querySelector(`[data-lin-edit="${CSS.escape(focused)}"]`);
+    if(ta){ ta.focus(); try{ ta.setSelectionRange(pos, pos); }catch(e){} }
+  }
+}
+function lineInboxCheckedIds(){ return Array.from(document.querySelectorAll('.lin-chk:checked')).map(c=>c.dataset.id); }
+async function lineInboxSetStatus(ids, status){
+  if(!ids.length) return;
+  const batch = db.batch();
+  ids.forEach(id=>batch.update(db.collection('linePending').doc(id), {
+    status, handledAt: firebase.firestore.FieldValue.serverTimestamp(), handledBy: (staff && staff.name) || ''
+  }));
+  try{ await batch.commit(); }
+  catch(e){ console.error('linePending update', e); showToast('LINE 訊息狀態更新失敗：'+(e && e.message || ''), 4000); }
+}
+function lineInboxMarkImported(status){
+  const ids = lineInboxInImport.slice();
+  lineInboxInImport = [];
+  ids.forEach(id=>delete lineInboxEdits[id]);
+  lineInboxSetStatus(ids, status);
+}
+function lineInboxParse(ids){
+  const docs = lineInboxDocs.filter(m=>ids.includes(m.id));
+  if(!docs.length){ showToast('請先勾選要帶入的 LINE 訊息'); return; }
+  lineInboxInImport = docs.map(m=>m.id);
+  // 每則訊息之間留空行，解析時會當成不同的報名
+  importRaw = docs.map(m=>lineInboxText(m).trim()).filter(Boolean).join('\n\n');
+  importForceEventId = '';
+  parseAndBuildPreview(importRaw);
+  importParseFailed = !importBlocks.length;
+  render().then(()=>{
+    const ta = document.getElementById('importRawArea');
+    if(ta) ta.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  showToast(importParseFailed ? '⚠️ 沒有辨識出報名資料，可以在框裡修改後再按「解析文字」' : `已帶入 ${docs.length} 則 LINE 訊息，請核對下方解析結果後確認匯入`, 4000);
+}
+// 小幫手網址：跟供品贊助共用（同一個網站 kuting.tw，存在這台電腦的瀏覽器）
+const LINEBOT_URL_KEY = 'gongpin_linebot_url';
+function linebotUrl(ask){
+  let url = '';
+  try{ url = localStorage.getItem(LINEBOT_URL_KEY) || ''; }catch(e){}
+  if(url && !ask) return url;
+  const input = prompt('第一次使用：請貼上小幫手的網址（LINE Developers 的 Webhook URL，或 Apps Script 部署的網頁應用程式網址）', url);
+  if(input==null) return '';
+  url = String(input).trim().split('?')[0];
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
+    alert('網址格式不對，應該像 https://script.google.com/macros/s/……/exec');
+    return '';
+  }
+  try{ localStorage.setItem(LINEBOT_URL_KEY, url); }catch(e){}
+  return url;
+}
+async function lineInboxMove(id, btn){
+  const m = lineInboxDocs.find(x=>x.id===id);
+  if(!m) return;
+  if(!(await showConfirm(`把「${escHtml(m.displayName||'這則訊息')}」的訊息轉到<b>供品贊助</b>的待確認清單嗎？`))) return;
+  const url = linebotUrl(false);
+  if(!url) return;
+  if(btn){ btn.disabled = true; btn.textContent = '轉移中…'; }
+  try{
+    const idToken = await auth.currentUser.getIdToken();
+    // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
+    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'movepending', idToken, from:'fahui', id})});
+    const out = await res.json();
+    if(out && out.ok){ lineInboxInImport = lineInboxInImport.filter(x=>x!==id); showToast('已轉到供品贊助的「LINE 小幫手待確認」'); }
+    else showToast('轉移失敗：'+((out && out.error) || '小幫手沒有回應') + ((out && /action|不支援/.test(out.error||'')) ? '（小幫手可能還不是 v1.25）' : ''), 5000);
+  }catch(e){
+    console.error('movepending', e);
+    if(confirm('連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.25）。要重新輸入小幫手網址嗎？')) linebotUrl(true);
+  }finally{
+    if(btn && document.body.contains(btn)){ btn.disabled = false; btn.textContent = '轉到供品贊助'; }
+  }
+}
+document.addEventListener('input', e=>{
+  const id = e.target && e.target.dataset && e.target.dataset.linEdit;
+  if(id) lineInboxEdits[id] = e.target.value;
+});
+document.addEventListener('change', e=>{
+  if(e.target && e.target.id==='linAll') document.querySelectorAll('.lin-chk').forEach(c=>{ c.checked = e.target.checked; });
+});
+document.addEventListener('click', async e=>{
+  const img = e.target.closest && e.target.closest('[data-lin-img]');
+  if(img){
+    const bg = document.createElement('div');
+    bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:12px;';
+    bg.innerHTML = `<img src="${escHtml(img.getAttribute('src'))}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+    bg.onclick = ()=>bg.remove();
+    document.body.appendChild(bg);
+    return;
+  }
+  const btn = e.target.closest && e.target.closest('[data-lin-act]');
+  if(!btn) return;
+  const act = btn.dataset.linAct, id = btn.dataset.id;
+  if(act==='parse') lineInboxParse([id]);
+  else if(act==='parseSel') lineInboxParse(lineInboxCheckedIds());
+  else if(act==='skip'){
+    if(await showConfirm('略過這則 LINE 訊息？（不會登記，之後在待確認清單看不到）')) lineInboxSetStatus([id], 'skipped');
+  }
+  else if(act==='skipSel'){
+    const ids = lineInboxCheckedIds();
+    if(!ids.length){ showToast('請先勾選要略過的 LINE 訊息'); return; }
+    if(await showConfirm(`略過勾選的 ${ids.length} 則 LINE 訊息？`)) lineInboxSetStatus(ids, 'skipped');
+  }
+  else if(act==='move') lineInboxMove(id, btn);
+});
 
 /* ---------------- render root ---------------- */
 /* v4.2：換頁時整個畫面會先變成「載入中…」再重畫，頁面高度瞬間縮短，瀏覽器就把捲動位置
@@ -1872,6 +2072,7 @@ async function renderAdminAsync(){
   html += renderSiteSettingsCard();
   if(staffIsAdmin()) html += await renderAccountCard();
   html += renderEventManager();
+  if(staffActive()){ lineInboxSync(); html += renderLineInboxCard(); }
   html += renderImportPanel();
   const ev = events.find(e=>e.id===adminSelectedEvent);
   if(ev){
@@ -3898,6 +4099,7 @@ function bindEvents(){
     importRaw = '';
     importParseFailed = false;
     importForceEventId = '';
+    lineInboxInImport = [];   // v4.38：帶入的 LINE 訊息留在待確認清單
     render();
     showToast('已清空，可以重新貼上新的內容');
   };
@@ -5227,6 +5429,7 @@ auth.onAuthStateChanged(async user=>{
   await loadStaff(user);
   adminUnlocked = staffActive();
   authReady = true;
+  lineInboxSync();
   // v4.3：跟 v3 一樣，打開網頁一律先顯示「我要報名」，要進後台請按「後台管理」
   if(!adminUnlocked && view==='admin'){ view='public'; render(); }
 });
