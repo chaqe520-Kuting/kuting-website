@@ -1357,8 +1357,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v135";
-  var APP_UPDATED = "2026-10-24";
+  var APP_VERSION = "v136";
+  var APP_UPDATED = "2026-10-25";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1368,6 +1368,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v136", date: "2026-10-25", changes: [
+      "LINE 小幫手待確認：每則訊息加「轉到法會報名」——報名小幫手（v1.25 起）也接法會報名，分錯邊時按一下就移到法會報名平台的待確認清單",
+      "從法會報名轉過來的訊息，來源欄會註明「從法會報名轉來」"
+    ]},
     { version: "v135", date: "2026-10-24", changes: [
       "照片傳信徒：電腦「複製圖片」在 LINE 按 Ctrl+V 貼不上的問題，改成按下按鈕當下就複製，圖片縮到長邊 1600（原本太大 LINE 收不下）",
       "沒打姓名時 AI 不會開始讀照片（直接點格子就好，也省 AI 額度）；打了姓名才讓 AI 幫忙找"
@@ -7478,7 +7482,7 @@
       return '<tr>' +
         '<td><input type="checkbox" class="line-inbox-chk" data-id="' + escAttr(m.id) + '"></td>' +
         '<td>' + when + '</td>' +
-        '<td>' + escHtml(src) + '</td>' +
+        '<td>' + escHtml(src) + (m.movedFrom === "fahui" ? '<div class="type-tag">從法會報名轉來</div>' : '') + '</td>' +
         '<td>' + escHtml(m.displayName || "（未知）") + '</td>' +
         (m.kind === "audio"
           // v125 — 語音報名：沒有存錄音，只顯示 AI 聽寫的原文，解析結果可以改
@@ -7495,7 +7499,9 @@
               '</div></div>' + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>'
           : '<td style="white-space:pre-wrap; min-width:180px;">' + escHtml(m.text || "") + (inPrev ? '<div class="type-tag">已帶入下方解析</div>' : '') + '</td>') +
         '<td style="white-space:nowrap;"><button class="ghost-btn" type="button" data-line-act="parse" data-id="' + escAttr(m.id) + '">帶入解析</button> ' +
-        '<button class="ghost-btn" type="button" data-line-act="skip" data-id="' + escAttr(m.id) + '">略過</button></td>' +
+        '<button class="ghost-btn" type="button" data-line-act="skip" data-id="' + escAttr(m.id) + '">略過</button> ' +
+        // v136 — 小幫手分錯邊（其實是法會報名）時，請小幫手搬到法會報名平台（kuting-9d240）的待確認清單
+        '<button class="ghost-btn" type="button" data-line-act="move" data-id="' + escAttr(m.id) + '">轉到法會報名</button></td>' +
         '</tr>';
     }).join("");
     if(focused){
@@ -7585,10 +7591,37 @@
     if(!btn) return;
     var id = btn.getAttribute("data-id");
     if(btn.getAttribute("data-line-act") === "parse"){ lineInboxParse([id]); return; }
+    if(btn.getAttribute("data-line-act") === "move"){ lineInboxMove(id, btn); return; }
     if(!confirm("略過這則 LINE 訊息？略過後不會登記，也不會再出現在待確認清單。")) return;
     lineInboxInPreview = lineInboxInPreview.filter(function(x){ return x !== id; });
     lineInboxSetStatus([id], "skipped");
   });
+  // v136 — 轉到法會報名：小幫手驗證這個帳號是啟用中的志工，複製到 kuting-9d240 的 linePending，這邊標 moved
+  function lineInboxMove(id, btn){
+    var m = lineInboxDocs.filter(function(x){ return x.id === id; })[0];
+    if(!m) return;
+    if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
+    if(!confirm("把「" + (m.displayName || "這則訊息") + "」的訊息轉到「法會報名」平台的待確認清單嗎？")) return;
+    var url = linebotUrl(false);
+    if(!url) return;
+    btn.disabled = true; btn.textContent = "轉移中…";
+    fsAuth.currentUser.getIdToken().then(function(idToken){
+      // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "movepending", idToken: idToken, from: "offering", id: id }) });
+    }).then(function(res){ return res.json(); }).then(function(out){
+      if(out && out.ok){
+        lineInboxInPreview = lineInboxInPreview.filter(function(x){ return x !== id; });
+        showToast("已轉到法會報名的「LINE 小幫手待確認」");
+      } else {
+        showToast("轉移失敗：" + ((out && out.error) || "小幫手沒有回應"));
+      }
+    }).catch(function(err){
+      console.error("movepending", err);
+      if(confirm("連不到小幫手（可能是網址不對，或小幫手還沒更新到 v1.25）。要重新輸入小幫手網址嗎？")) linebotUrl(true);
+    }).then(function(){
+      if(document.body.contains(btn)){ btn.disabled = false; btn.textContent = "轉到法會報名"; }
+    });
+  }
   document.getElementById("lineInboxAllChk").addEventListener("change", function(e){
     lineInboxBody.querySelectorAll(".line-inbox-chk").forEach(function(c){ c.checked = e.target.checked; });
   });
