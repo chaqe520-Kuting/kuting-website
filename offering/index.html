@@ -571,6 +571,16 @@
             <input type="text" id="pubQaDedicateTo" placeholder="例如：玄天上帝">
           </div>
         </div>
+        <div class="field-row" id="pubQaBuyunRow" style="display:none; margin-top:10px;">
+          <div class="field">
+            <label for="pubQaBuyunName">補運名稱 *</label>
+            <select id="pubQaBuyunName"><option value="">請選擇</option><option value="補運">補運</option><option value="補運+補財庫">補運+補財庫</option></select>
+          </div>
+          <div class="field" style="flex:2;">
+            <label for="pubQaBuyunAddr">補運地址</label>
+            <input type="text" id="pubQaBuyunAddr" placeholder="補運者地址">
+          </div>
+        </div>
         <div id="pubQaFullWarning" class="qty-warning" style="display:none;"></div>
       </div>
       <div class="panel" id="pubQaConfirmPanel" style="display:none;">
@@ -1357,8 +1367,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v136";
-  var APP_UPDATED = "2026-10-25";
+  var APP_VERSION = "v137";
+  var APP_UPDATED = "2026-10-26";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1368,6 +1378,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v137", date: "2026-10-26", changes: [
+      "信眾報名頁：補運品項（第 19 師尊的法船、第 20 個人的法船）也能線上報名，選了會多出「補運名稱（補運／補運+補財庫）」與「補運地址」，數量欄改成金額",
+      "提醒：品項管理裡勾了「不公開」的品項信眾頁仍看不到，要開放請把該品項的「不公開」取消勾選"
+    ]},
     { version: "v136", date: "2026-10-25", changes: [
       "LINE 小幫手待確認：每則訊息加「轉到法會報名」——報名小幫手（v1.25 起）也接法會報名，分錯邊時按一下就移到法會報名平台的待確認清單",
       "從法會報名轉過來的訊息，來源欄會註明「從法會報名轉來」"
@@ -2642,6 +2656,12 @@
     if(text.indexOf("壽金") >= 0){
       occ.catalog.forEach(function(c){
         if(out.indexOf(c) < 0 && itemNeedsDedication(c.catId, occ)) out.unshift(c);
+      });
+    }
+    // v137 — 打「補運」「補財庫」也列出有補運欄的品項（第 19、20 項法船）
+    if(text.indexOf("補運") >= 0 || text.indexOf("補財庫") >= 0){
+      occ.catalog.forEach(function(c){
+        if(out.indexOf(c) < 0 && itemNeedsBuyun(c.catId, occ)) out.unshift(c);
       });
     }
     return out.slice(0, 6);
@@ -5594,7 +5614,7 @@
       var remaining = it.total - it.sponsored;
       var full = !unlimited && remaining <= 0;
       var badge = unlimited ? "不限量" : (full ? (remaining < 0 ? "已超額" : "已額滿") : ("剩餘 " + remaining.toLocaleString("zh-TW")));
-      return '<div class="ss-row ss-row-clickable" data-catid="' + escAttr(it.id) + '" role="button" tabindex="0"><div><div class="ss-name">' + (it.no ? it.no + "、" : "") + it.name + '</div><div class="ss-spec">' + it.spec + ' ‧ 每' + it.unit + ' ' + fmt(it.price) + '</div></div><span class="badge ' + (full ? "full" : "open") + '">' + badge + '</span></div>';
+      return '<div class="ss-row ss-row-clickable" data-catid="' + escAttr(it.id) + '" role="button" tabindex="0"><div><div class="ss-name">' + (it.no ? it.no + "、" : "") + it.name + '</div><div class="ss-spec">' + it.spec + (itemQtyAsAmount(it) ? ' ‧ 金額隨喜' : ' ‧ 每' + it.unit + ' ' + fmt(it.price)) + '</div></div><span class="badge ' + (full ? "full" : "open") + '">' + badge + '</span></div>';
     }).join("");
 
     screenshotCard.innerHTML =
@@ -5641,7 +5661,7 @@
       var remaining = it.total - it.sponsored;
       var full = !unlimited && remaining <= 0;
       var badge = unlimited ? "不限量" : (full ? (remaining < 0 ? "已超額" : "已額滿") : ("剩餘 " + remaining.toLocaleString("zh-TW")));
-      return '<div class="ss-row"><div><div class="ss-name">' + (it.no ? it.no + "、" : "") + it.name + '</div><div class="ss-spec">' + it.spec + ' ‧ 每' + it.unit + ' ' + fmt(it.price) + '</div></div><span class="badge ' + (full ? "full" : "open") + '">' + badge + '</span></div>';
+      return '<div class="ss-row"><div><div class="ss-name">' + (it.no ? it.no + "、" : "") + it.name + '</div><div class="ss-spec">' + it.spec + (itemQtyAsAmount(it) ? ' ‧ 金額隨喜' : ' ‧ 每' + it.unit + ' ' + fmt(it.price)) + '</div></div><span class="badge ' + (full ? "full" : "open") + '">' + badge + '</span></div>';
     }).join("");
   }
 
@@ -6281,6 +6301,10 @@
   var pubQaFullWarning = document.getElementById("pubQaFullWarning");
   var pubQaDedicateRow = document.getElementById("pubQaDedicateRow");
   var pubQaDedicateTo = document.getElementById("pubQaDedicateTo");
+  // v137 — 補運品項（第 19、20 項法船）信眾也能線上報名：選補運名稱＋填地址
+  var pubQaBuyunRow = document.getElementById("pubQaBuyunRow");
+  var pubQaBuyunName = document.getElementById("pubQaBuyunName");
+  var pubQaBuyunAddr = document.getElementById("pubQaBuyunAddr");
   var pubQaSelected = null;
   var pubQaEditingId = null; // set while "重新修改" is editing an already-submitted registration
   var pubQaLastRegId = null; // the most recently submitted registration, for the confirm panel
@@ -6295,7 +6319,9 @@
   }
 
   function updatePubQaPreview(){
-    pubQaQtyLabel.textContent = (pubQaSelected && pubQaSelected.type === "donation") ? "金額(元) *" : "數量 *";
+    pubQaQtyLabel.textContent = (pubQaSelected && (pubQaSelected.type === "donation" || itemQtyAsAmount(findItem(pubQaSelected.catId)))) ? "金額(元) *" : "數量 *";
+    var needsBuyun = !!(pubQaSelected && itemNeedsBuyun(pubQaSelected.catId));
+    pubQaBuyunRow.style.display = needsBuyun ? "flex" : "none";
     if(current().status !== "open"){
       pubQaFullWarning.textContent = current().status === "draft" ? "本場次準備中，尚未開放報名，謝謝。" : "本場次已關閉報名，目前無法線上登記，謝謝。";
       pubQaFullWarning.style.display = "block";
@@ -6329,7 +6355,11 @@
     if(warnMsg){ pubQaFullWarning.textContent = warnMsg; pubQaFullWarning.style.display = "block"; }
     else { pubQaFullWarning.style.display = "none"; }
 
-    pubQaAddBtn.disabled = !(pubQaName.value.trim() && q > 0) || overCapacity;
+    if(!warnMsg && needsBuyun && !pubQaBuyunName.value){
+      pubQaFullWarning.textContent = "請選擇補運名稱（補運／補運+補財庫），並填寫補運地址。";
+      pubQaFullWarning.style.display = "block";
+    }
+    pubQaAddBtn.disabled = !(pubQaName.value.trim() && q > 0) || overCapacity || (needsBuyun && !pubQaBuyunName.value);
   }
 
   function pubQaSearch(text){
@@ -6380,9 +6410,11 @@
   });
   pubQaQty.addEventListener("input", function(){ pubQaAutoPick(); updatePubQaPreview(); });
   pubQaName.addEventListener("input", updatePubQaPreview);
+  pubQaBuyunName.addEventListener("change", updatePubQaPreview);
 
   function resetPubQaForm(){
     pubQaName.value = ""; pubQaPhone.value = ""; pubQaKeyword.value = ""; pubQaQty.value = 1; pubQaDedicateTo.value = "";
+    pubQaBuyunName.value = ""; pubQaBuyunAddr.value = "";
     pubQaSelected = null; renderPubQaChip(); updatePubQaPreview();
   }
 
@@ -6401,6 +6433,7 @@
     var html = rows.map(function(r){
       return '<div class="preview-row"><span class="preview-label">' + r[0] + '</span><span class="preview-value">' + r[1] + '</span></div>';
     }).join("");
+    if(reg.buyunName || reg.buyunAddr) html += '<div class="preview-row"><span class="preview-label">補運</span><span class="preview-value">' + escHtml((reg.buyunName || "") + (reg.buyunAddr ? "　" + reg.buyunAddr : "")) + '</span></div>';
     // 收款狀態僅供信眾查看，不開放於公告版面直接切換，避免自行標記為已收款
     html += '<div class="preview-row"><span class="preview-label">收款狀態</span><span class="preview-value"><span class="badge ' + (reg.paid ? "open" : "full") + '">' + (reg.paid ? "已收款" : "待志工確認收款") + '</span></span></div>';
     pubQaConfirmBody.innerHTML = html;
@@ -6448,6 +6481,8 @@
     newReg.qty = q;
     newReg.amount = pubQaSelected.type === "donation" ? q : q * pubQaSelected.price;
     newReg.dedicateTo = itemNeedsDedication(pubQaSelected.catId) ? pubQaDedicateTo.value.trim() : "";
+    newReg.buyunName = itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunName.value : "";
+    newReg.buyunAddr = itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunAddr.value.trim() : "";
 
     pubQaAddBtn.disabled = true;
     pubQaAddBtn.textContent = "送出中…";
@@ -6532,6 +6567,8 @@
         editingReg.qty = q;
         editingReg.amount = pubQaSelected.type === "donation" ? q : q * pubQaSelected.price;
         editingReg.dedicateTo = itemNeedsDedication(pubQaSelected.catId) ? pubQaDedicateTo.value.trim() : "";
+        editingReg.buyunName = itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunName.value : "";
+        editingReg.buyunAddr = itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunAddr.value.trim() : "";
         var newItem = null;
         if(editingReg.type === "item"){
           newItem = findItem(editingReg.catId, occ);
@@ -6565,7 +6602,9 @@
       qty: q,
       unitPrice: pubQaSelected.price,
       amount: pubQaSelected.type === "donation" ? q : q * pubQaSelected.price,
-      dedicateTo: itemNeedsDedication(pubQaSelected.catId) ? pubQaDedicateTo.value.trim() : ""
+      dedicateTo: itemNeedsDedication(pubQaSelected.catId) ? pubQaDedicateTo.value.trim() : "",
+      buyunName: itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunName.value : "",
+      buyunAddr: itemNeedsBuyun(pubQaSelected.catId) ? pubQaBuyunAddr.value.trim() : ""
     });
     showToast("感謝您的贊助登記：" + reg.name + " ‧ " + reg.label);
     resetPubQaForm();
@@ -6584,6 +6623,8 @@
     pubQaKeyword.value = cat ? cat.short : "";
     pubQaQty.value = reg.qty;
     pubQaDedicateTo.value = reg.dedicateTo || "";
+    pubQaBuyunName.value = reg.buyunName || "";
+    pubQaBuyunAddr.value = reg.buyunAddr || "";
     renderPubQaChip();
     updatePubQaPreview();
     pubQaAddBtn.textContent = "更新報名資料";
