@@ -1163,10 +1163,11 @@
     <div id="psRedPanel">
       <ol style="font-size:1rem; line-height:1.9; margin:4px 0 0 22px; padding:0;">
         <li><b>選紅紙照片</b>（可以一次選好幾張）</li>
-        <li><b>打信徒姓名</b>（或點選），AI 會自動用<span style="color:#1a9e33; font-weight:700;">綠框</span>框出他的名字</li>
-        <li>確認綠框，按<b>「✅ 產生這位的圖片」</b>，再按「傳到 LINE」</li>
+        <li>在照片上點一下<b>「上方數量那一列的下緣」</b>畫黃線（黃線以上的品名會保留）；有右邊直書標題的話，按「📐 右邊標題黃線」再點標題左邊</li>
+        <li><b>自己框信徒</b>：在名字那一格點一下就用<span style="color:#1a9e33; font-weight:700;">綠框</span>框起來（格線對不準就按「✏️ 自己拉框」）；可以打姓名當圖片名稱</li>
+        <li>按<b>「✅ 產生這位的圖片」</b>，再按「傳到 LINE」</li>
       </ol>
-      <p class="pdesc" style="margin-top:4px;">綠框沒框到：在名字上點一下就會框；框錯了：再點一下就取消。黃線以上的標題會保留，綠框以外都打馬賽克。</p>
+      <p class="pdesc" style="margin-top:4px;">框錯了：再點一下就取消。黃線以上的標題會保留，綠框以外都打馬賽克。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
         <label class="ghost-btn" style="cursor:pointer;">📁 選紅紙照片（可多張）<input type="file" id="psRedFile" accept="image/*,.heic,.heif" multiple style="display:none;"></label>
         <span class="pdesc" id="psRedFileInfo" style="margin:0;"></span>
@@ -1185,13 +1186,13 @@
         <button type="button" class="ghost-btn" id="psZoomIn">＋ 放大</button>
         <button type="button" class="ghost-btn" id="psClearName">🧹 清除已點選（換下一位）</button>
         <button type="button" class="ghost-btn" id="psDrawToggle" aria-pressed="false">✏️ 自己拉框（格線對不準時用）</button>
+        <button type="button" class="ghost-btn" id="psResetTitle">📐 右邊標題黃線</button>
       </div>
       <details style="margin-top:6px;">
         <summary class="pdesc" style="cursor:pointer;">更多設定（平常不用）</summary>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px;">
           <button type="button" class="ghost-btn" id="psResetHeader">重新點上方黃線</button>
-          <button type="button" class="ghost-btn" id="psResetTitle">重新點右邊黃線</button>
-          <button type="button" class="ghost-btn" id="psAiRetry">🤖 AI 重新讀這張</button>
+          <button type="button" class="ghost-btn" id="psAiRetry" style="display:none;">🤖 AI 重新讀這張</button>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;"><input type="checkbox" id="psPreview"> 預覽馬賽克</label>
           <label style="display:flex; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">馬賽克粗細
             <select id="psBlock"><option value="70">細</option><option value="45" selected>中</option><option value="28">粗</option></select>
@@ -1414,7 +1415,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v149";
+  var APP_VERSION = "v150";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1425,6 +1426,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v150", date: "2026-10-29", changes: [
+      "照片傳給信徒留存（紅紙 A3）拿掉 AI 自動辨識：不再自動讀名字、畫黃線、加綠框，全部自己點選／拉框（AI 常誤判）",
+      "「📐 右邊標題黃線」從「更多設定」移到工具列，有右邊直書標題時自己點一下"
+    ]},
     { version: "v149", date: "2026-10-29", changes: [
       "場次管理「匯出 Excel」加「補運」「補運地址」兩欄（個人法船等補運品項原本沒匯出）"
     ]},
@@ -9557,11 +9562,11 @@
   function psHintText(){
     var ph = psCurPhoto(), el = document.getElementById("psHint");
     if(!ph){ el.textContent = ""; return; }
-    if(!ph.header && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，讀完會自動畫黃線；也可以自己點一下「供品單位那一列的下緣」";
+    if(!ph.header && PS_AI_ON && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，讀完會自動畫黃線；也可以自己點一下「供品單位那一列的下緣」";
     else if(!ph.header) el.textContent = "請先在照片上點一下「供品單位那一列的下緣」，黃線以上的標題會保留";
     else if(psRed.draw) el.textContent = "✏️ 自己拉框：按住從名字左上角拖到數量右下角，放開就是綠框；框錯點一下框就取消；好了按「✅ 產生這位的圖片」";
     else if(!psRed.name) el.textContent = "直接在信徒名字那一格點一下就框（名字＋數量），框錯再點一下取消；好了按「✅ 產生這位的圖片」";
-    else el.textContent = "確認綠框都是「" + psRed.name + "」；沒框到在名字上點一下，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
+    else el.textContent = "在「" + psRed.name + "」的名字那一格點一下就框，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
   }
 
   var psMosaicCache = null;
@@ -9901,6 +9906,7 @@
   function psAiNorm(s){ return String(s || "").replace(/[\s、,，.。;；:：()（）「」\[\]\-－_\/]/g, ""); }
   function psAiStatusText(){
     var el = document.getElementById("psAiStatus");
+    if(!PS_AI_ON){ el.textContent = ""; return; }
     var busy = psRed.photos.filter(function(ph){ return ph.ai.state === "busy"; });
     var parts = [];
     if(busy.length) parts.push("🤖 AI 正在讀紅紙姓名（約 20～60 秒）…" + Math.round((Date.now() - busy[0].ai.t0) / 1000) + " 秒（可以先打信徒姓名）");
@@ -9943,7 +9949,10 @@
     if(hy != null && hy <= top + 0.01 && hy >= top - 0.06) top = Math.min(top, hy);
     return top;
   }
+  // v150 — 小朱：AI 常誤判，拿掉 AI 自動讀名字／畫黃線／加框，全部自己點選（程式保留，改 false 可再開）
+  var PS_AI_ON = false;
   function psAiRead(ph){
+    if(!PS_AI_ON) return;
     if(!(fsAuth && fsAuth.currentUser)){ ph.ai = { state: "error", err: "請先登入志工帳號" }; psAiTick(); return; }
     var url = linebotUrl(false);
     if(!url){ ph.ai = { state: "error", err: "沒有設定小幫手網址" }; psAiTick(); return; }
@@ -9991,6 +10000,7 @@
   }
   // 把 AI 讀到、含這個姓名的格子框起來（再用格線對齊整格）；手動點的框保留
   function psAiApply(){
+    if(!PS_AI_ON) return;
     var names = psNames().map(psAiNorm).filter(Boolean), found = 0, anyDone = false;
     var key = names.join("、");
     psRed.photos.forEach(function(ph){
