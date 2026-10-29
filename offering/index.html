@@ -1157,7 +1157,7 @@
       <button type="button" class="occ-chip" id="psTabRed" aria-pressed="true">紅紙 A3 照片（遮其他姓名）</button>
       <button type="button" class="occ-chip" id="psTabBuyun" aria-pressed="false">補運照片</button>
     </div>
-    <p class="pdesc" style="margin:0 0 8px;">照片只在這台電腦／手機的瀏覽器裡處理，不會上傳到雲端；關掉視窗或重新整理後要重新選照片。</p>
+    <p class="pdesc" style="margin:0 0 8px;">照片只在這台電腦／手機的瀏覽器裡處理，不會上傳到雲端；關掉視窗再打開還在，但重新整理或關掉網頁後要重新選照片。</p>
 
     <div id="psRedPanel">
       <ol style="font-size:1rem; line-height:1.9; margin:4px 0 0 22px; padding:0;">
@@ -1203,17 +1203,19 @@
       <p class="pdesc" style="margin-top:4px;">照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
         <button type="button" class="add-btn" id="psRedMake">✅ 產生這位的圖片</button>
+        <button type="button" class="ghost-btn" id="psRedGoOut" style="display:none;"></button>
       </div>
       <div id="psRedOut" style="margin-top:12px;"></div>
     </div>
 
     <div id="psBuyunPanel" style="display:none;">
-      <p class="pdesc">① 一次選好全部補運照片（可直接從 Google 相簿挑，不用先下載）→ ② 看著照片打姓名的一個字 → ③ 點對應的報名，自動換下一張。配好後在下面每位的卡片按「傳到 LINE」或「下載」。</p>
+      <p class="pdesc">① 一次選好全部補運照片（可直接從 Google 相簿挑，不用先下載）→ ② 看著照片打姓名的一個字（同一位有好幾張就先按「☑ 這位還有其他照片」勾起來）→ ③ 點對應的報名，自動換下一張。配好的都在下面「傳送清單」，按「傳到 LINE」或「下載」；🔴 是還沒傳的，傳過的隨時可以再傳一次。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
         <button type="button" class="add-btn" id="psGPick">☁️ 從 Google 相簿選照片</button>
         <button type="button" class="ghost-btn" id="psGCancel" style="display:none;">取消</button>
         <label class="ghost-btn" style="cursor:pointer;">📁 選補運照片（可多張）<input type="file" id="psBuyunFiles" accept="image/*,.heic,.heif" multiple style="display:none;"></label>
         <span class="pdesc" id="psBuyunInfo" style="margin:0;"></span>
+        <button type="button" class="ghost-btn" id="psBuyunGoOut" style="display:none;"></button>
       </div>
       <div class="pdesc" id="psGMsg" style="display:none; margin-top:6px; font-weight:700;"></div>
       <div id="psBuyunCur" style="display:none; margin-top:10px;">
@@ -1221,6 +1223,13 @@
         <div class="field" style="margin-top:8px;">
           <label for="psBuyunName">這張是誰？打姓名的一個字</label>
           <input type="text" id="psBuyunName" autocomplete="off" placeholder="例：王">
+        </div>
+        <div style="margin-top:8px;">
+          <button type="button" class="ghost-btn" id="psBuyunMultiBtn">☑ 這位還有其他照片（勾選多張一起配）</button>
+          <div id="psBuyunMulti" style="display:none; margin-top:6px;">
+            <p class="pdesc" style="margin:0 0 6px;">點照片勾選（可勾好幾張），再到上面打姓名、點報名，勾起來的會跟這張一起配給同一位。</p>
+            <div id="psBuyunGrid" style="display:flex; gap:6px; flex-wrap:wrap; max-height:260px; overflow:auto;"></div>
+          </div>
         </div>
         <div id="psBuyunList" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
@@ -1370,8 +1379,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v138";
-  var APP_UPDATED = "2026-10-26";
+  var APP_VERSION = "v139";
+  var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1381,6 +1390,12 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v139", date: "2026-10-29", changes: [
+      "照片傳信徒：配好的每一位都有「傳送清單」，標出 🔴 未傳送／✅ 已傳送，按過「傳到 LINE」「複製」「下載」會自動標成已傳送，之後隨時可以「再傳一次」；可切換「只看未傳送」，忘了傳的一眼就找得到",
+      "補運照片：同一位有好幾張時，按「☑ 這位還有其他照片」勾選多張，一次配給同一位報名者",
+      "紅紙 A3：同一位再產生一次圖片時，可以選擇「加在一起」（同一位多張）或取代舊的",
+      "關掉照片視窗不會清掉配好的照片；還有未傳送的時候，重新整理或換場次會先提醒"
+    ]},
     { version: "v138", date: "2026-10-29", changes: [
       "照片傳信徒（補運照片）：比照法會報名，加「☁️ 從 Google 相簿選照片」，直接在 Google 相簿勾選補運照片，不用先下載到電腦／手機；挑好後照原本方式打姓名配對、傳到 LINE",
       "共用法會報名平台已設定的 Google 相簿（kuting-photos）；第一次要按兩下（先登入 Google，再開相簿）"
@@ -9812,14 +9827,25 @@
     Promise.all(canvases.map(function(c, k){
       return psCanvasFile(c, "紅紙_" + psSafeName(name) + (canvases.length > 1 ? "_" + (k + 1) : "") + ".jpg");
     })).then(function(files){
-      psRed.outs = psRed.outs.filter(function(o){
-        if(o.name === name){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); return false; }
-        return true;
-      });
-      psRed.outs.unshift({ name: name, files: files, canvases: canvases, urls: files.map(function(f){ return URL.createObjectURL(f); }) });
+      // v139 — 同一位再產生一次：可以加在一起（同一位多張紅紙／多次產生），或取代舊的
+      var old = psRed.outs.filter(function(o){ return o.name === name; })[0];
+      var append = old && confirm("「" + name + "」已經有 " + old.files.length + " 張圖片。\n\n按「確定」＝加在一起（同一位傳多張）\n按「取消」＝取代舊的圖片");
+      if(append){
+        var n0 = old.files.length;
+        files = files.map(function(f, k){ return new File([f], "紅紙_" + psSafeName(name) + "_" + (n0 + k + 1) + ".jpg", { type: "image/jpeg" }); });
+        old.files = old.files.concat(files);
+        old.canvases = old.canvases.concat(canvases);
+        old.urls = old.urls.concat(files.map(function(f){ return URL.createObjectURL(f); }));
+        old.sent = false;
+        psRed.outs.splice(psRed.outs.indexOf(old), 1);
+        psRed.outs.unshift(old);
+      } else {
+        if(old){ old.urls.forEach(function(u){ URL.revokeObjectURL(u); }); psRed.outs.splice(psRed.outs.indexOf(old), 1); }
+        psRed.outs.unshift({ name: name, files: files, canvases: canvases, urls: files.map(function(f){ return URL.createObjectURL(f); }), sent: false });
+      }
       psRenderRedOuts();
       psClearPicked();
-      showToast("已產生「" + name + "」的圖片（" + files.length + " 張），在下方確認後傳送；可以接著點下一位");
+      showToast("已產生「" + name + "」的圖片（" + (append ? "共 " + old.files.length : files.length) + " 張），在下方傳送清單確認後傳送；可以接著點下一位");
     });
   });
 
@@ -9837,30 +9863,71 @@
     return out;
   }
 
+  /* v139 — 傳送清單：每位標 未傳送／已傳送，按過傳送類按鈕自動標已傳送，隨時可以再傳；可只看未傳送 */
+  var psSendFilter = { red: false, buyun: false };
+  function psSendBadge(state){
+    if(state === "sent") return '<span class="type-tag" style="background:#e3f3e6; color:#1a7a2e; border-color:#9fd3aa;">✅ 已傳送</span>';
+    if(state === "part") return '<span class="type-tag" style="background:#fff1dc; color:#a85b00; border-color:#f0c58a;">🟠 有照片還沒傳</span>';
+    return '<span class="type-tag" style="background:#fde7e4; color:#b3261e; border-color:#f2b1aa;">🔴 未傳送</span>';
+  }
+  function psSendHead(kind, total, unsent){
+    var only = psSendFilter[kind];
+    return '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 8px;">' +
+      '<h4 style="margin:0;">📤 傳送清單（' + total + ' 位，' + (unsent ? '<span style="color:#b3261e;">未傳送 ' + unsent + ' 位</span>' : '全部已傳送') + '）</h4>' +
+      '<button type="button" class="occ-chip" data-act="filter" aria-pressed="' + (only ? "true" : "false") + '">只看未傳送</button>' +
+      '</div>';
+  }
+  function psGoOutBtn(id, outId, unsent, total){
+    var b = document.getElementById(id);
+    if(!total){ b.style.display = "none"; return; }
+    b.style.display = "";
+    b.textContent = "📤 傳送清單" + (unsent ? "（未傳送 " + unsent + " 位）" : "（全部已傳送）");
+    b.style.color = unsent ? "#b3261e" : "";
+    b.onclick = function(){ document.getElementById(outId).scrollIntoView({ behavior: "smooth", block: "start" }); };
+  }
+  function psUnsentCount(){
+    // 不用 current()：換場次時要算的是上一個場次配好的
+    var regs = {};
+    psBuyun.photos.forEach(function(p){ if(p.regId && !p.sent) regs[p.regId] = 1; });
+    return psRed.outs.filter(function(o){ return !o.sent; }).length + Object.keys(regs).length;
+  }
+  window.addEventListener("beforeunload", function(e){
+    if(psUnsentCount()){ e.preventDefault(); e.returnValue = ""; }
+  });
+
   function psRenderRedOuts(){
     var el = document.getElementById("psRedOut");
+    var unsent = psRed.outs.filter(function(o){ return !o.sent; }).length;
+    psGoOutBtn("psRedGoOut", "psRedOut", unsent, psRed.outs.length);
     if(!psRed.outs.length){ el.innerHTML = ""; return; }
-    el.innerHTML = '<h4 style="margin:0 0 6px;">已產生（' + psRed.outs.length + ' 位）— 請確認只看得到該信徒的名字</h4>' +
+    el.innerHTML = psSendHead("red", psRed.outs.length, unsent) +
+      '<p class="pdesc" style="margin:0 0 6px;">請確認只看得到該信徒的名字。</p>' +
       psRed.outs.map(function(o, i){
-        return '<div style="border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:10px;">' +
-          '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(o.name) + (o.files.length > 1 ? "（" + o.files.length + " 張）" : "") + '</div>' +
+        if(psSendFilter.red && o.sent) return "";
+        return '<div style="border:' + (o.sent ? '1px solid var(--border)' : '2px solid #e8a39b') + '; border-radius:10px; padding:10px; margin-bottom:10px;">' +
+          '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(o.name) + (o.files.length > 1 ? "（" + o.files.length + " 張）" : "") + '　' + psSendBadge(o.sent ? "sent" : "") + '</div>' +
           o.urls.map(function(u){ return '<img src="' + u + '" alt="' + escAttr(o.name) + ' 的紅紙照片" style="width:100%; max-width:520px; border-radius:6px; border:1px solid var(--border); margin-bottom:6px;">'; }).join("") +
           '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
-            '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">傳到 LINE</button>' +
+            '<button type="button" class="add-btn" data-act="share" data-i="' + i + '">' + (o.sent ? "再傳一次" : "傳到 LINE") + '</button>' +
             // v134 — 多張合併成一張再複製，到 LINE 直接貼上
             '<button type="button" class="ghost-btn" data-act="copy" data-i="' + i + '">📋 ' + (o.files.length > 1 ? "合併成一張・複製圖片" : "複製圖片") + '</button>' +
             (o.files.length > 1 ? '<button type="button" class="ghost-btn" data-act="mergedl" data-i="' + i + '">合併下載</button>' : '') +
             '<button type="button" class="ghost-btn" data-act="download" data-i="' + i + '">下載</button>' +
+            '<button type="button" class="ghost-btn" data-act="mark" data-i="' + i + '">' + (o.sent ? "改回未傳送" : "標為已傳送") + '</button>' +
             '<button type="button" class="ghost-btn" data-act="remove" data-i="' + i + '">移除</button>' +
           '</div></div>';
-      }).join("");
+      }).join("") +
+      (psSendFilter.red && !unsent ? '<div class="pdesc">全部都傳送了 🙏</div>' : "");
   }
   document.getElementById("psRedOut").addEventListener("click", function(e){
     var btn = e.target.closest("button[data-act]");
     if(!btn) return;
+    if(btn.getAttribute("data-act") === "filter"){ psSendFilter.red = !psSendFilter.red; psRenderRedOuts(); return; }
     var i = +btn.getAttribute("data-i"), o = psRed.outs[i];
     if(!o) return;
     var act = btn.getAttribute("data-act");
+    if(act === "mark"){ o.sent = !o.sent; psRenderRedOuts(); return; }
+    if(act === "share" || act === "copy" || act === "mergedl" || act === "download"){ o.sent = true; setTimeout(psRenderRedOuts, 0); }
     if(act === "share"){
       if(regNoticeIsMobile || o.files.length === 1) psShareFiles(o.files, o.name);
       else psCopyCanvases(o.canvases, o.name);
@@ -9878,7 +9945,7 @@
 
   /* ---- 補運照片 ---- */
   // photos: [{ file, blob(轉好的 JPEG), url, regId, skipped }]
-  var psBuyun = { photos: [], cur: -1 };
+  var psBuyun = { photos: [], cur: -1, sel: [], multi: false };
 
   function psBuyunRegs(occ){
     return occ.registrations.filter(function(r){
@@ -9904,6 +9971,7 @@
     var n = psBuyun.photos.length;
     var done = psBuyun.photos.filter(function(p){ return p.regId; }).length;
     document.getElementById("psBuyunInfo").textContent = n ? "共 " + n + " 張，已配對 " + done + " 張" : "";
+    if(!n) psGoOutBtn("psBuyunGoOut", "psBuyunOut", 0, 0);
   }
   function psBuyunShow(i){
     var cur = document.getElementById("psBuyunCur");
@@ -9927,6 +9995,9 @@
     }).catch(function(err){ showToast(err && err.message ? err.message : "照片讀取失敗"); });
     // 預先準備下一張
     if(psBuyun.photos[i + 1]) psBuyunPrepare(psBuyun.photos[i + 1]).catch(function(){});
+    // 換一張：勾選的多張清掉（已經配走或不相關）
+    psBuyun.sel = psBuyun.sel.filter(function(p){ return !p.regId && p !== ph; });
+    psBuyunGrid();
     var input = document.getElementById("psBuyunName");
     input.value = "";
     psBuyunSearch();
@@ -9959,10 +10030,67 @@
         (h.n ? '　<span class="type-tag">已配 ' + h.n + ' 張</span>' : '') + '</button>';
     }).join("") : (q ? '<div class="pdesc">本場次補運報名找不到含「' + escHtml(q) + '」的姓名</div>' : "");
   }
+  // v139 — 勾選多張一起配給同一位（比照「同一位好幾張補運照片」）
+  var psGridLoading = 0;
+  function psBuyunGrid(){
+    var box = document.getElementById("psBuyunMulti");
+    var btn = document.getElementById("psBuyunMultiBtn");
+    var cur = psBuyun.photos[psBuyun.cur];
+    var n = psBuyun.sel.length;
+    btn.textContent = psBuyun.multi ? "收起勾選" + (n ? "（已勾 " + n + " 張）" : "") : "☑ 這位還有其他照片（勾選多張一起配）" + (n ? "：已勾 " + n + " 張" : "");
+    btn.setAttribute("aria-pressed", psBuyun.multi ? "true" : "false");
+    box.style.display = psBuyun.multi ? "block" : "none";
+    if(!psBuyun.multi) return;
+    var grid = document.getElementById("psBuyunGrid");
+    var list = psBuyun.photos.filter(function(p){ return !p.regId && p !== cur; });
+    if(!list.length){ grid.innerHTML = '<div class="pdesc">沒有其他還沒配對的照片</div>'; return; }
+    grid.innerHTML = list.map(function(p){
+      var i = psBuyun.photos.indexOf(p), on = psBuyun.sel.indexOf(p) >= 0;
+      return '<button type="button" data-pi="' + i + '" aria-pressed="' + (on ? "true" : "false") + '" title="第 ' + (i + 1) + ' 張" style="position:relative; width:96px; height:96px; padding:0; border-radius:6px; cursor:pointer; background:#f4efe6; border:' + (on ? "3px solid var(--cinnabar)" : "1px solid var(--border)") + ';">' +
+        (p.url ? '<img src="' + p.url + '" alt="第 ' + (i + 1) + ' 張" style="width:100%; height:100%; object-fit:cover; border-radius:4px; opacity:' + (on ? "1" : ".85") + ';">' : '<span class="pdesc">讀取中…</span>') +
+        '<span style="position:absolute; left:3px; top:3px; background:' + (on ? "var(--cinnabar)" : "rgba(255,255,255,.9)") + '; color:' + (on ? "#fff" : "#333") + '; border-radius:4px; font-size:.8rem; padding:0 4px; font-weight:700;">' + (on ? "✔ " : "") + (i + 1) + '</span></button>';
+    }).join("");
+    // 縮圖要先轉好照片：一次準備兩張，好了再重畫
+    if(!psGridLoading){
+      var todo = list.filter(function(p){ return !p.url; });
+      if(todo.length){
+        psGridLoading = 1;
+        var run = function(){
+          var batch = todo.splice(0, 2);
+          if(!batch.length || !psBuyun.multi){ psGridLoading = 0; psBuyunGrid(); return; }
+          Promise.all(batch.map(function(p){ return psBuyunPrepare(p).catch(function(){}); })).then(function(){ psBuyunGridSoon(); run(); });
+        };
+        run();
+      }
+    }
+  }
+  var psGridTimer = null;
+  function psBuyunGridSoon(){
+    if(psGridTimer) return;
+    psGridTimer = setTimeout(function(){ psGridTimer = null; var g = document.getElementById("psBuyunGrid"), y = g.scrollTop; psBuyunGrid(); g.scrollTop = y; }, 400);
+  }
+  document.getElementById("psBuyunMultiBtn").addEventListener("click", function(){ psBuyun.multi = !psBuyun.multi; psBuyunGrid(); });
+  document.getElementById("psBuyunGrid").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-pi]");
+    if(!b) return;
+    var p = psBuyun.photos[+b.getAttribute("data-pi")];
+    var k = psBuyun.sel.indexOf(p);
+    if(k >= 0) psBuyun.sel.splice(k, 1); else psBuyun.sel.push(p);
+    var g = document.getElementById("psBuyunGrid"), y = g.scrollTop;
+    psBuyunGrid(); g.scrollTop = y;
+  });
+
   function psBuyunPick(regId){
     var ph = psBuyun.photos[psBuyun.cur];
     if(!ph) return;
-    ph.regId = regId;
+    ph.regId = regId; ph.sent = false;
+    var extra = psBuyun.sel.filter(function(p){ return !p.regId; });
+    extra.forEach(function(p){ p.regId = regId; p.sent = false; psBuyunPrepare(p).catch(function(){}); });
+    psBuyun.sel = [];
+    if(extra.length){
+      var r0 = current().registrations.filter(function(r){ return r.id === regId; })[0];
+      showToast("已把 " + (extra.length + 1) + " 張配給「" + (r0 ? r0.name : "") + "」");
+    }
     psRenderBuyunOuts();
     var next = psBuyunNext(psBuyun.cur + 1);
     if(next < 0) next = psBuyunNext(0);
@@ -10177,14 +10305,22 @@
       return new File([p.blob], base + (g.photos.length > 1 ? "_" + (k + 1) : "") + ".jpg", { type: "image/jpeg" });
     });
   }
+  function psBuyunState(g){
+    var n = g.photos.filter(function(p){ return p.sent; }).length;
+    return n === g.photos.length ? "sent" : n ? "part" : "";
+  }
   function psRenderBuyunOuts(){
     var el = document.getElementById("psBuyunOut");
     var groups = psBuyunGroups();
+    var unsent = groups.filter(function(g){ return psBuyunState(g) !== "sent"; }).length;
+    psGoOutBtn("psBuyunGoOut", "psBuyunOut", unsent, groups.length);
     if(!groups.length){ el.innerHTML = ""; return; }
-    el.innerHTML = '<h4 style="margin:0 0 6px;">已配對（' + groups.length + ' 筆報名）</h4>' +
+    el.innerHTML = psSendHead("buyun", groups.length, unsent) +
       groups.map(function(g, gi){
-        return '<div style="border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:10px;">' +
-          '<div style="font-weight:700;">' + escHtml(g.r.name || "") + '　<span class="pdesc" style="margin:0;">' + escHtml(g.r.buyunName || g.r.label || "") + '</span></div>' +
+        var st = psBuyunState(g);
+        if(psSendFilter.buyun && st === "sent") return "";
+        return '<div style="border:' + (st === "sent" ? '1px solid var(--border)' : '2px solid #e8a39b') + '; border-radius:10px; padding:10px; margin-bottom:10px;">' +
+          '<div style="font-weight:700;">' + escHtml(g.r.name || "") + '　<span class="pdesc" style="margin:0;">' + escHtml(g.r.buyunName || g.r.label || "") + '</span>　' + psSendBadge(st) + '</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">' +
           g.photos.map(function(p){
             var pi = psBuyun.photos.indexOf(p);
@@ -10193,23 +10329,28 @@
               '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">' +
                 (regNoticeIsMobile ? '' : '<button type="button" class="ghost-btn" data-act="copy" data-p="' + pi + '" data-g="' + gi + '">複製</button>') +
                 '<button type="button" class="ghost-btn" data-act="unmatch" data-p="' + pi + '">改配</button>' +
+                (g.photos.length > 1 ? (p.sent ? '<span class="pdesc" style="margin:0;">✅</span>' : '<span class="pdesc" style="margin:0; color:#b3261e;">未傳</span>') : '') +
               '</div></div>';
           }).join("") +
           '</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">' +
-            '<button type="button" class="add-btn" data-act="share" data-g="' + gi + '">傳到 LINE' + (g.photos.length > 1 ? "（" + g.photos.length + " 張）" : "") + '</button>' +
+            '<button type="button" class="add-btn" data-act="share" data-g="' + gi + '">' + (st === "sent" ? "再傳一次" : "傳到 LINE") + (g.photos.length > 1 ? "（" + g.photos.length + " 張）" : "") + '</button>' +
             '<button type="button" class="ghost-btn" data-act="download" data-g="' + gi + '">全部下載</button>' +
+            '<button type="button" class="ghost-btn" data-act="mark" data-g="' + gi + '">' + (st === "sent" ? "改回未傳送" : "標為已傳送") + '</button>' +
           '</div></div>';
-      }).join("");
+      }).join("") +
+      (psSendFilter.buyun && !unsent ? '<div class="pdesc">全部都傳送了 🙏</div>' : "");
+    psBuyunInfo();
   }
   document.getElementById("psBuyunOut").addEventListener("click", function(e){
     var btn = e.target.closest("button[data-act]");
     if(!btn) return;
     var act = btn.getAttribute("data-act");
+    if(act === "filter"){ psSendFilter.buyun = !psSendFilter.buyun; psRenderBuyunOuts(); return; }
     if(act === "unmatch"){
       var ph = psBuyun.photos[+btn.getAttribute("data-p")];
       if(!ph) return;
-      ph.regId = null;
+      ph.regId = null; ph.sent = false;
       psRenderBuyunOuts();
       psBuyunShow(psBuyun.photos.indexOf(ph));
       document.getElementById("psBuyunCur").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -10217,14 +10358,20 @@
     }
     var g = psBuyunGroups()[+btn.getAttribute("data-g")];
     if(!g) return;
+    if(act === "mark"){
+      var to = psBuyunState(g) !== "sent";
+      g.photos.forEach(function(p){ p.sent = to; });
+      psRenderBuyunOuts(); return;
+    }
     if(g.photos.some(function(p){ return !p.blob; })){ showToast("照片準備中，請再按一次"); return; }
+    if(act === "share" || act === "download"){ g.photos.forEach(function(p){ p.sent = true; }); setTimeout(psRenderBuyunOuts, 0); }
     var files = psBuyunFiles(g);
     var label = psSplitNames(g.r.name).join("、");
     if(act === "share") psShareFiles(files, label);
     else if(act === "download"){ files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); }); showToast("已下載 " + files.length + " 張"); }
     else if(act === "copy"){
       var k = g.photos.indexOf(psBuyun.photos[+btn.getAttribute("data-p")]);
-      if(files[k]) psCopyFile(files[k], label);
+      if(files[k]){ psCopyFile(files[k], label); g.photos[k].sent = true; setTimeout(psRenderBuyunOuts, 0); }
     }
   });
 
@@ -10239,7 +10386,7 @@
     psRed.outs.forEach(function(o){ o.urls.forEach(function(u){ URL.revokeObjectURL(u); }); });
     psBuyun.photos.forEach(function(p){ if(p.url) URL.revokeObjectURL(p.url); });
     psRed.photos = []; psRed.cur = -1; psRed.undo = []; psRed.tapMode = null; psRed.outs = []; psRed.aiFound = null; psMosaicCache = null;
-    psBuyun.photos = []; psBuyun.cur = -1;
+    psBuyun.photos = []; psBuyun.cur = -1; psBuyun.sel = []; psBuyun.multi = false;
     psRedWrap.style.display = "none";
     document.getElementById("psRedFileInfo").textContent = "";
     document.getElementById("psRedName").value = "";
@@ -10250,7 +10397,13 @@
   function openPhotoSendModal(){
     var occ = current();
     // 換了場次：配對的報名、姓名都不一樣，清掉重來
-    if(psState.occId !== occ.id){ psState.occId = occ.id; psReset(); }
+    if(psState.occId !== occ.id){
+      // v139 — 換場次會清掉配好的照片，還有沒傳的先提醒
+      var left = psState.occId ? psUnsentCount() : 0;
+      if(left && !confirm("上一個場次還有 " + left + " 位的照片沒傳送，換到這個場次會清掉。\n\n按「取消」回去傳送（請切回原本的場次再開照片視窗）")) return;
+      psState.occId = occ.id; psReset();
+    }
+    psBuyunGrid();
     psSetTab(psState.tab);
     document.getElementById("photoSendOverlay").style.display = "flex";
     // 預先載入 Google 相簿設定與登入元件，按鈕點下去才能直接跳出 Google 登入視窗（晚了會被當成彈出視窗擋掉）
