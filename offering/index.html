@@ -1413,7 +1413,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v146";
+  var APP_VERSION = "v147";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1424,6 +1424,12 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v147", date: "2026-10-29", changes: [
+      "傳給信徒的照片提高解析度：外框圖片跟著照片原本的解析度產生（原本照片只剩 1280 寬），照片最長邊由 2400 提高到 3200，Google 相簿也改抓 3200",
+      "電腦「複製圖片」不再固定縮到 1600：先用長邊 2600，圖片太大（超過約 7MB）才自動縮小，避免 LINE 電腦版貼不上",
+      "雲端暫存的照片改存原解析度（分段存），重新整理後讀回來的照片不再變糊",
+      "多張合併成一張時，每張照片放得更大"
+    ]},
     { version: "v146", date: "2026-10-29", changes: [
       "贊助照片傳送：點照片會放大預覽（看的是實際要傳出去、有外框標題的圖片），可以按「＋ 放大／－ 縮小」或滾輪、兩指放大看細節，左右箭頭看上一張／下一張；勾選／取消改按照片下面那一列",
       "照片傳信徒的傳送清單裡，補運照片和紅紙圖片也可以點一下放大預覽"
@@ -9161,7 +9167,7 @@
      紅紙 A3 照片：框住要保留的地方（固定：右邊標題、上方品名列；這位：信徒姓名），框以外打
      馬賽克，每位信徒產生一張圖。補運照片：比照法會報名平台的照片配對，一張張點選報名。
      照片只在瀏覽器裡用 canvas 處理，不上傳 Firebase、不存 localStorage（小朱：個資考量）。 */
-  var PS_MAX_EDGE = 2400;   // 產生的圖片最長邊
+  var PS_MAX_EDGE = 3200;   // 產生的圖片最長邊（v147 由 2400 提高，手機放大才看得清楚）
   var PS_WORK_EDGE = 1600;  // 紅紙編輯畫面用的縮圖
   var psHeicLib = null;
   function psIsHeic(f){ return /\.hei[cf]$/i.test(f.name || "") || /image\/hei[cf]/i.test(f.type || ""); }
@@ -9204,7 +9210,7 @@
   }
   function psCanvasFile(canvas, filename){
     return new Promise(function(resolve){
-      canvas.toBlob(function(blob){ resolve(new File([blob], filename, { type: "image/jpeg" })); }, "image/jpeg", 0.9);
+      canvas.toBlob(function(blob){ resolve(new File([blob], filename, { type: "image/jpeg" })); }, "image/jpeg", 0.92);
     });
   }
   function psSafeName(s){ return String(s || "").replace(/[\\/:*?"<>|\s]/g, "").slice(0, 40); }
@@ -9218,8 +9224,10 @@
     return t.replace(/\d{1,2}月\d{1,2}日/g, "").replace(/供品贊助\s*$/, "").replace(/--+/g, "-").trim();
   }
   function psFrame(photo, kind, name){
-    var W = 720, PAD = 40, S = 2, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
+    var W = 720, PAD = 40, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
     var pw = W - PAD * 2, ph = photo.height * pw / photo.width;
+    // v147 — 放大倍數跟著照片解析度走，照片不再被縮成 1280 寬（原本固定 2 倍）
+    var S = Math.max(2, Math.min(PS_MAX_EDGE / W, photo.width / pw));
     var m = document.createElement("canvas").getContext("2d");
     m.font = "600 24px " + serif;
     var occLines = wrapCanvasText(m, psFrameTitle(), W - PAD * 2).slice(0, 2);
@@ -9227,7 +9235,7 @@
     var top = 170 + occLines.length * 32 + 46 + (nameText ? 56 : 0) + 14;
     var H = Math.round(top + ph + 96);
     var c = document.createElement("canvas");
-    c.width = W * S; c.height = H * S;
+    c.width = Math.round(W * S); c.height = Math.round(H * S);
     var ctx = c.getContext("2d");
     ctx.scale(S, S);
     ctx.fillStyle = "#faf5ea"; ctx.fillRect(0, 0, W, H);
@@ -9284,6 +9292,24 @@
   // v135 — 紅紙照片很大（合併後近 2000×3000），轉成 PNG 動輒十幾 MB，LINE 電腦版貼不上；
   // 而且要在按下按鈕的當下就呼叫剪貼簿（合併等太久會失去「使用者操作」而被瀏覽器擋掉）。
   // 所以：按鈕當下就寫剪貼簿，內容用 Promise 慢慢準備，並縮到長邊 1600 以內
+  // v147 — 1600 太糊：改從長邊 2600 開始，PNG 超過約 7MB 才一級級縮小（最小 1600）
+  var PS_CLIP_MAX_BYTES = 7 * 1024 * 1024;
+  function psClipPng(src){
+    var edges = [2600, 2200, 1900, 1600];
+    function attempt(i){
+      var k = Math.min(1, edges[i] / Math.max(src.width, src.height));
+      var c = document.createElement("canvas");
+      c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+      var g = c.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(src, 0, 0, c.width, c.height);
+      return new Promise(function(r){ c.toBlob(r, "image/png"); }).then(function(b){
+        if(b && b.size > PS_CLIP_MAX_BYTES && i < edges.length - 1 && edges[i + 1] < Math.max(c.width, c.height)) return attempt(i + 1);
+        return b;
+      });
+    }
+    return attempt(0);
+  }
   function psCopyCanvases(canvases, label){
     if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)){
       psCanvasFile(psStackCanvases(canvases), "紅紙_" + psSafeName(label) + ".jpg").then(function(f){
@@ -9294,16 +9320,7 @@
     }
     if(canvases.length > 1) showToast("正在合併圖片，請稍等…");
     var png = new Promise(function(resolve){
-      setTimeout(function(){
-        var src = psStackCanvases(canvases);
-        var k = Math.min(1, 1600 / Math.max(src.width, src.height));
-        var c = document.createElement("canvas");
-        c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
-        var g = c.getContext("2d");
-        g.imageSmoothingQuality = "high";
-        g.drawImage(src, 0, 0, c.width, c.height);
-        c.toBlob(resolve, "image/png");
-      }, 30);
+      setTimeout(function(){ resolve(psClipPng(psStackCanvases(canvases))); }, 30);
     });
     navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(function(){
       showToast("已複製「" + label + "」的圖片" + (canvases.length > 1 ? "（已合併成一張）" : "") + "，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
@@ -9327,10 +9344,10 @@
       img.onload = function(){
         URL.revokeObjectURL(url);
         var c = document.createElement("canvas");
-        var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));  // 太大的 PNG LINE 電腦版貼不上
-        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        c.toBlob(resolve, "image/png");
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext("2d").drawImage(img, 0, 0);
+        resolve(psClipPng(c));  // 太大的 PNG LINE 電腦版貼不上，psClipPng 會視大小縮
+
       };
       img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("img")); };
       img.src = url;
@@ -10160,7 +10177,7 @@
           ph.url = URL.createObjectURL(blob);
           if(ph.regId) psRenderBuyunOuts();
           resolve(ph);
-        }, "image/jpeg", 0.9);
+        }, "image/jpeg", 0.92);
       });
     });
     ph.ready.catch(function(){ ph.ready = null; });
@@ -10439,7 +10456,7 @@
       function worker(){
         if(i >= photos.length || sig.aborted) return Promise.resolve();
         var k = i++, it = photos[k];
-        return fetch(it.mediaFile.baseUrl + "=w1600-h1600", { headers: { "Authorization": "Bearer " + psG.token.accessToken }, credentials: "omit", signal: sig })
+        return fetch(it.mediaFile.baseUrl + "=w" + PS_MAX_EDGE + "-h" + PS_MAX_EDGE, { headers: { "Authorization": "Bearer " + psG.token.accessToken }, credentials: "omit", signal: sig })
           .then(function(res){ if(!res.ok) throw new Error(res.status); return res.blob(); })
           .then(function(blob){
             var base = String(it.mediaFile.filename || ("google_" + it.id)).replace(/\.[^.]+$/, "");
@@ -10525,7 +10542,7 @@
         if(p.furl) URL.revokeObjectURL(p.furl);
         p.furl = URL.createObjectURL(blob);
         psRenderBuyunOuts();
-      }, "image/jpeg", 0.9);
+      }, "image/jpeg", 0.92);
     }).catch(function(){ p.fbusy = false; p.fkey = null; });
   }
   function psBuyunFiles(g){
@@ -10715,12 +10732,12 @@
       img.src = it.src.url;
     });
   }
-  // 格子排列合併（1 張原樣、2 張並排、3～4 張 2 欄、更多 3 欄），長邊縮到 2400 以內
+  // 格子排列合併（1 張原樣、2 張並排、3～4 張 2 欄、更多 3 欄），長邊縮到 PS_MAX_EDGE 以內
   function regPhotoMerged(list){
     return Promise.all(list.map(regPhotoCanvas)).then(function(cs){
       if(cs.length === 1) return cs[0];
       var cols = cs.length <= 2 ? cs.length : (cs.length <= 4 ? 2 : 3);
-      var W = 800, GAP = 16, rowsH = [];
+      var W = Math.round(Math.min(1600, PS_MAX_EDGE / cols)), GAP = 16, rowsH = [];
       cs.forEach(function(c, i){ var r = Math.floor(i / cols); rowsH[r] = Math.max(rowsH[r] || 0, c.height * W / c.width); });
       var out = document.createElement("canvas");
       out.width = cols * W + (cols + 1) * GAP;
@@ -10735,7 +10752,7 @@
         }
         y += rh + GAP;
       });
-      return out.width > 2400 || out.height > 2400 ? psScaled(out, 2400) : out;
+      return out.width > PS_MAX_EDGE || out.height > PS_MAX_EDGE ? psScaled(out, PS_MAX_EDGE) : out;
     }).then(function(c){
       // v141 — 合併後只加一個外框：全部是紅紙＝供品贊助、全部是補運＝補運&補財庫，混在一起兩個都寫
       var kinds = {};
@@ -10776,13 +10793,7 @@
       return;
     }
     if(list.length > 1) showToast("正在合併圖片，請稍等…");
-    var png = regPhotoMerged(list).then(function(c){
-      var k = Math.min(1, 1600 / Math.max(c.width, c.height));
-      var o = document.createElement("canvas");
-      o.width = Math.round(c.width * k); o.height = Math.round(c.height * k);
-      var g = o.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(c, 0, 0, o.width, o.height);
-      return new Promise(function(r){ o.toBlob(r, "image/png"); });
-    });
+    var png = regPhotoMerged(list).then(psClipPng);
     navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(function(){
       regPhotoMarkSent(list, true);
       showToast("已把 " + list.length + " 張合併成一張並複製，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
@@ -10915,9 +10926,8 @@
     psBuyun.photos.forEach(function(p){
       if(!p.lazy) return;
       jobs.push(function(){
-        return psCloudCol("photoKeepData").doc(p.cloudId + "_0").get().then(function(d){
-          if(!d.exists) throw new Error("missing");
-          return fetch(d.data().data).then(function(r){ return r.blob(); });
+        return psCloudRead(p.cloudId + "_0").then(function(url){
+          return fetch(url).then(function(r){ return r.blob(); });
         }).then(function(b){
           p.file = new File([b], "雲端照片.jpg", { type: "image/jpeg" });
           p.lazy = false;
@@ -10930,10 +10940,7 @@
         var ks = [];
         for(var k = 0; k < (o.cloudN || 1); k++) ks.push(k);
         return Promise.all(ks.map(function(k){
-          return psCloudCol("photoKeepData").doc(o.cloudId + "_" + k).get().then(function(d){
-            if(!d.exists) throw new Error("missing");
-            return psDataUrlCanvas(d.data().data);
-          });
+          return psCloudRead(o.cloudId + "_" + k).then(psDataUrlCanvas);
         })).then(function(cs){
           return Promise.all(cs.map(function(c, k){
             return psCanvasFile(psFrame(c, PS_KIND_RED, psRealName(o.name)), "紅紙_" + psSafeName(o.name) + (cs.length > 1 ? "_" + (k + 1) : "") + ".jpg");
@@ -10965,15 +10972,39 @@
     });
     return psCloud.dataLoading;
   }
-  // 存雲端用：最長邊 1600、JPEG，太大就再縮（Firestore 一筆上限 1MB）
+  // 存雲端用：JPEG，太大就再縮。v147 — 原本限 1600（Firestore 一筆上限 1MB），重新整理後照片變糊；
+  // 改成保留原解析度，dataURL 切成每段 < 90 萬字，存在 {id}_{k}、{id}_{k}_p1、_p2…（最多 PS_CLOUD_PARTS 段）
+  var PS_CLOUD_PART = 900000, PS_CLOUD_PARTS = 4;
   function psCloudEncode(canvas){
-    var tries = [[1600, 0.82], [1400, 0.72], [1200, 0.62], [1000, 0.55]];
+    var tries = [[PS_MAX_EDGE, 0.88], [2400, 0.85], [1600, 0.82], [1200, 0.62]];
     for(var i = 0; i < tries.length; i++){
       var c = psScaled(canvas, tries[i][0]);
       var url = c.toDataURL("image/jpeg", tries[i][1]);
-      if(url.length < 950000) return url;
+      if(url.length < PS_CLOUD_PART * PS_CLOUD_PARTS) break;
     }
-    return url;
+    var parts = [];
+    for(var at = 0; at < url.length; at += PS_CLOUD_PART) parts.push(url.slice(at, at + PS_CLOUD_PART));
+    return parts;
+  }
+  function psCloudWrite(docId, canvas){
+    var parts = psCloudEncode(canvas), col = psCloudCol("photoKeepData"), now = Date.now();
+    return Promise.all(parts.slice(1).map(function(part, j){
+      return col.doc(docId + "_p" + (j + 1)).set({ data: part, at: now });
+    })).then(function(){
+      // 主文件最後寫：讀的時候看到 parts 就代表其他段都已存好
+      return col.doc(docId).set({ data: parts[0], parts: parts.length, at: now });
+    });
+  }
+  function psCloudRead(docId){
+    var col = psCloudCol("photoKeepData");
+    return col.doc(docId).get().then(function(d){
+      if(!d.exists) throw new Error("missing");
+      var v = d.data(), n = v.parts || 1, ks = [];
+      for(var j = 1; j < n; j++) ks.push(j);
+      return Promise.all(ks.map(function(j){
+        return col.doc(docId + "_p" + j).get().then(function(x){ if(!x.exists) throw new Error("missing"); return x.data().data; });
+      })).then(function(rest){ return v.data + rest.join(""); });
+    });
   }
   function psCloudUpload(kind, src, canvases, meta, fromK){
     var id = src.cloudId || psCloudCol("photoKeep").doc().id;
@@ -10983,9 +11014,9 @@
     psCloud.known[id] = info;
     src.cloudId = id; src.uploading = true;
     psCloud.pending++;
-    var col = psCloudCol("photoKeepData"), metaCol = psCloudCol("photoKeep");
+    var metaCol = psCloudCol("photoKeep");
     return Promise.all(canvases.map(function(c, j){
-      return col.doc(id + "_" + (fromK + j)).set({ data: psCloudEncode(c), at: Date.now() });
+      return psCloudWrite(id + "_" + (fromK + j), c);
     })).then(function(){
       meta.at = meta.at || Date.now();
       return metaCol.doc(id).set(meta, { merge: true });
@@ -11013,7 +11044,10 @@
     delete psCloud.known[id];
     var n = info.n || 1;
     psCloudCol("photoKeep").doc(id).delete().catch(function(){});
-    for(var k = 0; k < n; k++) psCloudCol("photoKeepData").doc(id + "_" + k).delete().catch(function(){});
+    for(var k = 0; k < n; k++){
+      psCloudCol("photoKeepData").doc(id + "_" + k).delete().catch(function(){});
+      for(var j = 1; j < PS_CLOUD_PARTS; j++) psCloudCol("photoKeepData").doc(id + "_" + k + "_p" + j).delete().catch(function(){});
+    }
   }
   var psCloudTimer = null;
   function psCloudSyncSoon(){
