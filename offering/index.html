@@ -1184,6 +1184,7 @@
         <button type="button" class="ghost-btn" id="psZoomOut">－ 縮小</button>
         <button type="button" class="ghost-btn" id="psZoomIn">＋ 放大</button>
         <button type="button" class="ghost-btn" id="psClearName">🧹 清除已點選（換下一位）</button>
+        <button type="button" class="ghost-btn" id="psDrawToggle" aria-pressed="false">✏️ 自己拉框（格線對不準時用）</button>
       </div>
       <details style="margin-top:6px;">
         <summary class="pdesc" style="cursor:pointer;">更多設定（平常不用）</summary>
@@ -1201,7 +1202,7 @@
       <div id="psRedWrap" style="margin-top:6px; max-height:72vh; overflow:auto; border:1px solid var(--border); border-radius:8px; background:#222; display:none;">
         <canvas id="psRedCanvas" style="display:block; width:100%; touch-action:none; cursor:pointer;"></canvas>
       </div>
-      <p class="pdesc" style="margin-top:4px;">照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。</p>
+      <p class="pdesc" style="margin-top:4px;" id="psGestureHelp">照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
         <button type="button" class="add-btn" id="psRedMake">✅ 產生這位的圖片</button>
         <button type="button" class="ghost-btn" id="psRedGoOut" style="display:none;"></button>
@@ -1398,7 +1399,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v141";
+  var APP_VERSION = "v142";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1409,6 +1410,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v142", date: "2026-10-29", changes: [
+      "照片傳信徒（紅紙 A3）：加「✏️ 自己拉框」，紅紙拍得彎、斜或太小，點一下對不準格線時，改成按住拖曳，自己把名字和數量框起來（綠框）；框錯點一下框就取消，或按「↩ 復原上一步」",
+      "點一下找不到格線時，會提示改用「✏️ 自己拉框」"
+    ]},
     { version: "v141", date: "2026-10-29", changes: [
       "傳給信徒的照片比照報名成功圖加上外框與標題：上方「古亭院．昇龍觀世音菩薩／照片留存」，下面是場次名稱（例：115丙午年-農曆九月十九 昇龍觀世音菩薩聖誕千秋）",
       "紅紙照片標「供品贊助」、補運照片標「補運&補財庫」，再加信徒姓名「○○○　師兄姐」與「感謝護持　功德無量」",
@@ -9412,6 +9417,7 @@
     if(!ph){ el.textContent = ""; return; }
     if(!ph.header && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，讀完會自動畫黃線；也可以自己點一下「供品單位那一列的下緣」";
     else if(!ph.header) el.textContent = "請先在照片上點一下「供品單位那一列的下緣」，黃線以上的標題會保留";
+    else if(psRed.draw) el.textContent = "✏️ 自己拉框：按住從名字左上角拖到數量右下角，放開就是綠框；框錯點一下框就取消；好了按「✅ 產生這位的圖片」";
     else if(!psRed.name) el.textContent = "直接在信徒名字那一格點一下就框（名字＋數量），框錯再點一下取消；好了按「✅ 產生這位的圖片」";
     else el.textContent = "確認綠框都是「" + psRed.name + "」；沒框到在名字上點一下，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
   }
@@ -9605,9 +9611,10 @@
       }
     }
     if(ny < ph.header || (ph.titleX && nx > ph.titleX)){ showToast("這裡是標題範圍，本來就會保留"); return; }
+    if(psRed.draw){ showToast("自己拉框：請按住拖曳，把名字和數量一起框起來"); return; }
     // v133 — 不用先打姓名，直接點名字那一格就框（姓名可不填）
     var cell = psSnapCell(ph, nx, ny);
-    if(!cell){ showToast("這裡找不到格線，請點在名字那一格的中間"); return; }
+    if(!cell){ showToast("這裡找不到格線：請點在名字那一格的中間，或按「✏️ 自己拉框」用拖曳的方式框"); return; }
     psPushUndo(); ph.boxes.push(cell); psRedDraw();
   }
 
@@ -9700,6 +9707,24 @@
   }, { passive: false });
   document.getElementById("psZoomIn").addEventListener("click", function(){ psSetZoom(psRed.zoom * 1.5); });
   document.getElementById("psZoomOut").addEventListener("click", function(){ psSetZoom(psRed.zoom / 1.5); });
+
+  // v142 — 紅紙拍得彎、斜、太小時格線對不準：切換成拖曳畫框（psRed.draw，原本手動畫框的程式還在）
+  function psSetDraw(on){
+    psRed.draw = on ? "name" : "";
+    var b = document.getElementById("psDrawToggle");
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "✏️ 拉框中（按這裡改回點一下）" : "✏️ 自己拉框（格線對不準時用）";
+    b.style.background = on ? "var(--cinnabar)" : ""; b.style.color = on ? "#fff" : "";
+    psRedCanvas.style.cursor = on ? "crosshair" : "pointer";
+    document.getElementById("psGestureHelp").textContent = on
+      ? "拉框中：按住拖曳＝畫綠框；點框一下＝取消；放大後用捲軸（或兩指）移動畫面。"
+      : "照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。";
+    psHintText();
+  }
+  document.getElementById("psDrawToggle").addEventListener("click", function(){
+    psSetDraw(!psRed.draw);
+    if(psRed.draw) showToast("按住拖曳，把信徒名字和數量一起框起來");
+  });
 
   // v133 — 換下一位：清掉每張紅紙上點選的格子和姓名欄，紅紙照片、黃線都保留
   function psClearPicked(){
