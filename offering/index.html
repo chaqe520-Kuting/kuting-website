@@ -1414,7 +1414,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v148";
+  var APP_VERSION = "v149";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1425,6 +1425,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v149", date: "2026-10-29", changes: [
+      "場次管理「匯出 Excel」加「補運」「補運地址」兩欄（個人法船等補運品項原本沒匯出）"
+    ]},
     { version: "v148", date: "2026-10-29", changes: [
       "紅紙 A3「產生這位的圖片」加「🔍 局部放大」（預設勾選）：只留上方品名列、這位信徒的名字／數量那幾格和右邊直書標題，中間打馬賽克的列省略，名字放大很多，傳到 LINE 被壓縮後也看得清楚；取消勾選就照舊整張紅紙"
     ]},
@@ -5528,6 +5531,10 @@
   function buildOccasionExportRows(occ){
     var hasConfirm = !!occ.confirmFieldName;
     var header = ["姓名", "電話", "品項", "數量", "金額", "收款狀態"];
+    // v149 — 法船等補運品項的「補運」「補運地址」原本沒匯出（小朱）
+    var hasBuyun = (occ.items || []).some(function(it){ return it.needsBuyun; }) ||
+      occ.registrations.some(function(r){ return r.buyunName || r.buyunAddr || r.buyun; });
+    if(hasBuyun) header.push("補運", "補運地址");
     if(hasConfirm) header.push(occ.confirmFieldName);
     header.push("登記時間");
     var rows = [header];
@@ -5538,6 +5545,7 @@
       // 進「品項」這一欄裡顯示，不用另外加一欄。
       var label = r.label + (r.dedicateTo ? "－" + r.dedicateTo : "");
       var row = [r.name, r.phone || "", label, qtyDisplay, r.amount, r.paid ? "已收款" : "待收款"];
+      if(hasBuyun) row.push(r.buyunName || "", r.buyunAddr || r.buyun || "");
       if(hasConfirm) row.push(r.confirmed ? "已完成" : "未完成");
       row.push(formatRegTime(r.time));
       rows.push(row);
