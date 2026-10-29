@@ -1399,7 +1399,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v144";
+  var APP_VERSION = "v145";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1410,6 +1410,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v145", date: "2026-10-29", changes: [
+      "贊助照片傳送「分開傳（多張）」：電腦上不再下載到電腦，改成一張一張複製；按一次複製一張，到 LINE 按 Ctrl+V 貼上送出，再回來按「複製下一張」，直到全部傳完（手機照舊一次分享多張到 LINE）",
+      "贊助照片傳送上方的姓名不再重複列出"
+    ]},
     { version: "v144", date: "2026-10-29", changes: [
       "照片傳信徒：配好的補運照片、產生好的紅紙圖片會自動暫存到雲端（本場次），重新整理、關掉網頁、換電腦或手機再打開都還在，不用重新選照片；已傳送／未傳送的狀態也會一起記住",
       "傳送清單旁顯示雲端暫存狀態（☁ 已存雲端／暫存中）；照片都傳完後可按「🗑 清除本場雲端照片」刪掉",
@@ -10650,9 +10654,12 @@
   }
   function renderRegPhoto(){
     var body = document.getElementById("regPhotoBody");
-    var names = regPhoto.regs.map(function(r){ return r.name; }).join("、");
+    var names = [];
+    regPhoto.regs.forEach(function(r){ psSplitNames(r.name).forEach(function(n){ if(names.indexOf(n) < 0) names.push(n); }); });
+    names = names.join("、");
     var chosenList = regPhotoChosen(), chosen = chosenList.length;
     document.getElementById("regPhotoMarkBtn").textContent = chosen && chosenList.every(regPhotoSent) ? "改回未傳送" : "標為已傳送";
+    regPhotoSeqReset();
     body.innerHTML = '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(names) + '</div>' +
       '<div class="pdesc" style="margin:0 0 8px;">共 ' + regPhoto.items.length + ' 張，已勾 ' + chosen + ' 張</div>' +
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
@@ -10761,13 +10768,37 @@
         .then(function(f){ triggerBrowserDownload(f.name, f, f.type); showToast("複製失敗，已改下載，請到 LINE 選圖片傳送"); regPhotoMarkSent(list, true); });
     });
   });
+  // v145 — 電腦剪貼簿一次只能放一張：分開傳改成一張一張複製（按一次複製一張，貼到 LINE 後再按「複製下一張」）
+  var regPhotoSeq = null;
+  function regPhotoSeqReset(){
+    if(regPhotoSeq && regPhotoSeq.busy) return;
+    regPhotoSeq = null;
+    document.getElementById("regPhotoShareBtn").textContent = "分開傳（多張）";
+  }
   document.getElementById("regPhotoShareBtn").addEventListener("click", function(){
-    var list = regPhotoNeed(); if(!list) return;
-    var files = regPhotoFiles(list);
-    if(regNoticeIsMobile || files.length === 1){ psShareFiles(files, regPhotoLabel()); regPhotoMarkSent(list, true); return; }
-    files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); });
-    regPhotoMarkSent(list, true);
-    showToast("電腦一次只能複製一張，已下載 " + files.length + " 張，請到 LINE 選這些照片傳送（或改按「合併成一張」）");
+    var btn = this;
+    if(!regPhotoSeq){
+      var list = regPhotoNeed(); if(!list) return;
+      var files = regPhotoFiles(list);
+      if(regNoticeIsMobile || files.length === 1){ psShareFiles(files, regPhotoLabel()); regPhotoMarkSent(list, true); return; }
+      regPhotoSeq = { list: list, files: files, i: 0 };
+    }
+    var q = regPhotoSeq, i = q.i, n = q.files.length;
+    psCopyFile(q.files[i], regPhotoLabel() + "（第 " + (i + 1) + "/" + n + " 張）");
+    q.list[i].src.sent = true;
+    q.i++;
+    if(q.i >= n){
+      regPhotoSeq = null;
+      btn.textContent = "分開傳（多張）";
+      showToast("已複製第 " + n + "/" + n + " 張（最後一張），到 LINE 按 Ctrl+V 貼上送出就全部傳完了");
+      regPhotoMarkSent(q.list, true);
+    } else {
+      btn.textContent = "📋 複製下一張（" + (q.i + 1) + "/" + n + "）";
+      // 重畫時不要把進行中的順序清掉
+      q.busy = true;
+      psRenderBuyunOuts(); psRenderRedOuts(); renderRegTable();
+      q.busy = false;
+    }
   });
   document.getElementById("regPhotoMergeDlBtn").addEventListener("click", function(){
     var list = regPhotoNeed(); if(!list) return;
