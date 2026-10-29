@@ -1398,7 +1398,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v140";
+  var APP_VERSION = "v141";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1409,6 +1409,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v141", date: "2026-10-29", changes: [
+      "傳給信徒的照片比照報名成功圖加上外框與標題：上方「古亭院．昇龍觀世音菩薩／照片留存」，下面是場次名稱（例：115丙午年-農曆九月十九 昇龍觀世音菩薩聖誕千秋）",
+      "紅紙照片標「供品贊助」、補運照片標「補運&補財庫」，再加信徒姓名「○○○　師兄姐」與「感謝護持　功德無量」",
+      "合併成一張時只加一個外框，姓名列出全部"
+    ]},
     { version: "v140", date: "2026-10-29", changes: [
       "登記清單加「照片」欄：照片傳信徒配好的補運照片、紅紙圖片會顯示在該筆報名（📷 張數，🔴 未傳送／✅ 已傳送），點一下就能傳送",
       "登記清單工具列加「📷 贊助照片傳送」：勾選多筆報名（例如一家人），把他們的照片一起合併成一張或多張，傳給同一位信徒",
@@ -9167,6 +9172,60 @@
   function psSafeName(s){ return String(s || "").replace(/[\\/:*?"<>|\s]/g, "").slice(0, 40); }
   function psSplitNames(s){ return String(s || "").split(/[、,，;；\/\s]+/).map(function(n){ return n.trim(); }).filter(Boolean); }
 
+  /* v141 — 傳給信徒的照片比照報名成功圖加外框與標題（小朱指定）：
+     古亭院．昇龍觀世音菩薩／照片留存 → 場次名稱（去掉國曆日期與結尾「供品贊助」）→ 供品贊助 或 補運&補財庫
+     → ○○○　師兄姐 → 照片 → 感謝護持　功德無量 */
+  function psFrameTitle(){
+    var t = String((current() || {}).label || "");
+    return t.replace(/\d{1,2}月\d{1,2}日/g, "").replace(/供品贊助\s*$/, "").replace(/--+/g, "-").trim();
+  }
+  function psFrame(photo, kind, name){
+    var W = 720, PAD = 40, S = 2, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
+    var pw = W - PAD * 2, ph = photo.height * pw / photo.width;
+    var m = document.createElement("canvas").getContext("2d");
+    m.font = "600 24px " + serif;
+    var occLines = wrapCanvasText(m, psFrameTitle(), W - PAD * 2).slice(0, 2);
+    var nameText = name ? name + "　師兄姐" : "";
+    var top = 170 + occLines.length * 32 + 46 + (nameText ? 56 : 0) + 14;
+    var H = Math.round(top + ph + 96);
+    var c = document.createElement("canvas");
+    c.width = W * S; c.height = H * S;
+    var ctx = c.getContext("2d");
+    ctx.scale(S, S);
+    ctx.fillStyle = "#faf5ea"; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "#b8872f"; ctx.lineWidth = 4; ctx.strokeRect(14, 14, W - 28, H - 28);
+    ctx.lineWidth = 1.5; ctx.strokeRect(24, 24, W - 48, H - 48);
+    ctx.fillStyle = "#9e2b25"; ctx.fillRect(24, 24, W - 48, 120);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#e3c581"; ctx.font = "700 24px " + serif;
+    ctx.fillText("古亭院．昇龍觀世音菩薩", W / 2, 62);
+    ctx.fillStyle = "#ffffff"; ctx.font = "900 40px " + serif;
+    ctx.fillText("照片留存", W / 2, 108);
+    var y = 180;
+    ctx.fillStyle = "#6b5c4d"; ctx.font = "600 24px " + serif;
+    occLines.forEach(function(l){ ctx.fillText(l, W / 2, y); y += 32; });
+    ctx.fillStyle = "#9e2b25"; ctx.font = "900 32px " + serif;
+    ctx.fillText(kind, W / 2, y + 12, W - PAD * 2);
+    y += 46;
+    if(nameText){
+      var size = 38;
+      ctx.font = "900 " + size + "px " + serif;
+      while(size > 22 && ctx.measureText(nameText).width > W - PAD * 2){ size -= 2; ctx.font = "900 " + size + "px " + serif; }
+      ctx.fillStyle = "#7a231f";
+      ctx.fillText(nameText, W / 2, y + 22, W - PAD * 2);
+      y += 56;
+    }
+    y += 14;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(photo, PAD, y, pw, ph);
+    ctx.strokeStyle = "#e6d9c2"; ctx.lineWidth = 2; ctx.strokeRect(PAD, y, pw, ph);
+    ctx.fillStyle = "#b8872f"; ctx.font = "700 26px " + serif;
+    ctx.fillText("感謝護持　功德無量　🙏", W / 2, y + ph + 46);
+    return c;
+  }
+  var PS_KIND_RED = "供品贊助", PS_KIND_BUYUN = "補運&補財庫";
+  function psRealName(n){ return /^信徒\d+$/.test(n || "") ? "" : (n || ""); }
+
   // 手機：系統分享（選 LINE）；電腦：複製圖片到剪貼簿，LINE 電腦版 Ctrl+V（同報名成功圖）
   function psShareFiles(files, label){
     if(!files.length) return;
@@ -9852,8 +9911,9 @@
     if(used.some(function(ph){ return !ph.header && !ph.titleX && !ph.boxes.some(function(b){ return b.kind === "fixed"; }); }) &&
        !confirm("有紅紙還沒設定標題範圍，標題也會被馬賽克。要繼續嗎？")) return;
     var canvases = used.map(function(ph){ return psCompose(ph.full, psKeepBoxes(ph), psBlockDiv()); });
+    // v141 — 傳出去的圖片加外框標題；canvases 保留沒框的，合併時再加一個外框
     Promise.all(canvases.map(function(c, k){
-      return psCanvasFile(c, "紅紙_" + psSafeName(name) + (canvases.length > 1 ? "_" + (k + 1) : "") + ".jpg");
+      return psCanvasFile(psFrame(c, PS_KIND_RED, psRealName(name)), "紅紙_" + psSafeName(name) + (canvases.length > 1 ? "_" + (k + 1) : "") + ".jpg");
     })).then(function(files){
       // v139 — 同一位再產生一次：可以加在一起（同一位多張紅紙／多次產生），或取代舊的
       var old = psRed.outs.filter(function(o){ return o.name === name; })[0];
@@ -9958,12 +10018,12 @@
     if(act === "share" || act === "copy" || act === "mergedl" || act === "download"){ o.sent = true; setTimeout(psRenderRedOuts, 0); }
     if(act === "share"){
       if(regNoticeIsMobile || o.files.length === 1) psShareFiles(o.files, o.name);
-      else psCopyCanvases(o.canvases, o.name);
+      else psCopyCanvases([psFrame(psStackCanvases(o.canvases), PS_KIND_RED, psRealName(o.name))], o.name);
     }
-    else if(act === "copy") psCopyCanvases(o.canvases, o.name);
+    else if(act === "copy") psCopyCanvases([psFrame(psStackCanvases(o.canvases), PS_KIND_RED, psRealName(o.name))], o.name);
     else if(act === "mergedl"){
       showToast("正在合併圖片，請稍等幾秒…");
-      psCanvasFile(psStackCanvases(o.canvases), "紅紙_" + psSafeName(o.name) + "_合併.jpg").then(function(f){
+      psCanvasFile(psFrame(psStackCanvases(o.canvases), PS_KIND_RED, psRealName(o.name)), "紅紙_" + psSafeName(o.name) + "_合併.jpg").then(function(f){
         triggerBrowserDownload(f.name, f, f.type); showToast("已下載合併的圖片");
       });
     }
@@ -10328,10 +10388,39 @@
     });
     return groups;
   }
+  // v141 — 每張補運照片配好後，依配到的報名姓名先畫好加外框的版本（fblob），按傳送時不用再等
+  function psBuyunFrame(p){
+    if(p.regId == null) return;
+    var key = String(p.regId);
+    if(p.fkey === key && (p.fblob || p.fbusy)) return;
+    var reg = current().registrations.filter(function(r){ return String(r.id) === key; })[0];
+    if(!reg) return;
+    p.fkey = key; p.fbusy = true; p.fblob = null;
+    psBuyunPrepare(p).then(function(){
+      return new Promise(function(resolve, reject){
+        var img = new Image();
+        img.onload = function(){ resolve(img); };
+        img.onerror = reject;
+        img.src = p.url;
+      });
+    }).then(function(img){
+      var c = document.createElement("canvas");
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext("2d").drawImage(img, 0, 0);
+      var f = psFrame(c, PS_KIND_BUYUN, psSplitNames(reg.name).join("、"));
+      f.toBlob(function(blob){
+        if(p.fkey !== key) return;
+        p.fbusy = false; p.fblob = blob;
+        if(p.furl) URL.revokeObjectURL(p.furl);
+        p.furl = URL.createObjectURL(blob);
+        psRenderBuyunOuts();
+      }, "image/jpeg", 0.9);
+    }).catch(function(){ p.fbusy = false; p.fkey = null; });
+  }
   function psBuyunFiles(g){
     var base = "補運_" + psSafeName(psSplitNames(g.r.name).join("、") || "未填姓名");
     return g.photos.map(function(p, k){
-      return new File([p.blob], base + (g.photos.length > 1 ? "_" + (k + 1) : "") + ".jpg", { type: "image/jpeg" });
+      return new File([p.fblob], base + (g.photos.length > 1 ? "_" + (k + 1) : "") + ".jpg", { type: "image/jpeg" });
     });
   }
   function psBuyunState(g){
@@ -10341,6 +10430,7 @@
   function psRenderBuyunOuts(){
     var el = document.getElementById("psBuyunOut");
     var groups = psBuyunGroups();
+    groups.forEach(function(g){ g.photos.forEach(function(p){ if(p.blob && p.fkey !== String(p.regId)) psBuyunFrame(p); }); });
     var unsent = groups.filter(function(g){ return psBuyunState(g) !== "sent"; }).length;
     psGoOutBtn("psBuyunGoOut", "psBuyunOut", unsent, groups.length);
     if(!groups.length){ el.innerHTML = ""; return; }
@@ -10354,7 +10444,7 @@
           g.photos.map(function(p){
             var pi = psBuyun.photos.indexOf(p);
             return '<div style="width:140px;">' +
-              (p.url ? '<img src="' + p.url + '" alt="補運照片" style="width:140px; height:140px; object-fit:contain; background:#f4efe6; border-radius:6px; border:1px solid var(--border);">' : '<div class="pdesc">讀取中…</div>') +
+              (p.url ? '<img src="' + (p.fkey === String(p.regId) && p.furl ? p.furl : p.url) + '" alt="補運照片" style="width:140px; height:140px; object-fit:contain; background:#f4efe6; border-radius:6px; border:1px solid var(--border);">' : '<div class="pdesc">讀取中…</div>') +
               '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">' +
                 (regNoticeIsMobile ? '' : '<button type="button" class="ghost-btn" data-act="copy" data-p="' + pi + '" data-g="' + gi + '">複製</button>') +
                 '<button type="button" class="ghost-btn" data-act="unmatch" data-p="' + pi + '">改配</button>' +
@@ -10392,7 +10482,7 @@
       g.photos.forEach(function(p){ p.sent = to; });
       psRenderBuyunOuts(); return;
     }
-    if(g.photos.some(function(p){ return !p.blob; })){ showToast("照片準備中，請再按一次"); return; }
+    if(g.photos.some(function(p){ return !p.blob || !p.fblob || p.fkey !== String(g.r.id); })){ g.photos.forEach(psBuyunFrame); showToast("照片準備中，請再按一次"); return; }
     if(act === "share" || act === "download"){ g.photos.forEach(function(p){ p.sent = true; }); setTimeout(psRenderBuyunOuts, 0); }
     var files = psBuyunFiles(g);
     var label = psSplitNames(g.r.name).join("、");
@@ -10489,7 +10579,7 @@
   function regPhotoFiles(list){
     return list.map(function(it, n){
       if(it.kind === "red") return it.src.files[it.k];
-      return new File([it.src.blob], "補運_" + psSafeName(psSplitNames(it.reg.name).join("、")) + "_" + (n + 1) + ".jpg", { type: "image/jpeg" });
+      return new File([it.src.fblob], "補運_" + psSafeName(psSplitNames(it.reg.name).join("、")) + "_" + (n + 1) + ".jpg", { type: "image/jpeg" });
     });
   }
   function regPhotoCanvas(it){
@@ -10522,6 +10612,14 @@
         y += rh + GAP;
       });
       return out.width > 2400 || out.height > 2400 ? psScaled(out, 2400) : out;
+    }).then(function(c){
+      // v141 — 合併後只加一個外框：全部是紅紙＝供品贊助、全部是補運＝補運&補財庫，混在一起兩個都寫
+      var kinds = {};
+      list.forEach(function(it){ kinds[it.kind] = 1; });
+      var kind = kinds.red && kinds.buyun ? PS_KIND_RED + "．" + PS_KIND_BUYUN : (kinds.red ? PS_KIND_RED : PS_KIND_BUYUN);
+      var names = [];
+      list.forEach(function(it){ psSplitNames(it.reg.name).forEach(function(n){ if(names.indexOf(n) < 0) names.push(n); }); });
+      return psFrame(c, kind, names.join("、"));
     });
   }
   function regPhotoMarkSent(list, to){
@@ -10532,7 +10630,10 @@
   function regPhotoNeed(){
     var list = regPhotoChosen();
     if(!list.length){ showToast("請至少勾一張照片"); return null; }
-    if(list.some(function(it){ return it.kind === "buyun" && !it.src.blob; })){ showToast("照片準備中，請再按一次"); return null; }
+    if(list.some(function(it){ return it.kind === "buyun" && (!it.src.blob || !it.src.fblob || it.src.fkey !== String(it.src.regId)); })){
+      list.forEach(function(it){ if(it.kind === "buyun") psBuyunFrame(it.src); });
+      showToast("照片準備中，請再按一次"); return null;
+    }
     return list;
   }
   document.getElementById("regPhotoMergeCopyBtn").addEventListener("click", function(){
