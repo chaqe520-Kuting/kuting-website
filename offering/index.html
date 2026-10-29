@@ -1115,7 +1115,7 @@
       <input type="checkbox" id="redPaperPaidOnly"> 只列出「已收款」的贊助者
     </label>
     <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.9rem;">
-      <input type="checkbox" id="redPaperTwo" style="margin-top:4px;"> <span><b>分成兩張 A3</b>：品項依順序分成兩張（報名姓名與數量各自排在自己那張，兩張筆數差不多），字可以放大；兩張都印標題</span>
+      <input type="checkbox" id="redPaperTwo" style="margin-top:4px;"> <span><b>分成兩張 A3</b>：品項依順序分成兩張（報名姓名與數量各自排在自己那張，兩張筆數差不多），每欄 6 格、字放到 A3 放得下的最大；兩張都印標題</span>
     </label>
     <p class="pdesc" id="redPaperSummary" style="margin-top:10px;"></p>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
@@ -1418,7 +1418,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v151";
+  var APP_VERSION = "v152";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1429,6 +1429,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v152", date: "2026-10-29", changes: [
+      "紅紙 A3「分成兩張」：每欄最多 6 格（原本有很長的聯名時整張每欄都會變 9 格，字變很小），太長的聯名那一格字縮小擠進 6 格；字級上限放寬，兩張版面都撐到 A3 放得下的最大"
+    ]},
     { version: "v151", date: "2026-10-29", changes: [
       "匯出紅紙 A3 加「分成兩張 A3」選項：品項依順序分成兩張（同一組佛號不拆開，兩張報名筆數差不多），每張各自排版、字放大，兩張都有標題；Excel 裡是「第1張」「第2張」工作表（各有有格線／無格線）"
     ]},
@@ -2186,7 +2189,10 @@
   function packItem(entries, R, maxch, namePt){
     var list = entries.map(function(e){
       var shown = displayName(e.text), len = chars(shown);
-      return { text: shown, qty: e.qty, small: len === 4, span: Math.min(R, spanFor(len, namePt)) };
+      var need = spanFor(len, namePt);
+      // v152 — 每欄格數有上限時，放不下的聯名字縮小（fit＝這一筆的字級）
+      return { text: shown, qty: e.qty, small: len === 4, span: Math.min(R, need),
+        fit: need > R ? Math.max(8, Math.floor(namePt * slotCapacity(R, namePt) / len)) : 0 };
     });
     if(!list.length) return [[]];
     var S = list.reduce(function(s, e){ return s + e.span; }, 0);
@@ -2196,13 +2202,13 @@
         for(var i = 0; i < list.length; i++){
           var e = list[i];
           if(used + e.span > cap){ cols.push([]); used = 0; }
-          cols[cols.length - 1].push({ text: e.text, qty: e.qty, small: e.small, span: e.span, slot: used });
+          cols[cols.length - 1].push({ text: e.text, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: used });
           used += e.span;
         }
         if(cols.length <= k) return cols;
       }
     }
-    return [list.map(function(e, i){ return { text: e.text, qty: e.qty, small: e.small, span: e.span, slot: i }; })];
+    return [list.map(function(e, i){ return { text: e.text, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: i }; })];
   }
 
   // 標題欄（由左到右）：祝壽供品 ／ 主標題 ／ 恭祝 ／ 古亭院
@@ -2240,13 +2246,17 @@
   }
 
   // 在所有組合裡找「印出來字最大」的（字級 × 縮放比例）。縮放比例 ＝ 內容塞進一張 A3 所需縮小的倍數。
-  function chooseLayout(data){
-    var all = [];
+  // v152 — opt.R：每欄最多幾格（分兩張時小朱要 6 格）；opt.maxPt：字級上限（分兩張時放寬，讓版面撐滿 A3）
+  function chooseLayout(data, opt){
+    opt = opt || {};
+    var all = [], maxPt = opt.maxPt || 40;
     [3].forEach(function(maxch){
       var need = 3;
       data.items.forEach(function(it){ it.entries.forEach(function(e){ need = Math.max(need, Math.min(9, spanFor(chars(displayName(e.text)), 40))); }); });
-      for(var namePt = 14; namePt <= 40; namePt++){
-        for(var R = need; R <= Math.max(26, need); R++){
+      // 每欄最多 opt.R 格（少於 R 格比較大時用少的）；聯名太長、一筆超過 R 格的，那一筆字縮小擠進 R 格（packItem 的 fit）
+      var rMax = opt.R ? opt.R : Math.max(26, need), rMin = Math.min(need, rMax);
+      for(var namePt = 14; namePt <= maxPt; namePt++){
+        for(var R = rMin; R <= rMax; R++){
           var p = planLayout(data, namePt, R, maxch);
           var scale = Math.min(PAGE_W / p.contentW, PAGE_H / p.contentH, 1);
           all.push({ p: p, scale: scale, printed: namePt * scale });
@@ -2313,7 +2323,7 @@
         for(var sl = 0; sl < R; sl++){ put(nameRow(sl), c, null, nameSpec); put(qtyRow(sl), c, null, qtySpec); }
         colEntries.forEach(function(e){
           var last = e.slot + e.span - 1;
-          var spc = e.small ? smallSpec : nameSpec;
+          var spc = e.fit ? { font: f(e.fit), h: "center", v: "top", rot: 255, border: B } : (e.small ? smallSpec : nameSpec);
           putMerged(nameRow(e.slot), c, nameRow(last), c, e.text, spc);
           if(last > e.slot){ for(var rr = nameRow(e.slot) + 1; rr <= nameRow(last); rr++) put(rr, c, null, spc); }
           put(qtyRow(last), c, e.qty, qtySpec);
@@ -2375,10 +2385,11 @@
     return { bytes: buildStyledXlsxBytes([s1, s2], styles), info: [s1.info, s2.info] };
   }
   // v151 — 分成多張 A3：每張各自排版（字級各自放到最大），工作表「第1張-有格線」「第1張-無格線」…
+  // v152 — 小朱：每欄改 6 格，版面撐到 A3 最大
   function buildRedPaperXlsxBytesParts(parts){
     var styles = new StyleBook(), sheets = [], info = [];
     parts.forEach(function(data, i){
-      var layout = chooseLayout(data);
+      var layout = chooseLayout(data, { R: 6, maxPt: 80 });
       var a = makeSheet(data, true, styles, "第" + (i + 1) + "張-有格線", layout);
       var b = makeSheet(data, false, styles, "第" + (i + 1) + "張-無格線", layout);
       sheets.push(a, b); info.push(a.info, b.info);
