@@ -1114,6 +1114,9 @@
     <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:.9rem;">
       <input type="checkbox" id="redPaperPaidOnly"> 只列出「已收款」的贊助者
     </label>
+    <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.9rem;">
+      <input type="checkbox" id="redPaperTwo" style="margin-top:4px;"> <span><b>分成兩張 A3</b>：品項依順序分成兩張（報名姓名與數量各自排在自己那張，兩張筆數差不多），字可以放大；兩張都印標題</span>
+    </label>
     <p class="pdesc" id="redPaperSummary" style="margin-top:10px;"></p>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <button class="add-btn" id="redPaperGoBtn" type="button">產生並下載 Excel</button>
@@ -1415,7 +1418,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v150";
+  var APP_VERSION = "v151";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1426,6 +1429,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v151", date: "2026-10-29", changes: [
+      "匯出紅紙 A3 加「分成兩張 A3」選項：品項依順序分成兩張（同一組佛號不拆開，兩張報名筆數差不多），每張各自排版、字放大，兩張都有標題；Excel 裡是「第1張」「第2張」工作表（各有有格線／無格線）"
+    ]},
     { version: "v150", date: "2026-10-29", changes: [
       "照片傳給信徒留存（紅紙 A3）拿掉 AI 自動辨識：不再自動讀名字、畫黃線、加綠框，全部自己點選／拉框（AI 常誤判）",
       "「📐 右邊標題黃線」從「更多設定」移到工具列，有右邊直書標題時自己點一下"
@@ -2368,8 +2374,20 @@
     s1.selected = true;
     return { bytes: buildStyledXlsxBytes([s1, s2], styles), info: [s1.info, s2.info] };
   }
+  // v151 — 分成多張 A3：每張各自排版（字級各自放到最大），工作表「第1張-有格線」「第1張-無格線」…
+  function buildRedPaperXlsxBytesParts(parts){
+    var styles = new StyleBook(), sheets = [], info = [];
+    parts.forEach(function(data, i){
+      var layout = chooseLayout(data);
+      var a = makeSheet(data, true, styles, "第" + (i + 1) + "張-有格線", layout);
+      var b = makeSheet(data, false, styles, "第" + (i + 1) + "張-無格線", layout);
+      sheets.push(a, b); info.push(a.info, b.info);
+    });
+    sheets[0].selected = true;
+    return { bytes: buildStyledXlsxBytes(sheets, styles), info: info };
+  }
 
-  var api = { buildRedPaperXlsxBytes: buildRedPaperXlsxBytes, _packItem: packItem, _zipStore: zipStore };
+  var api = { buildRedPaperXlsxBytes: buildRedPaperXlsxBytes, buildRedPaperXlsxBytesParts: buildRedPaperXlsxBytesParts, _packItem: packItem, _zipStore: zipStore };
   if(typeof module !== "undefined" && module.exports) module.exports = api; else root.HongzhiXlsx = api;
 })(typeof window !== "undefined" ? window : globalThis);
 
@@ -9014,6 +9032,28 @@
     return { title: title, dateText: dateText, temple: "古亭院", pinText: "祝壽供品", items: items };
   }
 
+  // v151 — 品項依順序切成兩半（同一群組的佛號欄不拆開），以姓名格數平均分配
+  function splitRedPaperData(data){
+    var units = [];
+    data.items.forEach(function(it){
+      var last = units[units.length - 1];
+      if(it.group && last && last.key === it.group.key) last.items.push(it);
+      else units.push({ key: it.group ? it.group.key : null, items: [it] });
+    });
+    if(units.length < 2) return null;
+    function w(u){ return u.items.reduce(function(s, it){ return s + it.entries.length + 2; }, 0); }
+    var total = units.reduce(function(s, u){ return s + w(u); }, 0), acc = 0, best = 1, bestDiff = Infinity;
+    for(var i = 1; i < units.length; i++){
+      acc += w(units[i - 1]);
+      var d = Math.abs(total - 2 * acc);
+      if(d < bestDiff){ bestDiff = d; best = i; }
+    }
+    function part(us){
+      return Object.assign({}, data, { items: us.reduce(function(a, u){ return a.concat(u.items); }, []) });
+    }
+    return [part(units.slice(0, best)), part(units.slice(best))];
+  }
+
   function buildRedPaperItem(occ, it, paidOnly){
     var order = [], byKey = {};
     occ.registrations.forEach(function(r){
@@ -9086,8 +9126,11 @@
       var byDeity = !!(fmtEl && fmtEl.value === "deity");
       try { localStorage.setItem(RED_PAPER_STORAGE_KEY, JSON.stringify({ title: title })); } catch(e){}
       try {
-        var out = window.HongzhiXlsx.buildRedPaperXlsxBytes(buildRedPaperData(occ, title, dateText, paidOnly, byDeity));
-        var filename = "贊助供品-紅紙A3" + (byDeity ? "-佛號分列" : "") + "_" + occ.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".xlsx";
+        var data = buildRedPaperData(occ, title, dateText, paidOnly, byDeity);
+        var two = document.getElementById("redPaperTwo").checked, parts = two ? splitRedPaperData(data) : null;
+        if(two && !parts){ showToast("只有一個品項（或一組佛號），沒辦法分成兩張"); return; }
+        var out = parts ? window.HongzhiXlsx.buildRedPaperXlsxBytesParts(parts) : window.HongzhiXlsx.buildRedPaperXlsxBytes(data);
+        var filename = "贊助供品-紅紙A3" + (byDeity ? "-佛號分列" : "") + (parts ? "-兩張" : "") + "_" + occ.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 40) + "_" + new Date().toISOString().slice(0, 10) + ".xlsx";
         deliverXlsxBytes(filename, out.bytes);
         close();
       } catch(err){
