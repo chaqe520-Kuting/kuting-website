@@ -1205,6 +1205,7 @@
       <p class="pdesc" style="margin-top:4px;" id="psGestureHelp">照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
         <button type="button" class="add-btn" id="psRedMake">✅ 產生這位的圖片</button>
+        <label style="display:flex; align-items:center; gap:6px; font-size:.9rem;" title="只留上方品名列、這位信徒的那幾格和右邊標題，名字放大，LINE 壓縮後也看得清楚"><input type="checkbox" id="psZoomCrop" checked> 🔍 局部放大（只留品名＋這位＋標題）</label>
         <button type="button" class="ghost-btn" id="psRedGoOut" style="display:none;"></button>
       </div>
       <div id="psRedOut" style="margin-top:12px;"></div>
@@ -1413,7 +1414,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v147";
+  var APP_VERSION = "v148";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1424,6 +1425,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v148", date: "2026-10-29", changes: [
+      "紅紙 A3「產生這位的圖片」加「🔍 局部放大」（預設勾選）：只留上方品名列、這位信徒的名字／數量那幾格和右邊直書標題，中間打馬賽克的列省略，名字放大很多，傳到 LINE 被壓縮後也看得清楚；取消勾選就照舊整張紅紙"
+    ]},
     { version: "v147", date: "2026-10-29", changes: [
       "傳給信徒的照片提高解析度：外框圖片跟著照片原本的解析度產生（原本照片只剩 1280 寬），照片最長邊由 2400 提高到 3200，Google 相簿也改抓 3200",
       "電腦「複製圖片」不再固定縮到 1600：先用長邊 2600，圖片太大（超過約 7MB）才自動縮小，避免 LINE 電腦版貼不上",
@@ -9496,6 +9500,52 @@
   }
   function psBlockDiv(){ return +document.getElementById("psBlock").value || 45; }
 
+  /* v148 — 局部放大：整張 A3 縮在一張圖裡名字太小，LINE 再壓縮就看不清（小朱）。
+     只留：上方品名列（這位那幾欄）＋這位的名字／數量格（同幾欄），右邊接直書標題；中間打馬賽克的列直接省略 */
+  function psZoomCropOn(){ var el = document.getElementById("psZoomCrop"); return !el || el.checked; }
+  function psCropZoom(composed, ph){
+    var person = ph.boxes.filter(function(b){ return b.kind !== "fixed"; });
+    if(!person.length) return composed;
+    var W = composed.width, H = composed.height;
+    var right = ph.titleX || 1;
+    var x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+    person.forEach(function(b){ x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.w); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.h); });
+    var mx = 0.02, my = 0.015;
+    x0 = Math.max(0, x0 - mx); x1 = Math.min(right, x1 + mx);
+    // 至少留 22% 寬，看得出是同一張紅紙
+    if(x1 - x0 < 0.22){ var cx = (x0 + x1) / 2; x0 = Math.max(0, Math.min(right - 0.22, cx - 0.11)); x1 = Math.min(right, x0 + 0.22); }
+    y0 = Math.max(0, y0 - my); y1 = Math.min(1, y1 + my);
+    var head = ph.header || 0;
+    // 品名列和名字格接在一起（或很近）就整段一起
+    var parts = head && y0 - head > 0.04 ? [[0, head], [y0, y1]] : [[0, y1]];
+    var cw = Math.round((x1 - x0) * W), GAP = Math.max(6, Math.round(W * 0.004));
+    var rows = parts.map(function(r){ return { y: Math.round(r[0] * H), h: Math.max(1, Math.round((r[1] - r[0]) * H)) }; });
+    var ah = rows.reduce(function(s, r){ return s + r.h; }, 0) + (rows.length - 1) * GAP;
+    var tw = 0, tsrc = null;
+    if(ph.titleX && ph.titleX < 1){
+      tsrc = { x: Math.round(ph.titleX * W), w: Math.round((1 - ph.titleX) * W) };
+      tw = Math.round(tsrc.w * ah / H);  // 標題整條縮到同高度
+    }
+    var out = document.createElement("canvas");
+    out.width = cw + (tw ? GAP + tw : 0); out.height = ah;
+    var g = out.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, out.width, out.height);
+    g.imageSmoothingQuality = "high";
+    var y = 0, sx = Math.round(x0 * W);
+    rows.forEach(function(r, i){
+      g.drawImage(composed, sx, r.y, cw, r.h, 0, y, cw, r.h);
+      y += r.h;
+      if(i < rows.length - 1){
+        // 省略的列用虛線表示
+        g.strokeStyle = "#b8872f"; g.lineWidth = Math.max(2, GAP / 3); g.setLineDash([GAP * 2, GAP]);
+        g.beginPath(); g.moveTo(0, y + GAP / 2); g.lineTo(cw, y + GAP / 2); g.stroke(); g.setLineDash([]);
+        y += GAP;
+      }
+    });
+    if(tsrc) g.drawImage(composed, tsrc.x, 0, tsrc.w, H, cw + GAP, 0, tw, ah);
+    return out;
+  }
+
   function psHintText(){
     var ph = psCurPhoto(), el = document.getElementById("psHint");
     if(!ph){ el.textContent = ""; return; }
@@ -10026,7 +10076,11 @@
     if(!used.length){ showToast("還沒框到名字，請在名字那一格點一下"); return; }
     if(used.some(function(ph){ return !ph.header && !ph.titleX && !ph.boxes.some(function(b){ return b.kind === "fixed"; }); }) &&
        !confirm("有紅紙還沒設定標題範圍，標題也會被馬賽克。要繼續嗎？")) return;
-    var canvases = used.map(function(ph){ return psCompose(ph.full, psKeepBoxes(ph), psBlockDiv()); });
+    var zoom = psZoomCropOn();
+    var canvases = used.map(function(ph){
+      var c = psCompose(ph.full, psKeepBoxes(ph), psBlockDiv());
+      return zoom ? psCropZoom(c, ph) : c;
+    });
     // v141 — 傳出去的圖片加外框標題；canvases 保留沒框的，合併時再加一個外框
     Promise.all(canvases.map(function(c, k){
       return psCanvasFile(psFrame(c, PS_KIND_RED, psRealName(name)), "紅紙_" + psSafeName(name) + (canvases.length > 1 ? "_" + (k + 1) : "") + ".jpg");
