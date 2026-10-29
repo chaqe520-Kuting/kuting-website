@@ -1399,7 +1399,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v142";
+  var APP_VERSION = "v143";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1410,6 +1410,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v143", date: "2026-10-29", changes: [
+      "紅紙 A3：自己點選或拉框框好後再打姓名，AI 不會再自動加框；AI 加的框點一下取消後，也不會又自己跑出來",
+      "多位一起報名的（例如「廖德儒、劉玥汝、廖宜雅、廖家祥」），打其中一位姓名就代表整筆報名，產生的圖片與照片外框會列出全部姓名",
+      "打字時下面列出整筆報名（全部姓名）可以點選，連續點選可以一次選好幾筆報名"
+    ]},
     { version: "v142", date: "2026-10-29", changes: [
       "照片傳信徒（紅紙 A3）：加「✏️ 自己拉框」，紅紙拍得彎、斜或太小，點一下對不準格線時，改成按住拖曳，自己把名字和數量框起來（綠框）；框錯點一下框就取消，或按「↩ 復原上一步」",
       "點一下找不到格線時，會提示改用「✏️ 自己拉框」"
@@ -9339,7 +9344,29 @@
   }
 
   // v129 — 一張圖可以放好幾位（例如一家人）：姓名用「、」分開，或連續點選下面的姓名
-  function psNames(){ return psSplitNames(psRed.name); }
+  // v143 — 一筆報名有好幾位（「、」分隔）時，打其中一位就代表整筆：展開成同一筆報名的全部姓名
+  function psRedGroups(occ){
+    var seen = {}, out = [];
+    occ.registrations.forEach(function(r){
+      var it = findItem(r.catId, occ);
+      if(it && redPaperSkipItem(it)) return;
+      var ns = psSplitNames(r.name);
+      if(!ns.length) return;
+      var key = ns.join("、");
+      if(!seen[key]){ seen[key] = 1; out.push(ns); }
+    });
+    return out;
+  }
+  function psExpandNames(base){
+    var groups = psRedGroups(current()), out = [];
+    function add(n){ if(out.indexOf(n) < 0) out.push(n); }
+    base.forEach(function(n){
+      add(n);
+      groups.forEach(function(g){ if(g.indexOf(n) >= 0) g.forEach(add); });
+    });
+    return out;
+  }
+  function psNames(){ return psExpandNames(psSplitNames(psRed.name)); }
   function psRedNameChanged(){
     var raw = document.getElementById("psRedName").value;
     var q = raw.trim();
@@ -9348,16 +9375,27 @@
     var info = document.getElementById("psRedNameInfo");
     var names = psSplitNames(q);
     var typing = /[、,，;；\/\s]$/.test(raw) ? "" : (names[names.length - 1] || "");
-    var hits = typing ? people.order.filter(function(n){ return n.indexOf(typing) >= 0 && n !== typing; }).slice(0, 12) : [];
-    list.innerHTML = hits.map(function(n){
-      return '<button type="button" class="occ-chip" data-name="' + escAttr(n) + '">' + escHtml(n) + '</button>';
+    var chosen = psExpandNames(names.filter(function(n){ return n !== typing || people.map[n]; }));
+    // v143 — 列出整筆報名（全部姓名），點一下就選整筆；已經選到的不再列
+    var hits = typing ? psRedGroups(current()).filter(function(g){
+      return g.some(function(n){ return n.indexOf(typing) >= 0; }) && !g.every(function(n){ return chosen.indexOf(n) >= 0; });
+    }).slice(0, 12) : [];
+    list.innerHTML = hits.map(function(g){
+      var key = g.join("、");
+      return '<button type="button" class="occ-chip" data-name="' + escAttr(key) + '">' + escHtml(key) + (g.length > 1 ? "（" + g.length + " 位）" : "") + '</button>';
     }).join("");
-    info.textContent = names.map(function(n){
-      return people.map[n] ? n + " 登記：" + people.map[n].join("、") : "";
-    }).filter(Boolean).join("　") || (typing && hits.length ? "點下面的姓名選取" : "");
+    var shown = {};
+    info.textContent = psExpandNames(names).map(function(n){
+      if(!people.map[n]) return "";
+      var labels = people.map[n].join("、");
+      if(shown[labels]) return "";
+      shown[labels] = 1;
+      return n + " 登記：" + labels;
+    }).filter(Boolean).join("　") || (typing && hits.length ? "點下面的姓名選取（多位一起報名的會整筆選取）" : "");
     if(q !== psRed.name){
-      var prev = psSplitNames(psRed.name);
+      var prev = psNames();
       psRed.name = q;
+      names = psNames();
       // 拿掉的人：他的框清掉；換成完全不同的人：全部姓名框清掉（標題範圍保留）
       var keepAny = names.some(function(n){ return prev.indexOf(n) >= 0; });
       psRed.photos.forEach(function(ph){
@@ -9365,8 +9403,9 @@
         ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name" || !b.who || (keepAny && names.indexOf(b.who) >= 0); });
       });
       psRed.undo = [];
+      psRed.photos.forEach(function(ph){ ph.aiKey = null; });
       if(names.length) psRed.photos.forEach(function(ph){ if(ph.ai.state === "idle") psAiRead(ph); });
-      if(names.length && !hits.length) psAiApply();
+      if(names.length && (!hits.length || people.map[typing])) psAiApply();
       else psAiStatusText();
       psRedDraw();
     }
@@ -9850,10 +9889,15 @@
   // 把 AI 讀到、含這個姓名的格子框起來（再用格線對齊整格）；手動點的框保留
   function psAiApply(){
     var names = psNames().map(psAiNorm).filter(Boolean), found = 0, anyDone = false;
+    var key = names.join("、");
     psRed.photos.forEach(function(ph){
       if(ph.ai.state !== "done") return;
       anyDone = true;
       if(!names.length) return;
+      // v143 — 同一組姓名只自動框一次（取消掉的 AI 框不會又跑出來）；這張已經自己點選／拉框過，AI 不再加框
+      if(ph.aiKey === key){ found += ph.boxes.filter(function(b){ return b.ai; }).length; return; }
+      ph.aiKey = key;
+      if(ph.boxes.some(function(b){ return b.kind === "name" && !b.ai; })) return;
       ph.boxes = ph.boxes.filter(function(b){ return !b.ai; });
       ph.ai.cells.forEach(function(c){
         var who = names.filter(function(n){ return psAiNorm(c.text).indexOf(n) >= 0; })[0];
@@ -9922,7 +9966,9 @@
     // 點選的姓名取代正在打的那一個，後面加「、」方便接著打下一位
     var input = document.getElementById("psRedName");
     var names = psSplitNames(input.value);
-    names[Math.max(0, names.length - 1)] = b.getAttribute("data-name");
+    var typed = /[、,，;；\/\s]$/.test(input.value) ? null : names.length - 1;
+    if(typed != null && typed >= 0) names.splice(typed, 1);
+    psSplitNames(b.getAttribute("data-name")).forEach(function(n){ if(names.indexOf(n) < 0) names.push(n); });
     input.value = names.join("、") + "、";
     psRedNameChanged();
   });
