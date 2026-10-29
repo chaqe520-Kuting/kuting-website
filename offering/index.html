@@ -1208,11 +1208,14 @@
     </div>
 
     <div id="psBuyunPanel" style="display:none;">
-      <p class="pdesc">① 一次選好全部補運照片 → ② 看著照片打姓名的一個字 → ③ 點對應的報名，自動換下一張。配好後在下面每位的卡片按「傳到 LINE」或「下載」。</p>
+      <p class="pdesc">① 一次選好全部補運照片（可直接從 Google 相簿挑，不用先下載）→ ② 看著照片打姓名的一個字 → ③ 點對應的報名，自動換下一張。配好後在下面每位的卡片按「傳到 LINE」或「下載」。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+        <button type="button" class="add-btn" id="psGPick">☁️ 從 Google 相簿選照片</button>
+        <button type="button" class="ghost-btn" id="psGCancel" style="display:none;">取消</button>
         <label class="ghost-btn" style="cursor:pointer;">📁 選補運照片（可多張）<input type="file" id="psBuyunFiles" accept="image/*,.heic,.heif" multiple style="display:none;"></label>
         <span class="pdesc" id="psBuyunInfo" style="margin:0;"></span>
       </div>
+      <div class="pdesc" id="psGMsg" style="display:none; margin-top:6px; font-weight:700;"></div>
       <div id="psBuyunCur" style="display:none; margin-top:10px;">
         <img id="psBuyunImg" alt="目前要配對的補運照片" style="display:block; max-width:100%; max-height:55vh; margin:0 auto; border-radius:8px; border:1px solid var(--border);">
         <div class="field" style="margin-top:8px;">
@@ -1367,7 +1370,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v137";
+  var APP_VERSION = "v138";
   var APP_UPDATED = "2026-10-26";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1378,6 +1381,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v138", date: "2026-10-29", changes: [
+      "照片傳信徒（補運照片）：比照法會報名，加「☁️ 從 Google 相簿選照片」，直接在 Google 相簿勾選補運照片，不用先下載到電腦／手機；挑好後照原本方式打姓名配對、傳到 LINE",
+      "共用法會報名平台已設定的 Google 相簿（kuting-photos）；第一次要按兩下（先登入 Google，再開相簿）"
+    ]},
     { version: "v137", date: "2026-10-26", changes: [
       "信眾報名頁：補運品項（第 19 師尊的法船、第 20 個人的法船）也能線上報名，選了會多出「補運名稱（補運／補運+補財庫）」與「補運地址」，數量欄改成金額",
       "提醒：品項管理裡勾了「不公開」的品項信眾頁仍看不到，要開放請把該品項的「不公開」取消勾選"
@@ -9962,14 +9969,179 @@
     psBuyunShow(next);
   }
 
-  document.getElementById("psBuyunFiles").addEventListener("change", function(e){
-    var files = Array.prototype.slice.call(e.target.files || []);
-    e.target.value = "";
+  function psBuyunAddFiles(files){
     if(!files.length) return;
     files.forEach(function(f){ psBuyun.photos.push({ file: f, regId: null }); });
     var first = psBuyunNext(0);
     psBuyunShow(first);
+  }
+  document.getElementById("psBuyunFiles").addEventListener("change", function(e){
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = "";
+    psBuyunAddFiles(files);
   });
+
+  /* v138 — 補運照片直接從 Google 相簿挑（Google Photos Picker API，比照法會報名 v4.24）
+     流程：Google 登入（只要求「查看您選取的相片」）→ 開 Google 相簿視窗勾照片、按「完成」→ 網頁在瀏覽器裡讀進挑好的照片
+     （最長邊 1600，不存到電腦）→ 進入原本的配對。Client ID 共用法會報名平台設定的（kuting-9d240 kv/cfg:gphotoClientId，公開可讀，
+     Google Cloud 專案 kuting-photos）。登入權杖只放記憶體，約 1 小時。 */
+  var PS_G_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
+  var PS_G_API = "https://photospicker.googleapis.com/v1";
+  var psG = { cid: "", cidLoaded: null, token: null, busy: "", abort: null, session: null, gis: null };
+  function psGMsg(html){
+    var el = document.getElementById("psGMsg");
+    el.innerHTML = html || ""; el.style.display = html ? "block" : "none";
+  }
+  function psGButtons(){
+    var b = document.getElementById("psGPick");
+    b.disabled = !!psG.busy;
+    b.textContent = psG.busy === "login" ? "登入中…" : psG.busy === "picking" ? "等待挑選照片…" : psG.busy === "download" ? "讀取照片中…" : "☁️ 從 Google 相簿選照片";
+    document.getElementById("psGCancel").style.display = psG.busy === "picking" || psG.busy === "download" ? "" : "none";
+  }
+  function psGLoadCid(){
+    if(!psG.cidLoaded) psG.cidLoaded = fetch("https://firestore.googleapis.com/v1/projects/kuting-9d240/databases/(default)/documents/kv/cfg:gphotoClientId")
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(d){ psG.cid = d && d.fields && d.fields.value ? String(d.fields.value.stringValue || "") : ""; return psG.cid; })
+      .catch(function(){ psG.cidLoaded = null; return ""; });
+    return psG.cidLoaded;
+  }
+  function psGLoadGis(){
+    if(window.google && google.accounts && google.accounts.oauth2) return Promise.resolve(google.accounts.oauth2);
+    if(!psG.gis) psG.gis = new Promise(function(resolve, reject){
+      var sc = document.createElement("script");
+      sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+      sc.onload = function(){ (window.google && google.accounts && google.accounts.oauth2) ? resolve(google.accounts.oauth2) : reject(new Error("Google 登入元件載入失敗")); };
+      sc.onerror = function(){ psG.gis = null; reject(new Error("Google 登入元件載入失敗，請檢查網路")); };
+      document.head.appendChild(sc);
+    });
+    return psG.gis;
+  }
+  function psGTokenOk(){ return psG.token && Date.now() < psG.token.expiresAt; }
+  function psGLogin(){
+    return new Promise(function(resolve, reject){
+      var o = window.google && google.accounts && google.accounts.oauth2;
+      if(!o){ reject(new Error("Google 登入元件還沒載入好，請再按一次")); return; }
+      o.initTokenClient({
+        client_id: psG.cid, scope: PS_G_SCOPE,
+        callback: function(res){
+          if(res.error || !res.access_token) return reject(new Error(res.error === "access_denied" ? "沒有同意 Google 授權" : (res.error_description || res.error || "Google 登入失敗")));
+          if(!o.hasGrantedAllScopes(res, PS_G_SCOPE)) return reject(new Error("請勾選允許「查看您選取的相片」再試一次"));
+          psG.token = { accessToken: res.access_token, expiresAt: Date.now() + Number(res.expires_in || 3600) * 1000 - 60000 };
+          resolve();
+        },
+        error_callback: function(err){
+          reject(new Error(err && err.type === "popup_failed_to_open" ? "瀏覽器擋住了 Google 登入視窗，請允許這個網站的彈出式視窗" : err && err.type === "popup_closed" ? "Google 登入視窗被關掉了" : "Google 登入失敗"));
+        }
+      }).requestAccessToken({ prompt: "" });
+    });
+  }
+  function psGApi(path, init){
+    if(!psGTokenOk()) return Promise.reject(new Error("Google 登入已過期，請再按一次「從 Google 相簿選照片」"));
+    init = init || {};
+    var opts = { method: init.method || "GET", headers: { "Authorization": "Bearer " + psG.token.accessToken, "Content-Type": "application/json" } };
+    if(init.body) opts.body = init.body;
+    return fetch(PS_G_API + path, opts).then(function(res){
+      if(res.status === 401){ psG.token = null; throw new Error("Google 登入已過期，請再按一次「從 Google 相簿選照片」"); }
+      if(!res.ok) return res.json().catch(function(){ return {}; }).then(function(b){
+        var m = (b.error && b.error.message) || String(res.status);
+        if(res.status === 403 && /not been used|disabled/i.test(m)) m = "Google Cloud 專案還沒啟用「Google Photos Picker API」";
+        throw new Error(m);
+      });
+      return res.status === 204 ? null : res.json();
+    });
+  }
+  function psGDur(d, fb){ var m = /^(\d+(?:\.\d+)?)s$/.exec(d || ""); return m ? Math.round(parseFloat(m[1]) * 1000) : fb; }
+  function psGSleep(ms, sig){
+    return new Promise(function(res, rej){
+      var t = setTimeout(res, ms);
+      sig.addEventListener("abort", function(){ clearTimeout(t); rej(Object.assign(new Error("已取消"), { aborted: true })); }, { once: true });
+    });
+  }
+  function psGStart(){
+    if(psG.busy) return;
+    if(!psG.cid){ psGMsg("⚠️ 還沒設定 Google 相簿（要在法會報名平台的照片傳送設定 Client ID），請先用「📁 選補運照片」"); return; }
+    if(!psGTokenOk()){
+      psG.busy = "login"; psGButtons();
+      psGMsg("請在跳出的 Google 視窗登入，並允許「查看您選取的相片」…");
+      psGLoadGis().then(psGLogin).then(function(){
+        psGMsg("✅ 已登入 Google。請再按一次「☁️ 從 Google 相簿選照片」開啟相簿。");
+      }).catch(function(err){
+        var m = String((err && err.message) || err);
+        if(/origin|redirect_uri|invalid_client/i.test(m)) m += "（Google Cloud 的 OAuth 用戶端要把 https://kuting.tw 加進「已授權的 JavaScript 來源」）";
+        psGMsg("⚠️ " + escHtml(m));
+      }).then(function(){ psG.busy = ""; psGButtons(); });
+      return;
+    }
+    // 先在按鈕點下的當下開空白視窗（之後才開會被瀏覽器擋），建好 session 再導到 Google 相簿
+    var win = window.open("about:blank", "gphotoPicker");
+    psG.busy = "picking"; psG.abort = new AbortController(); psGButtons();
+    var sig = psG.abort.signal;
+    psGMsg("正在開啟 Google 相簿…");
+    var photos = [];
+    psGApi("/sessions", { method: "POST", body: JSON.stringify({ pickingConfig: { maxItemCount: "2000" } }) }).then(function(sess){
+      psG.session = sess;
+      var url = String(sess.pickerUri).replace(/\/?$/, "/autoclose");
+      if(win && !win.closed) win.location.href = url;
+      psGMsg("請在 Google 相簿視窗點「相簿」找到補運的相簿，勾選照片，按右上「完成」，再回到這裡。" +
+        (win && !win.closed ? "" : '<br>視窗沒有自動打開？<a href="' + escAttr(url) + '" target="gphotoPicker" rel="noopener">點這裡開啟 Google 相簿</a>'));
+      var deadline = Date.now() + psGDur(sess.pollingConfig && sess.pollingConfig.timeoutIn, 30 * 60000);
+      function poll(cur){
+        if(cur.mediaItemsSet) return Promise.resolve();
+        if(Date.now() > deadline) return Promise.reject(new Error("等太久沒有挑好照片，已停止。要挑照片請再按一次"));
+        return psGSleep(psGDur(cur.pollingConfig && cur.pollingConfig.pollInterval, 3000), sig)
+          .then(function(){ return psGApi("/sessions/" + encodeURIComponent(sess.id)); }).then(poll);
+      }
+      return poll(sess);
+    }).then(function(){
+      var items = [];
+      function page(pt){
+        var q = new URLSearchParams({ sessionId: psG.session.id, pageSize: "100" });
+        if(pt) q.set("pageToken", pt);
+        return psGApi("/mediaItems?" + q.toString()).then(function(pg){
+          (pg.mediaItems || []).forEach(function(it){ items.push(it); });
+          return pg.nextPageToken ? page(pg.nextPageToken) : items;
+        });
+      }
+      return page("");
+    }).then(function(items){
+      photos = items.filter(function(it){ return it.type !== "VIDEO" && it.mediaFile && it.mediaFile.baseUrl && !/^video\//.test(it.mediaFile.mimeType || ""); });
+      if(!photos.length) throw new Error("沒有挑到照片（影片不能用）");
+      psG.busy = "download"; psGButtons();
+      var files = new Array(photos.length), doneN = 0, fail = 0, i = 0;
+      psGMsg("讀取照片 0 / " + photos.length + "…");
+      function worker(){
+        if(i >= photos.length || sig.aborted) return Promise.resolve();
+        var k = i++, it = photos[k];
+        return fetch(it.mediaFile.baseUrl + "=w1600-h1600", { headers: { "Authorization": "Bearer " + psG.token.accessToken }, credentials: "omit", signal: sig })
+          .then(function(res){ if(!res.ok) throw new Error(res.status); return res.blob(); })
+          .then(function(blob){
+            var base = String(it.mediaFile.filename || ("google_" + it.id)).replace(/\.[^.]+$/, "");
+            var type = /^image\//.test(blob.type) ? blob.type : "image/jpeg";
+            var ext = type === "image/png" ? ".png" : type === "image/webp" ? ".webp" : ".jpg";
+            files[k] = new File([blob], base + ext, { type: type, lastModified: Date.parse(it.createTime || "") || 0 });
+          })
+          .catch(function(err){ if(!(err && err.name === "AbortError")) fail++; })
+          .then(function(){ doneN++; psGMsg("讀取照片 " + doneN + " / " + photos.length + "…"); return worker(); });
+      }
+      return Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]).then(function(){
+        if(sig.aborted) throw Object.assign(new Error("已取消"), { aborted: true });
+        return { files: files.filter(Boolean), fail: fail };
+      });
+    }).then(function(out){
+      psGApi("/sessions/" + encodeURIComponent(psG.session.id), { method: "DELETE" }).catch(function(){});
+      psG.session = null; psG.busy = ""; psG.abort = null; psGButtons();
+      psGMsg(out.fail ? "⚠️ 有 " + out.fail + " 張讀取失敗，可以再按一次「從 Google 相簿選照片」只挑那幾張。" : "");
+      if(out.files.length){ psBuyunAddFiles(out.files); showToast("已從 Google 相簿讀進 " + out.files.length + " 張，開始配對"); }
+    }).catch(function(err){
+      if(win && !win.closed && psG.busy === "picking") try { win.close(); } catch(_){}
+      if(psG.session) psGApi("/sessions/" + encodeURIComponent(psG.session.id), { method: "DELETE" }).catch(function(){});
+      psG.session = null; psG.busy = ""; psG.abort = null; psGButtons();
+      psGMsg(err && err.aborted ? "" : "⚠️ " + escHtml((err && err.message) || String(err)));
+    });
+  }
+  document.getElementById("psGPick").addEventListener("click", psGStart);
+  document.getElementById("psGPick").addEventListener("mouseenter", function(){ if(psG.cid) psGLoadGis().catch(function(){}); });
+  document.getElementById("psGCancel").addEventListener("click", function(){ if(psG.abort) psG.abort.abort(); });
   document.getElementById("psBuyunName").addEventListener("input", psBuyunSearch);
   document.getElementById("psBuyunName").addEventListener("keydown", function(e){
     if(e.key !== "Enter") return;
@@ -10081,6 +10253,8 @@
     if(psState.occId !== occ.id){ psState.occId = occ.id; psReset(); }
     psSetTab(psState.tab);
     document.getElementById("photoSendOverlay").style.display = "flex";
+    // 預先載入 Google 相簿設定與登入元件，按鈕點下去才能直接跳出 Google 登入視窗（晚了會被當成彈出視窗擋掉）
+    psGLoadCid().then(function(cid){ if(cid) psGLoadGis().catch(function(){}); });
   }
 
   (function setupPhotoSendModal(){
