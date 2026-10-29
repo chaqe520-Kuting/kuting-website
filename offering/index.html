@@ -1189,6 +1189,11 @@
         <button type="button" class="ghost-btn" id="psZoomIn">＋ 放大</button>
         <button type="button" class="ghost-btn" id="psClearName">🧹 清除已點選（換下一位）</button>
         <button type="button" class="ghost-btn" id="psDrawToggle" aria-pressed="false">✏️ 自己拉框（格線對不準時用）</button>
+        <button type="button" class="ghost-btn" id="psPaintToggle" aria-pressed="false">🖌 手塗馬賽克</button>
+        <label id="psPaintSizeWrap" style="display:none; align-items:center; gap:6px; font-size:.9rem; white-space:nowrap;">筆刷
+          <select id="psPaintSize"><option value="0.008">細</option><option value="0.016" selected>中</option><option value="0.03">粗</option></select>
+        </label>
+        <button type="button" class="ghost-btn" id="psPaintClear" style="display:none;">🧽 清除塗抹</button>
         <button type="button" class="ghost-btn" id="psResetTitle">📐 右邊標題黃線</button>
       </div>
       <details style="margin-top:6px;">
@@ -1418,7 +1423,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v152";
+  var APP_VERSION = "v153";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1429,6 +1434,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v153", date: "2026-10-29", changes: [
+      "照片傳給信徒留存（紅紙 A3）加「🖌 手塗馬賽克」：按住在照片上塗，塗到的地方（淡紅色）產生圖片時一定打馬賽克，綠框裡露出的別人名字也能塗掉；筆刷可選細／中／粗，塗錯按「↩ 復原上一步」或「🧽 清除塗抹」；「清除已點選（換下一位）」會連塗抹一起清掉"
+    ]},
     { version: "v152", date: "2026-10-29", changes: [
       "紅紙 A3「分成兩張」：每欄最多 6 格（原本有很長的聯名時整張每欄都會變 9 格，字變很小），太長的聯名那一格字縮小擠進 6 格；字級上限放寬，兩張版面都撐到 A3 放得下的最大"
     ]},
@@ -9440,7 +9448,7 @@
        打姓名時直接比對，不用每個人等 AI
      - 照片上只用「點一下」：第一下設定標題列下緣，之後點名字那一格＝框，再點一次＝取消；
        拖曳＝移動畫面、兩指＝放大；每一步都可以「復原」 */
-  var psRed = { photos: [], cur: -1, name: "", zoom: 1, draw: "", undo: [], outs: [] };
+  var psRed = { photos: [], cur: -1, name: "", zoom: 1, draw: "", paint: false, undo: [], outs: [] };
   var psRedCanvas = document.getElementById("psRedCanvas");
   var psRedWrap = document.getElementById("psRedWrap");
   function psCurPhoto(){ return psRed.photos[psRed.cur] || null; }
@@ -9556,14 +9564,40 @@
     if(ph.titleX) keep.push({ x: ph.titleX, y: 0, w: 1 - ph.titleX, h: 1, kind: "fixed" });
     return keep;
   }
-  function psCompose(src, boxes, blockDiv){
+  function psCompose(src, boxes, blockDiv, paint){
     var out = psMosaic(src, blockDiv);
+    var mos = paint && paint.length ? psMosaic(src, blockDiv) : null;
     var g = out.getContext("2d");
     boxes.forEach(function(b){
       var p = psBoxPx(b, src.width, src.height);
       g.drawImage(src, p.x, p.y, p.w, p.h, p.x, p.y, p.w, p.h);
     });
+    // v153 — 手塗的地方一律打馬賽克（就算在綠框或標題範圍裡）
+    if(mos) g.drawImage(psPaintMasked(mos, paint), 0, 0);
     return out;
+  }
+  /* v153 手塗馬賽克（小朱：自己框會框到旁邊別人的名字）：ph.paint＝筆畫 [{ r, pts:[[x,y]…] }]，
+     座標是照片的比例（0～1），r 是筆刷半徑（照片長邊的比例）。換下一位時跟綠框一起清掉。 */
+  function psPaintPath(g, paint, W, H){
+    var L = Math.max(W, H);
+    g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#000"; g.fillStyle = "#000";
+    paint.forEach(function(st){
+      var w = st.r * L * 2;
+      if(st.pts.length === 1){ g.beginPath(); g.arc(st.pts[0][0] * W, st.pts[0][1] * H, w / 2, 0, Math.PI * 2); g.fill(); return; }
+      g.lineWidth = w; g.beginPath();
+      st.pts.forEach(function(pt, i){ if(i) g.lineTo(pt[0] * W, pt[1] * H); else g.moveTo(pt[0] * W, pt[1] * H); });
+      g.stroke();
+    });
+  }
+  // 回傳只留塗抹範圍的 layer（其餘透明）
+  function psPaintMasked(layer, paint){
+    var c = document.createElement("canvas");
+    c.width = layer.width; c.height = layer.height;
+    var g = c.getContext("2d");
+    psPaintPath(g, paint, c.width, c.height);
+    g.globalCompositeOperation = "source-in";
+    g.drawImage(layer, 0, 0);
+    return c;
   }
   function psBlockDiv(){ return +document.getElementById("psBlock").value || 45; }
 
@@ -9618,6 +9652,7 @@
     if(!ph){ el.textContent = ""; return; }
     if(!ph.header && PS_AI_ON && ph.ai.state === "busy") el.textContent = "AI 正在讀照片，讀完會自動畫黃線；也可以自己點一下「供品單位那一列的下緣」";
     else if(!ph.header) el.textContent = "請先在照片上點一下「供品單位那一列的下緣」，黃線以上的標題會保留";
+    else if(psRed.paint) el.textContent = "🖌 手塗馬賽克：按住在照片上塗，淡紅色的地方產生圖片時一定打馬賽克；塗錯按「↩ 復原上一步」，好了按「✅ 產生這位的圖片」";
     else if(psRed.draw) el.textContent = "✏️ 自己拉框：按住從名字左上角拖到數量右下角，放開就是綠框；框錯點一下框就取消；好了按「✅ 產生這位的圖片」";
     else if(!psRed.name) el.textContent = "直接在信徒名字那一格點一下就框（名字＋數量），框錯再點一下取消；好了按「✅ 產生這位的圖片」";
     else el.textContent = "在「" + psRed.name + "」的名字那一格點一下就框，框錯再點一下取消；好了按「✅ 產生這位的圖片」";
@@ -9686,6 +9721,17 @@
       g.strokeStyle = b.kind === "name" ? "#2ee04a" : "#ffcc00";
       g.strokeRect(p.x, p.y, p.w, p.h);
     });
+    // v153 — 手塗的地方：顯示馬賽克＋淡紅色
+    if(ph.paint && ph.paint.length){
+      var mk = psBlockDiv();
+      if(!psMosaicCache || psMosaicCache.key !== mk || psMosaicCache.src !== src) psMosaicCache = { key: mk, src: src, c: psMosaic(src, mk) };
+      g.drawImage(psPaintMasked(psMosaicCache.c, ph.paint), 0, 0);
+      var tint = document.createElement("canvas"); tint.width = W; tint.height = H;
+      var tg = tint.getContext("2d");
+      psPaintPath(tg, ph.paint, W, H);
+      tg.globalCompositeOperation = "source-in"; tg.fillStyle = "rgba(220,30,30,.35)"; tg.fillRect(0, 0, W, H);
+      g.drawImage(tint, 0, 0);
+    }
   }
 
   function psRenderRedTabs(){
@@ -9776,7 +9822,8 @@
   function psPushUndo(){
     var ph = psCurPhoto();
     if(!ph) return;
-    psRed.undo.push({ pi: psRed.cur, header: ph.header, boxes: ph.boxes.map(function(b){ return Object.assign({}, b); }) });
+    psRed.undo.push({ pi: psRed.cur, header: ph.header, boxes: ph.boxes.map(function(b){ return Object.assign({}, b); }),
+      paint: (ph.paint || []).map(function(st){ return { r: st.r, pts: st.pts.slice() }; }) });
     if(psRed.undo.length > 50) psRed.undo.shift();
   }
   document.getElementById("psUndo").addEventListener("click", function(){
@@ -9784,7 +9831,7 @@
     if(!u){ showToast("沒有可以復原的步驟"); return; }
     var ph = psRed.photos[u.pi];
     if(!ph) return;
-    ph.header = u.header; ph.boxes = u.boxes; psRed.cur = u.pi;
+    ph.header = u.header; ph.boxes = u.boxes; ph.paint = u.paint || []; psRed.cur = u.pi;
     psRedDraw();
   });
 
@@ -9845,10 +9892,20 @@
     if(ids.length === 2){
       var a = psPtrs[ids[0]], b = psPtrs[ids[1]];
       if(psGesture && psGesture.box){ var ph0 = psCurPhoto(); ph0.boxes.splice(ph0.boxes.indexOf(psGesture.box), 1); psRed.undo.pop(); }
+      if(psGesture && psGesture.stroke){ var phs = psCurPhoto(); phs.paint.splice(phs.paint.indexOf(psGesture.stroke), 1); psRed.undo.pop(); }
       psGesture = { mode: "pinch", d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: psRed.zoom };
       psRedDraw();
     } else if(ids.length === 1){
       psGesture = { mode: "down", sx: e.clientX, sy: e.clientY, sl: psRedWrap.scrollLeft, st: psRedWrap.scrollTop };
+      if(psRed.paint){
+        var ph1 = psCurPhoto(), q = psNorm(e.clientX, e.clientY);
+        psPushUndo();
+        ph1.paint = ph1.paint || [];
+        psGesture.mode = "paint";
+        psGesture.stroke = { r: +document.getElementById("psPaintSize").value || 0.016, pts: [[q.x, q.y]] };
+        ph1.paint.push(psGesture.stroke);
+        psRedDraw();
+      }
     }
   });
   psRedCanvas.addEventListener("pointermove", function(e){
@@ -9861,6 +9918,11 @@
       if(ids.length < 2) return;
       var a = psPtrs[ids[0]], b = psPtrs[ids[1]];
       psSetZoom(g.z * (Math.hypot(a.x - b.x, a.y - b.y) / g.d), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      return;
+    }
+    if(g.mode === "paint"){
+      var q = psNorm(e.clientX, e.clientY), lastPt = g.stroke.pts[g.stroke.pts.length - 1];
+      if(Math.hypot(q.x - lastPt[0], q.y - lastPt[1]) > 0.002){ g.stroke.pts.push([q.x, q.y]); psRedDraw(); }
       return;
     }
     var dx = e.clientX - g.sx, dy = e.clientY - g.sy;
@@ -9892,6 +9954,7 @@
     if(g.mode === "pinch"){ if(!Object.keys(psPtrs).length) psGesture = null; return; }
     psGesture = null;
     if(e.type === "pointercancel") return;
+    if(g.mode === "paint"){ psRedDraw(); return; }
     if(g.mode === "down"){ var p = psNorm(e.clientX, e.clientY); psTap(p.x, p.y); }
     else if(g.mode === "draw"){
       var ph = psCurPhoto();
@@ -9910,7 +9973,35 @@
   document.getElementById("psZoomOut").addEventListener("click", function(){ psSetZoom(psRed.zoom / 1.5); });
 
   // v142 — 紅紙拍得彎、斜、太小時格線對不準：切換成拖曳畫框（psRed.draw，原本手動畫框的程式還在）
+  function psSetPaint(on){
+    psRed.paint = !!on;
+    if(on && psRed.draw) psSetDraw(false);
+    var b = document.getElementById("psPaintToggle");
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "🖌 塗抹中（按這裡結束）" : "🖌 手塗馬賽克";
+    b.style.background = on ? "var(--cinnabar)" : ""; b.style.color = on ? "#fff" : "";
+    document.getElementById("psPaintSizeWrap").style.display = on ? "flex" : "none";
+    document.getElementById("psPaintClear").style.display = on ? "" : "none";
+    psRedCanvas.style.cursor = on ? "crosshair" : (psRed.draw ? "crosshair" : "pointer");
+    document.getElementById("psGestureHelp").textContent = on
+      ? "塗抹中：按住在照片上塗，塗到的地方（淡紅色）一定打馬賽克，綠框裡露出的別人名字也可以塗掉；塗錯按「↩ 復原上一步」；放大後用捲軸（或兩指）移動畫面。"
+      : (psRed.draw ? "拉框中：按住拖曳＝畫綠框；點框一下＝取消；放大後用捲軸（或兩指）移動畫面。"
+                    : "照片上：點一下＝框／取消那一格；拖曳＝移動畫面；兩指（或 Ctrl＋滾輪）＝放大縮小。");
+    psHintText();
+  }
+  document.getElementById("psPaintToggle").addEventListener("click", function(){
+    if(!psCurPhoto()){ showToast("請先選紅紙照片"); return; }
+    psSetPaint(!psRed.paint);
+    if(psRed.paint) showToast("按住在照片上塗，塗到的地方會打馬賽克");
+  });
+  document.getElementById("psPaintClear").addEventListener("click", function(){
+    var ph = psCurPhoto();
+    if(!ph || !(ph.paint && ph.paint.length)){ showToast("這張沒有塗抹"); return; }
+    psPushUndo(); ph.paint = []; psRedDraw();
+  });
+
   function psSetDraw(on){
+    if(on && psRed.paint) psSetPaint(false);
     psRed.draw = on ? "name" : "";
     var b = document.getElementById("psDrawToggle");
     b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -9929,7 +10020,7 @@
 
   // v133 — 換下一位：清掉每張紅紙上點選的格子和姓名欄，紅紙照片、黃線都保留
   function psClearPicked(){
-    psRed.photos.forEach(function(ph){ ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name"; }); });
+    psRed.photos.forEach(function(ph){ ph.boxes = ph.boxes.filter(function(b){ return b.kind !== "name"; }); ph.paint = []; });
     psRed.undo = [];
     document.getElementById("psRedName").value = "";
     psRedNameChanged();
@@ -10150,7 +10241,7 @@
        !confirm("有紅紙還沒設定標題範圍，標題也會被馬賽克。要繼續嗎？")) return;
     var zoom = psZoomCropOn();
     var canvases = used.map(function(ph){
-      var c = psCompose(ph.full, psKeepBoxes(ph), psBlockDiv());
+      var c = psCompose(ph.full, psKeepBoxes(ph), psBlockDiv(), ph.paint);
       return zoom ? psCropZoom(c, ph) : c;
     });
     // v141 — 傳出去的圖片加外框標題；canvases 保留沒框的，合併時再加一個外框
