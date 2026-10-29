@@ -1423,7 +1423,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v153";
+  var APP_VERSION = "v154";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1434,6 +1434,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v154", date: "2026-10-29", changes: [
+      "紅紙 A3「分成兩張」：太長的聯名不再縮小字，改成分兩行直書（右行先讀、以「、」平均分開），那一欄變兩倍寬；每欄仍最多 6 格"
+    ]},
     { version: "v153", date: "2026-10-29", changes: [
       "照片傳給信徒留存（紅紙 A3）加「🖌 手塗馬賽克」：按住在照片上塗，塗到的地方（淡紅色）產生圖片時一定打馬賽克，綠框裡露出的別人名字也能塗掉；筆刷可選細／中／粗，塗錯按「↩ 復原上一步」或「🧽 清除塗抹」；「清除已點選（換下一位）」會連塗抹一起清掉"
     ]},
@@ -2198,9 +2201,12 @@
     var list = entries.map(function(e){
       var shown = displayName(e.text), len = chars(shown);
       var need = spanFor(len, namePt);
-      // v152 — 每欄格數有上限時，放不下的聯名字縮小（fit＝這一筆的字級）
-      return { text: shown, qty: e.qty, small: len === 4, span: Math.min(R, need),
-        fit: need > R ? Math.max(8, Math.floor(namePt * slotCapacity(R, namePt) / len)) : 0 };
+      if(need <= R) return { text: shown, qty: e.qty, small: len === 4, span: need, fit: 0 };
+      // v154 — 每欄格數有上限、放不下的聯名分成兩行直書（右行先讀），這一欄會變兩倍寬；兩行還放不下才縮字
+      var two = splitTwoLines(shown), ln = Math.max(chars(two[0]), chars(two[1]));
+      var need2 = spanFor(ln, namePt);
+      return { text: shown, lines: two, qty: e.qty, small: false, span: Math.min(R, need2),
+        fit: need2 > R ? Math.max(8, Math.floor(namePt * slotCapacity(R, namePt) / ln)) : 0 };
     });
     if(!list.length) return [[]];
     var S = list.reduce(function(s, e){ return s + e.span; }, 0);
@@ -2210,14 +2216,30 @@
         for(var i = 0; i < list.length; i++){
           var e = list[i];
           if(used + e.span > cap){ cols.push([]); used = 0; }
-          cols[cols.length - 1].push({ text: e.text, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: used });
+          cols[cols.length - 1].push({ text: e.text, lines: e.lines, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: used });
           used += e.span;
         }
         if(cols.length <= k) return cols;
       }
     }
-    return [list.map(function(e, i){ return { text: e.text, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: i }; })];
+    return [list.map(function(e, i){ return { text: e.text, lines: e.lines, qty: e.qty, small: e.small, span: e.span, fit: e.fit, slot: i }; })];
   }
+  // 聯名分兩行：以「、」為界，兩行字數盡量平均；沒有「、」就從中間切
+  function splitTwoLines(t){
+    var cs = Array.prototype.slice.call(String(t)), parts = String(t).split("、");
+    if(parts.length >= 2){
+      var best = 1, bestD = Infinity;
+      for(var k = 1; k < parts.length; k++){
+        var a = parts.slice(0, k).join("、") + "、", b = parts.slice(k).join("、");
+        var d = Math.abs(chars(a) - chars(b));
+        if(d < bestD){ bestD = d; best = k; }
+      }
+      return [parts.slice(0, best).join("、") + "、", parts.slice(best).join("、")];
+    }
+    var h = Math.ceil(cs.length / 2);
+    return [cs.slice(0, h).join(""), cs.slice(h).join("")];
+  }
+  function colIsWide(col){ return col.some(function(e){ return e.lines; }); }
 
   // 標題欄（由左到右）：祝壽供品 ／ 主標題 ／ 恭祝 ／ 古亭院
   var HEAD_COLS = [{ w: 86 }, { w: 86 }, { w: 86 }, { w: 92 }]; // v83：欄寬放到 72 號字的寬度，避免左右被切
@@ -2248,7 +2270,9 @@
     // v118 — 佛號分列時，各師尊大壽金上方多一行群組標題（各大師尊大壽金　共 N 捆）
     var groupH = data.items.some(function(it){ return it.group; }) ? (qtyPt + 2) * 1.6 + 4 : 0;
     var contentH = groupH * 2 + headNameH + totalH + unitH + topGap + R * slotH;
-    var contentW = HEAD_W + items.reduce(function(s, pi){ return s + pi.colW * pi.cols.length; }, 0);
+    var contentW = HEAD_W + items.reduce(function(s, pi){
+      return s + pi.cols.reduce(function(w, col){ return w + pi.colW * (colIsWide(col) ? 2 : 1); }, 0);
+    }, 0);
     return { namePt: namePt, qtyPt: qtyPt, R: R, maxch: maxch, nameRowH: nameRowH, qtyRowH: qtyRowH, gapH: gapH, slotH: slotH,
       groupH: groupH, headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
   }
@@ -2292,10 +2316,15 @@
 
     // 欄位順序（由左到右）：品項 N … 品項 1 ，空隙，祝壽供品，主標題，恭祝，古亭院
     var n = p.items.length, col = 1, itemCols = [];
+    // v154 — 有兩行聯名的欄佔兩個 Excel 欄（colMap[ci]＝{ l, r }）
     for(var i = n - 1; i >= 0; i--){
-      var it = p.items[i], c1 = col;
-      for(var k = 0; k < it.cols.length; k++){ sh.colWidths[col] = ptToChars(it.colW); col++; }
-      itemCols[i] = { c1: c1, c2: col - 1 };
+      var it = p.items[i], c1 = col, colMap = [];
+      for(var k = it.cols.length - 1; k >= 0; k--){
+        var wN = colIsWide(it.cols[k]) ? 2 : 1;
+        colMap[k] = { l: col, r: col + wN - 1 };
+        for(var q = 0; q < wN; q++){ sh.colWidths[col] = ptToChars(it.colW); col++; }
+      }
+      itemCols[i] = { c1: c1, c2: col - 1, map: colMap };
     }
     sh.colWidths[col] = ptToChars(10); col++;
     var headC = {}; ["pin", "title", "zhu", "yuan"].forEach(function(key, idx){ headC[key] = col; sh.colWidths[col] = ptToChars(HEAD_COLS[idx].w); col++; });
@@ -2326,16 +2355,32 @@
       putMerged(2 + G, cc.c1, 2 + G, cc.c2, it.total > 0 ? it.total : null, { font: f(qtyPt + 2), h: "center", v: "center", border: B, numFmt: 3, shrink: true });
       putMerged(3 + G, cc.c1, 3 + G, cc.c2, it.unit || "", { font: f(qtyPt), h: "center", v: "center", border: B, shrink: true });
       pi.cols.forEach(function(colEntries, ci){
-        var c = cc.c2 - ci;  // 第 1 欄放在最右邊（直書由右往左讀）
+        var cm = cc.map[ci], c = cm.r, cl = cm.l;  // 第 1 欄放在最右邊（直書由右往左讀）；兩倍寬的欄 cl < c
         // 先把整欄每一格都鋪上樣式（空白格也要，之後直接打字就會是直書、粗體、有框線）
-        for(var sl = 0; sl < R; sl++){ put(nameRow(sl), c, null, nameSpec); put(qtyRow(sl), c, null, qtySpec); }
+        for(var sl = 0; sl < R; sl++){ putMerged(nameRow(sl), cl, nameRow(sl), c, null, nameSpec); putMerged(qtyRow(sl), cl, qtyRow(sl), c, null, qtySpec); }
+        // 先拆掉剛剛鋪的橫向合併，下面每筆再依實際範圍合併
+        sh.merges = sh.merges.filter(function(m){ return !(m[1] === cl && m[3] === c && cl !== c && m[0] >= nameRow(0) && m[2] <= qtyRow(R - 1)); });
+        var used = {};
         colEntries.forEach(function(e){
           var last = e.slot + e.span - 1;
+          for(var u = e.slot; u <= last; u++) used[u] = 1;
           var spc = e.fit ? { font: f(e.fit), h: "center", v: "top", rot: 255, border: B } : (e.small ? smallSpec : nameSpec);
-          putMerged(nameRow(e.slot), c, nameRow(last), c, e.text, spc);
-          if(last > e.slot){ for(var rr = nameRow(e.slot) + 1; rr <= nameRow(last); rr++) put(rr, c, null, spc); }
-          put(qtyRow(last), c, e.qty, qtySpec);
+          if(e.lines && cl !== c){
+            putMerged(nameRow(e.slot), c, nameRow(last), c, e.lines[0], spc);   // 右行先讀
+            putMerged(nameRow(e.slot), cl, nameRow(last), cl, e.lines[1], spc);
+          } else {
+            putMerged(nameRow(e.slot), cl, nameRow(last), c, e.text, spc);
+          }
+          putMerged(qtyRow(last), cl, qtyRow(last), c, e.qty, qtySpec);
         });
+        if(cl !== c){
+          // 兩倍寬欄的空白格也左右合併成一格
+          for(var sl2 = 0; sl2 < R; sl2++){
+            if(used[sl2]) continue;
+            putMerged(nameRow(sl2), cl, nameRow(sl2), c, null, nameSpec);
+            putMerged(qtyRow(sl2), cl, qtyRow(sl2), c, null, qtySpec);
+          }
+        }
       });
     });
 
