@@ -1012,6 +1012,7 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="ghost-btn" id="regMergedPreviewBtn" disabled>合併預覽已選取（<span id="regSelectedCount">0</span>）</button>
           <button class="ghost-btn" id="regNoticeBtn" disabled>📷 報名成功圖</button>
+          <button class="ghost-btn" id="regPhotoBtn" disabled>🖼 贊助照片傳送</button>
           <button class="ghost-btn" id="regBulkPaidBtn" disabled>標記已收款（<span id="regSelectedCountPaid">0</span>）</button>
           <button class="danger-btn" id="regBulkDeleteBtn" disabled>刪除已選取</button>
           <button class="ghost-btn" id="regClearSelectBtn" disabled>清除已選</button>
@@ -1031,7 +1032,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr id="regTableHeadRow"><th><input type="checkbox" id="regSelectAllChk"></th><th>姓名</th><th>電話</th><th>品項</th><th>數量</th><th>金額</th><th>收款狀態</th><th>登記時間</th><th>操作</th></tr>
+            <tr id="regTableHeadRow"><th><input type="checkbox" id="regSelectAllChk"></th><th>姓名</th><th>電話</th><th>品項</th><th>數量</th><th>金額</th><th>收款狀態</th><th>照片</th><th>登記時間</th><th>操作</th></tr>
           </thead>
           <tbody id="regTableBody"></tbody>
         </table>
@@ -1327,6 +1328,24 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="regPhotoOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:640px;">
+    <div class="modal-head">
+      <h3>🖼 贊助照片傳送</h3>
+      <button class="modal-close" id="regPhotoCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <p class="pdesc" style="margin:0 0 8px;">這裡是勾選的報名在「📷 照片傳信徒」配好的照片（補運照片、紅紙圖片）。點照片可以取消／加回勾選，再選要合併成一張還是分開傳。照片只在這台電腦／手機的瀏覽器裡，重新整理後要重新配對。</p>
+    <div id="regPhotoBody"></div>
+    <div id="regPhotoActs" style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
+      <button type="button" class="add-btn" id="regPhotoMergeCopyBtn">📋 合併成一張・傳到 LINE</button>
+      <button type="button" class="ghost-btn" id="regPhotoShareBtn">分開傳（多張）</button>
+      <button type="button" class="ghost-btn" id="regPhotoMergeDlBtn">合併下載</button>
+      <button type="button" class="ghost-btn" id="regPhotoDlBtn">全部下載</button>
+      <button type="button" class="ghost-btn" id="regPhotoMarkBtn">標為已傳送</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="itemRegPreviewOverlay" style="display:none;">
   <div class="modal-card" id="itemRegPreviewCard" style="max-width:520px;">
     <div class="modal-head">
@@ -1379,7 +1398,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v139";
+  var APP_VERSION = "v140";
   var APP_UPDATED = "2026-10-29";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1390,6 +1409,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v140", date: "2026-10-29", changes: [
+      "登記清單加「照片」欄：照片傳信徒配好的補運照片、紅紙圖片會顯示在該筆報名（📷 張數，🔴 未傳送／✅ 已傳送），點一下就能傳送",
+      "登記清單工具列加「📷 贊助照片傳送」：勾選多筆報名（例如一家人），把他們的照片一起合併成一張或多張，傳給同一位信徒",
+      "修正：補運照片配對後，下面的傳送清單沒有出現（配對的報名對不上），所以配完找不到地方傳"
+    ]},
     { version: "v139", date: "2026-10-29", changes: [
       "照片傳信徒：配好的每一位都有「傳送清單」，標出 🔴 未傳送／✅ 已傳送，按過「傳到 LINE」「複製」「下載」會自動標成已傳送，之後隨時可以「再傳一次」；可切換「只看未傳送」，忘了傳的一眼就找得到",
       "補運照片：同一位有好幾張時，按「☑ 這位還有其他照片」勾選多張，一次配給同一位報名者",
@@ -7705,7 +7729,7 @@
   var regPageSize = 20; // number, or "all"
   var regPageIndex = 0;
 
-  function colCount(){ return (current().confirmFieldName ? 9 : 8) + 1; } // +1 for the leading checkbox column
+  function colCount(){ return (current().confirmFieldName ? 10 : 9) + 1; } // +1 for the leading checkbox column
 
   function escAttr(s){ return String(s == null ? "" : s).replace(/"/g, "&quot;"); }
 
@@ -7719,7 +7743,7 @@
   function renderRegTableHead(){
     var occ = current();
     var row = document.getElementById("regTableHeadRow");
-    row.innerHTML = '<th><input type="checkbox" id="regSelectAllChk"></th><th>姓名</th><th>電話</th><th>品項</th><th>數量</th><th>金額</th><th>收款狀態</th>' +
+    row.innerHTML = '<th><input type="checkbox" id="regSelectAllChk"></th><th>姓名</th><th>電話</th><th>品項</th><th>數量</th><th>金額</th><th>收款狀態</th><th>照片</th>' +
       (occ.confirmFieldName ? "<th>" + occ.confirmFieldName + "</th>" : "") +
       "<th>登記時間</th><th>操作</th>";
     // renderRegTableHead rebuilds this checkbox fresh each render, so it needs its own listener each time
@@ -7870,6 +7894,7 @@
     document.getElementById("regSelectedCountPaid").textContent = count;
     document.getElementById("regMergedPreviewBtn").disabled = count < 1;
     document.getElementById("regNoticeBtn").disabled = count < 1;
+    document.getElementById("regPhotoBtn").disabled = count < 1;
     document.getElementById("regBulkPaidBtn").disabled = count < 1;
     var bulkDeleteBtn = document.getElementById("regBulkDeleteBtn");
     bulkDeleteBtn.disabled = count < 1;
@@ -7964,6 +7989,7 @@
         '<td class="num">' + qtyDisplay + '</td>' +
         '<td class="num">' + fmt(reg.amount) + '</td>' +
         '<td><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
+        '<td>' + regPhotoCell(reg) + '</td>' +
         (occ.confirmFieldName ? '<td><button class="paid-pill ' + (reg.confirmed ? "paid" : "unpaid") + '" data-act="confirm" data-id="' + reg.id + '">' + (reg.confirmed ? "已完成" : "未完成") + '</button></td>' : '') +
         '<td>' + formatRegTime(reg.time) + '</td>' +
         '<td class="row-actions"><button class="icon-btn" data-act="edit" data-id="' + reg.id + '">編輯</button><button class="icon-btn" data-act="del" data-id="' + reg.id + '">刪除</button></td>';
@@ -7982,6 +8008,8 @@
 
     if(act === "preview"){
       openRegPreview(id);
+    } else if(act === "photos"){
+      openRegPhoto([reg]);
     } else if(act === "paid"){
       toggleRegPaid(id);
     } else if(act === "confirm"){
@@ -10294,7 +10322,8 @@
     var occ = current();
     var groups = [];
     psBuyunRegs(occ).forEach(function(r){
-      var photos = psBuyun.photos.filter(function(p){ return p.regId === r.id; });
+      // v140 — 報名 id 是數字，點選按鈕存進來的是字串，要轉成字串比對（之前配好了卻永遠對不上）
+      var photos = psBuyun.photos.filter(function(p){ return p.regId != null && String(p.regId) === String(r.id); });
       if(photos.length) groups.push({ r: r, photos: photos });
     });
     return groups;
@@ -10394,6 +10423,184 @@
     psRedNameChanged(); psRedDraw(); psRenderRedOuts(); psRenderBuyunOuts(); psBuyunInfo(); psAiStatusText();
   }
 
+  /* ---- v140 登記清單「照片」欄＋「🖼 贊助照片傳送」 ----
+     把照片傳信徒配好的照片接到每筆報名：補運照片看 regId，紅紙圖片看姓名（產生時打的姓名有這筆報名的任一個姓名就算）。
+     勾選多筆（例如一家人）可以把全部照片合併成一張或分開傳給同一位。照片仍只在瀏覽器記憶體。 */
+  function regPhotoItems(reg){
+    var items = [];
+    psBuyun.photos.forEach(function(p){
+      if(p.regId != null && String(p.regId) === String(reg.id)) items.push({ kind: "buyun", src: p, label: "補運照片" });
+    });
+    var names = psSplitNames(reg.name);
+    psRed.outs.forEach(function(o){
+      var hit = psSplitNames(o.name).some(function(n){ return names.indexOf(n) >= 0; });
+      if(hit) o.files.forEach(function(f, k){ items.push({ kind: "red", src: o, k: k, label: "紅紙" }); });
+    });
+    return items;
+  }
+  function regPhotoSent(it){ return it.kind === "buyun" ? !!it.src.sent : !!it.src.sent; }
+  function regPhotoUrl(it){ return it.kind === "buyun" ? it.src.url : it.src.urls[it.k]; }
+  function regPhotoCell(reg){
+    // 換場次時照片還是上一場的，不顯示
+    if(!psState || !psBuyun || !psRed || psState.occId !== current().id) return '<span class="pdesc" style="margin:0;">—</span>';
+    var items = regPhotoItems(reg);
+    if(!items.length) return '<span class="pdesc" style="margin:0;">—</span>';
+    var unsent = items.filter(function(it){ return !regPhotoSent(it); }).length;
+    return '<button type="button" class="paid-pill ' + (unsent ? "unpaid" : "paid") + '" data-act="photos" data-id="' + reg.id + '" title="' + (unsent ? unsent + " 張還沒傳" : "已傳送") + '">📷 ' + items.length + (unsent ? " 未傳" : " ✅") + '</button>';
+  }
+
+  var regPhoto = { regs: [], items: [], off: [] };
+  function regPhotoChosen(){ return regPhoto.items.filter(function(it, i){ return !regPhoto.off[i]; }); }
+  function openRegPhoto(regs){
+    if(psState.occId !== current().id){ showToast("這個場次還沒有配好的照片，請先到場次操作「📷 照片傳信徒」配對"); return; }
+    regPhoto.regs = regs;
+    regPhoto.items = [];
+    regs.forEach(function(r){ regPhotoItems(r).forEach(function(it){
+      // 同一張紅紙圖片可能同時對到一家好幾筆報名，只放一次
+      if(!regPhoto.items.some(function(x){ return x.src === it.src && x.k === it.k; })){ it.reg = r; regPhoto.items.push(it); }
+    }); });
+    if(!regPhoto.items.length){ showToast("勾選的報名還沒有配好的照片，請先到場次操作「📷 照片傳信徒」配對"); return; }
+    regPhoto.off = [];
+    renderRegPhoto();
+    document.getElementById("regPhotoOverlay").style.display = "flex";
+  }
+  function renderRegPhoto(){
+    var body = document.getElementById("regPhotoBody");
+    var names = regPhoto.regs.map(function(r){ return r.name; }).join("、");
+    var chosenList = regPhotoChosen(), chosen = chosenList.length;
+    document.getElementById("regPhotoMarkBtn").textContent = chosen && chosenList.every(regPhotoSent) ? "改回未傳送" : "標為已傳送";
+    body.innerHTML = '<div style="font-weight:700; margin-bottom:6px;">' + escHtml(names) + '</div>' +
+      '<div class="pdesc" style="margin:0 0 8px;">共 ' + regPhoto.items.length + ' 張，已勾 ' + chosen + ' 張</div>' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+      regPhoto.items.map(function(it, i){
+        var on = !regPhoto.off[i], url = regPhotoUrl(it);
+        return '<button type="button" data-i="' + i + '" aria-pressed="' + (on ? "true" : "false") + '" style="position:relative; width:150px; padding:0; cursor:pointer; background:#f4efe6; border-radius:8px; border:' + (on ? "3px solid var(--cinnabar)" : "1px solid var(--border)") + '; opacity:' + (on ? "1" : ".45") + ';">' +
+          (url ? '<img src="' + url + '" alt="' + escAttr(it.label) + '" style="width:100%; height:150px; object-fit:contain; display:block;">' : '<div class="pdesc" style="height:150px;">讀取中…</div>') +
+          '<div style="font-size:.8rem; padding:3px 4px; text-align:left;">' + (on ? "✔ " : "") + escHtml(it.label) + '・' + escHtml(psSplitNames(it.reg.name)[0] || "") + '　' + (regPhotoSent(it) ? "✅" : '<span style="color:#b3261e;">未傳</span>') + '</div></button>';
+      }).join("") + '</div>';
+  }
+  document.getElementById("regPhotoBody").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-i]");
+    if(!b) return;
+    var i = +b.getAttribute("data-i");
+    regPhoto.off[i] = !regPhoto.off[i];
+    renderRegPhoto();
+  });
+  function regPhotoFiles(list){
+    return list.map(function(it, n){
+      if(it.kind === "red") return it.src.files[it.k];
+      return new File([it.src.blob], "補運_" + psSafeName(psSplitNames(it.reg.name).join("、")) + "_" + (n + 1) + ".jpg", { type: "image/jpeg" });
+    });
+  }
+  function regPhotoCanvas(it){
+    if(it.kind === "red") return Promise.resolve(it.src.canvases[it.k]);
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ var c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext("2d").drawImage(img, 0, 0); resolve(c); };
+      img.onerror = reject;
+      img.src = it.src.url;
+    });
+  }
+  // 格子排列合併（1 張原樣、2 張並排、3～4 張 2 欄、更多 3 欄），長邊縮到 2400 以內
+  function regPhotoMerged(list){
+    return Promise.all(list.map(regPhotoCanvas)).then(function(cs){
+      if(cs.length === 1) return cs[0];
+      var cols = cs.length <= 2 ? cs.length : (cs.length <= 4 ? 2 : 3);
+      var W = 800, GAP = 16, rowsH = [];
+      cs.forEach(function(c, i){ var r = Math.floor(i / cols); rowsH[r] = Math.max(rowsH[r] || 0, c.height * W / c.width); });
+      var out = document.createElement("canvas");
+      out.width = cols * W + (cols + 1) * GAP;
+      out.height = Math.round(rowsH.reduce(function(s, h){ return s + h; }, 0) + (rowsH.length + 1) * GAP);
+      var g = out.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, out.width, out.height);
+      var y = GAP;
+      rowsH.forEach(function(rh, r){
+        for(var k = 0; k < cols; k++){
+          var c = cs[r * cols + k]; if(!c) break;
+          g.drawImage(c, GAP + k * (W + GAP), y, W, c.height * W / c.width);
+        }
+        y += rh + GAP;
+      });
+      return out.width > 2400 || out.height > 2400 ? psScaled(out, 2400) : out;
+    });
+  }
+  function regPhotoMarkSent(list, to){
+    list.forEach(function(it){ it.src.sent = to; });
+    renderRegPhoto(); psRenderBuyunOuts(); psRenderRedOuts(); renderRegTable();
+  }
+  function regPhotoLabel(){ return regPhoto.regs.map(function(r){ return psSplitNames(r.name)[0] || ""; }).join("、"); }
+  function regPhotoNeed(){
+    var list = regPhotoChosen();
+    if(!list.length){ showToast("請至少勾一張照片"); return null; }
+    if(list.some(function(it){ return it.kind === "buyun" && !it.src.blob; })){ showToast("照片準備中，請再按一次"); return null; }
+    return list;
+  }
+  document.getElementById("regPhotoMergeCopyBtn").addEventListener("click", function(){
+    var list = regPhotoNeed(); if(!list) return;
+    var label = regPhotoLabel();
+    if(regNoticeIsMobile){
+      regPhotoMerged(list).then(function(c){ return psCanvasFile(c, "贊助照片_" + psSafeName(label) + ".jpg"); })
+        .then(function(f){ psShareFiles([f], label); regPhotoMarkSent(list, true); });
+      return;
+    }
+    // 電腦：按下當下就要寫剪貼簿（合併在 Promise 裡慢慢做），否則會被瀏覽器擋
+    if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)){
+      regPhotoMerged(list).then(function(c){ return psCanvasFile(c, "贊助照片_" + psSafeName(label) + ".jpg"); })
+        .then(function(f){ triggerBrowserDownload(f.name, f, f.type); showToast("這個瀏覽器不能複製圖片，已改下載，請到 LINE 選圖片傳送"); regPhotoMarkSent(list, true); });
+      return;
+    }
+    if(list.length > 1) showToast("正在合併圖片，請稍等…");
+    var png = regPhotoMerged(list).then(function(c){
+      var k = Math.min(1, 1600 / Math.max(c.width, c.height));
+      var o = document.createElement("canvas");
+      o.width = Math.round(c.width * k); o.height = Math.round(c.height * k);
+      var g = o.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(c, 0, 0, o.width, o.height);
+      return new Promise(function(r){ o.toBlob(r, "image/png"); });
+    });
+    navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(function(){
+      regPhotoMarkSent(list, true);
+      showToast("已把 " + list.length + " 張合併成一張並複製，到 LINE 打開信徒的聊天視窗，按 Ctrl+V 貼上再送出");
+    }).catch(function(){
+      regPhotoMerged(list).then(function(c){ return psCanvasFile(c, "贊助照片_" + psSafeName(label) + ".jpg"); })
+        .then(function(f){ triggerBrowserDownload(f.name, f, f.type); showToast("複製失敗，已改下載，請到 LINE 選圖片傳送"); regPhotoMarkSent(list, true); });
+    });
+  });
+  document.getElementById("regPhotoShareBtn").addEventListener("click", function(){
+    var list = regPhotoNeed(); if(!list) return;
+    var files = regPhotoFiles(list);
+    if(regNoticeIsMobile || files.length === 1){ psShareFiles(files, regPhotoLabel()); regPhotoMarkSent(list, true); return; }
+    files.forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); });
+    regPhotoMarkSent(list, true);
+    showToast("電腦一次只能複製一張，已下載 " + files.length + " 張，請到 LINE 選這些照片傳送（或改按「合併成一張」）");
+  });
+  document.getElementById("regPhotoMergeDlBtn").addEventListener("click", function(){
+    var list = regPhotoNeed(); if(!list) return;
+    var label = regPhotoLabel();
+    regPhotoMerged(list).then(function(c){ return psCanvasFile(c, "贊助照片_" + psSafeName(label) + "_合併.jpg"); })
+      .then(function(f){ triggerBrowserDownload(f.name, f, f.type); showToast("已下載合併的圖片"); regPhotoMarkSent(list, true); });
+  });
+  document.getElementById("regPhotoDlBtn").addEventListener("click", function(){
+    var list = regPhotoNeed(); if(!list) return;
+    regPhotoFiles(list).forEach(function(f){ triggerBrowserDownload(f.name, f, f.type); });
+    showToast("已下載 " + list.length + " 張");
+    regPhotoMarkSent(list, true);
+  });
+  document.getElementById("regPhotoMarkBtn").addEventListener("click", function(){
+    var list = regPhotoChosen(); if(!list.length) return;
+    regPhotoMarkSent(list, !list.every(regPhotoSent));
+  });
+  document.getElementById("regPhotoBtn").addEventListener("click", function(){
+    var occ = current();
+    openRegPhoto(occ.registrations.filter(function(r){ return selectedRegIds[r.id]; }));
+  });
+  (function(){
+    var ov = document.getElementById("regPhotoOverlay");
+    function close(){ ov.style.display = "none"; }
+    document.getElementById("regPhotoCloseBtn").addEventListener("click", close);
+    ov.addEventListener("click", function(e){ if(e.target === ov) close(); });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape" && ov.style.display !== "none") close(); });
+  })();
+
   function openPhotoSendModal(){
     var occ = current();
     // 換了場次：配對的報名、姓名都不一樣，清掉重來
@@ -10413,7 +10620,7 @@
   (function setupPhotoSendModal(){
     var overlay = document.getElementById("photoSendOverlay");
     // 不做「點外側關閉」：在照片上拖框時放開在框外，會誤關掉視窗
-    function close(){ overlay.style.display = "none"; }
+    function close(){ overlay.style.display = "none"; renderRegTable(); }
     document.getElementById("photoSendCloseBtn").addEventListener("click", close);
     document.addEventListener("keydown", function(e){ if(e.key === "Escape" && overlay.style.display !== "none") close(); });
     document.getElementById("psTabRed").addEventListener("click", function(){ psSetTab("red"); });
