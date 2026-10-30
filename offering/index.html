@@ -1120,7 +1120,7 @@
       <input type="checkbox" id="redPaperPaidOnly"> 只列出「已收款」的贊助者
     </label>
     <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.9rem;">
-      <input type="checkbox" id="redPaperTwo" style="margin-top:4px;"> <span><b>分成兩張 A3</b>：品項依順序分成兩張（報名姓名與數量各自排在自己那張，兩張筆數差不多），每欄 6 格、字放到 A3 放得下的最大；兩張都印標題</span>
+      <input type="checkbox" id="redPaperTwo" style="margin-top:4px;"> <span><b>分成兩張 A3</b>：品項依順序分成兩張（報名姓名與數量各自排在自己那張，兩張筆數差不多），每欄 5 格、字放到 A3 放得下的最大；供品品名和右邊四行標題字放大；兩張都印標題</span>
     </label>
     <p class="pdesc" id="redPaperSummary" style="margin-top:10px;"></p>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
@@ -1428,7 +1428,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v158";
+  var APP_VERSION = "v159";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1439,6 +1439,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v159", date: "2026-10-30", changes: [
+      "紅紙 A3「分成兩張」：每欄改成最多 5 格",
+      "紅紙 A3「分成兩張」：供品品名字放大、品名那一列加長；右邊四行標題（古亭院、恭祝、主標題、祝壽供品）和日期隨名單字級放大，比較醒目"
+    ]},
     { version: "v158", date: "2026-10-30", changes: [
       "LINE 小幫手待確認：信徒只傳姓名，或寫「同去年」「跟去年一樣」，按「帶入下方解析」會自動帶出去年的品項和數量（依「目前參考」），仍記得是哪則 LINE 訊息，登記後可以小幫手私訊；只寫「同去年」沒寫姓名時用 LINE 名稱找"
     ]},
@@ -2267,16 +2271,19 @@
   var HEAD_W = HEAD_COLS.reduce(function(s, c){ return s + c.w; }, 0) + 10;
 
   // 某個「字級 / 每欄格數 / 一格放幾個字 / 品名區高度」的組合，算出整張紙的內容尺寸
-  function planLayout(data, namePt, R, maxch){
+  // v159 — opt.big（分兩張時）：品名列加高、品名字放大；右邊四行標題（古亭院／恭祝／主標題／祝壽供品）隨名單字級放大並加寬
+  function planLayout(data, namePt, R, maxch, opt){
+    opt = opt || {};
     var qtyPt = Math.round(namePt * 0.85);
     var nameRowH = maxch * namePt * NAME_STEP + 4;
     var qtyRowH = qtyPt * 1.45 + 2;
     var gapH = 2;
     var slotH = nameRowH + qtyRowH + gapH;
-    var headMax = namePt + 2;
+    var headMax = opt.big ? Math.round(namePt * 1.3) : namePt + 2;
     var maxNameChars = data.items.reduce(function(m, it){ return Math.max(m, chars(headName(it.name))); }, 2);
     // 品名區高度：讓最長的品名也能用到約 7 成字級（短品名用最大字級），上限 300pt
-    var headBudget = Math.min(300, Math.max(110, maxNameChars * namePt * 0.7 * STEP));
+    var headBudget = opt.big ? Math.min(900, Math.max(160, Math.min(maxNameChars, 5) * namePt * 1.05 * STEP))
+      : Math.min(300, Math.max(110, maxNameChars * namePt * 0.7 * STEP));
     var fontFor = function(n){ return Math.max(11, Math.min(headMax, Math.floor(headBudget / (Math.max(n, 1) * STEP)))); };
     var headNameH = Math.min(headBudget + 12, maxNameChars * fontFor(maxNameChars) * STEP + 12);
     var totalH = (qtyPt + 2) * 1.5 + 2, unitH = qtyPt * 1.5 + 2, topGap = 5;
@@ -2291,11 +2298,22 @@
     // v118 — 佛號分列時，各師尊大壽金上方多一行群組標題（各大師尊大壽金　共 N 捆）
     var groupH = data.items.some(function(it){ return it.group; }) ? (qtyPt + 2) * 1.6 + 4 : 0;
     var contentH = groupH * 2 + headNameH + totalH + unitH + topGap + R * slotH;
-    var contentW = HEAD_W + items.reduce(function(s, pi){
+    // 右邊四行標題字級：一般維持 72／日期 48；分兩張時約名單字級的 1.9 倍，但不超過格子高度放得下的大小
+    var headPt = HEAD_PT, datePt = DATE_PT, headW = HEAD_W, headWs = HEAD_COLS.map(function(c){ return c.w; });
+    if(opt.big){
+      var fitPt = function(txt, boxPt){ return Math.floor(boxPt / (Math.max(chars(txt), 1) * 1.45)); };
+      var temple = (data.temple || "古亭院").split("").join("  ");
+      headPt = Math.max(HEAD_PT, Math.min(Math.round(namePt * 1.9), fitPt(data.title || "", contentH), fitPt(temple, contentH * 0.62),
+        fitPt("恭  祝", contentH * 0.26), fitPt(data.pinText || "祝壽供品", contentH * 0.44)));
+      datePt = Math.max(DATE_PT, Math.min(Math.round(headPt * 0.67), fitPt(data.dateText || "　", contentH * 0.38)));
+      headWs = [headPt + 16, headPt + 16, headPt + 16, Math.max(headPt, datePt) + 22];
+      headW = headWs.reduce(function(a, b){ return a + b; }, 0) + 10;
+    }
+    var contentW = headW + items.reduce(function(s, pi){
       return s + pi.cols.reduce(function(w, col){ return w + pi.colW * (colIsWide(col) ? 2 : 1); }, 0);
     }, 0);
     return { namePt: namePt, qtyPt: qtyPt, R: R, maxch: maxch, nameRowH: nameRowH, qtyRowH: qtyRowH, gapH: gapH, slotH: slotH,
-      groupH: groupH, headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
+      groupH: groupH, headPt: headPt, datePt: datePt, headWs: headWs, headNameH: headNameH, totalH: totalH, unitH: unitH, topGap: topGap, items: items, contentH: contentH, contentW: contentW, fontFor: fontFor };
   }
 
   // 在所有組合裡找「印出來字最大」的（字級 × 縮放比例）。縮放比例 ＝ 內容塞進一張 A3 所需縮小的倍數。
@@ -2310,7 +2328,7 @@
       var rMax = opt.R ? opt.R : Math.max(26, need), rMin = Math.min(need, rMax);
       for(var namePt = 14; namePt <= maxPt; namePt++){
         for(var R = rMin; R <= rMax; R++){
-          var p = planLayout(data, namePt, R, maxch);
+          var p = planLayout(data, namePt, R, maxch, opt);
           var scale = Math.min(PAGE_W / p.contentW, PAGE_H / p.contentH, 1);
           all.push({ p: p, scale: scale, printed: namePt * scale });
         }
@@ -2348,7 +2366,7 @@
       itemCols[i] = { c1: c1, c2: col - 1, map: colMap };
     }
     sh.colWidths[col] = ptToChars(10); col++;
-    var headC = {}; ["pin", "title", "zhu", "yuan"].forEach(function(key, idx){ headC[key] = col; sh.colWidths[col] = ptToChars(HEAD_COLS[idx].w); col++; });
+    var headC = {}; ["pin", "title", "zhu", "yuan"].forEach(function(key, idx){ headC[key] = col; sh.colWidths[col] = ptToChars(p.headWs[idx]); col++; });
     var lastCol = col - 1;
 
     // 列：1 品名、2 總量、3 單位、4 空隙、之後每個格位 3 列（姓名、數量、細縫）
@@ -2430,17 +2448,17 @@
     var spec = function(sz){ return { font: f(sz), h: "center", v: "center", rot: 255, border: false }; };
     var temple = (data.temple || "古亭院").split("").join("  ");
     var yuanRows = rowForPt(totalPt * 0.62);
-    putMerged(1, headC.yuan, yuanRows, headC.yuan, temple, spec(vtext(temple, rowTop(yuanRows + 1), HEAD_PT)));
+    putMerged(1, headC.yuan, yuanRows, headC.yuan, temple, spec(vtext(temple, rowTop(yuanRows + 1), p.headPt)));
     if(yuanRows < lastRow){
       var dateTxt = data.dateText || "";
-      putMerged(yuanRows + 1, headC.yuan, lastRow, headC.yuan, dateTxt, spec(vtext(dateTxt || "　", totalPt - rowTop(yuanRows + 1), DATE_PT)));
+      putMerged(yuanRows + 1, headC.yuan, lastRow, headC.yuan, dateTxt, spec(vtext(dateTxt || "　", totalPt - rowTop(yuanRows + 1), p.datePt)));
     }
     var zhuRows = rowForPt(totalPt * 0.26);
-    putMerged(1, headC.zhu, zhuRows, headC.zhu, "恭  祝", spec(vtext("恭  祝", rowTop(zhuRows + 1), HEAD_PT)));
+    putMerged(1, headC.zhu, zhuRows, headC.zhu, "恭  祝", spec(vtext("恭  祝", rowTop(zhuRows + 1), p.headPt)));
     if(zhuRows < lastRow) putMerged(zhuRows + 1, headC.zhu, lastRow, headC.zhu, "", spec(20));
-    putMerged(1, headC.title, lastRow, headC.title, data.title || "", spec(vtext(data.title || "", totalPt, HEAD_PT)));
+    putMerged(1, headC.title, lastRow, headC.title, data.title || "", spec(vtext(data.title || "", totalPt, p.headPt)));
     var pinRows = rowForPt(totalPt * 0.44);
-    putMerged(1, headC.pin, pinRows, headC.pin, data.pinText || "祝壽供品", spec(vtext(data.pinText || "祝壽供品", rowTop(pinRows + 1), HEAD_PT)));
+    putMerged(1, headC.pin, pinRows, headC.pin, data.pinText || "祝壽供品", spec(vtext(data.pinText || "祝壽供品", rowTop(pinRows + 1), p.headPt)));
     if(pinRows < lastRow) putMerged(pinRows + 1, headC.pin, lastRow, headC.pin, "", spec(20));
 
     sh.info = { scale: L.scale, namePt: namePt, qtyPt: qtyPt, R: R, maxch: p.maxch, cols: lastCol, rows: lastRow, contentW: p.contentW, contentH: p.contentH, printedPt: L.printed };
@@ -2460,10 +2478,11 @@
   }
   // v151 — 分成多張 A3：每張各自排版（字級各自放到最大），工作表「第1張-有格線」「第1張-無格線」…
   // v152 — 小朱：每欄改 6 格，版面撐到 A3 最大
+  // v159 — 小朱：每欄改 5 格；品名字放大、品名列加長；右邊四行標題放大
   function buildRedPaperXlsxBytesParts(parts){
     var styles = new StyleBook(), sheets = [], info = [];
     parts.forEach(function(data, i){
-      var layout = chooseLayout(data, { R: 6, maxPt: 80 });
+      var layout = chooseLayout(data, { R: 5, maxPt: 80, big: true });
       var a = makeSheet(data, true, styles, "第" + (i + 1) + "張-有格線", layout);
       var b = makeSheet(data, false, styles, "第" + (i + 1) + "張-無格線", layout);
       sheets.push(a, b); info.push(a.info, b.info);
