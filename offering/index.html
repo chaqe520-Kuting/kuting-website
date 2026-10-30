@@ -1428,7 +1428,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v159";
+  var APP_VERSION = "v160";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1439,6 +1439,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v160", date: "2026-10-30", changes: [
+      "紅紙 A3「分成兩張」：超過 6 個字的品名（例：古亭院素三牲＋大壽金1捆）分成兩行直書（右行先讀，優先在「＋」「的」後面分開，例：莊恩柔家中的／菩賢菩薩），字可以放大"
+    ]},
     { version: "v159", date: "2026-10-30", changes: [
       "紅紙 A3「分成兩張」：每欄改成最多 5 格",
       "紅紙 A3「分成兩張」：供品品名字放大、品名那一列加長；右邊四行標題（古亭院、恭祝、主標題、祝壽供品）和日期隨名單字級放大，比較醒目"
@@ -2264,7 +2267,18 @@
     var h = Math.ceil(cs.length / 2);
     return [cs.slice(0, h).join(""), cs.slice(h).join("")];
   }
-  function colIsWide(col){ return col.some(function(e){ return e.lines; }); }
+  function colIsWide(col){ return !!col.forceWide || col.some(function(e){ return e.lines; }); }
+  // v160 — 分兩張時，超過 6 個字的品名（例「古亭院素三牲＋大壽金1捆」）分兩行直書：右行先讀，優先在「＋」「、」「的」後面分開（例「莊恩柔家中的／菩賢菩薩」）
+  function itemNameLines(name, big){
+    var n = String(name || "");
+    if(!big || chars(n) <= 6) return [headName(n)];
+    var cs = Array.prototype.slice.call(n), h = Math.ceil(cs.length / 2), best = -1, bestD = Infinity;
+    cs.forEach(function(ch, i){
+      if(/[＋+、，,的－-]/.test(ch) && i > 0 && i < cs.length - 1){ var d = Math.abs((i + 1) - (cs.length - i - 1)); if(d < bestD){ bestD = d; best = i + 1; } }
+    });
+    if(best > 0 && bestD <= Math.ceil(cs.length / 3)) h = best;
+    return [cs.slice(0, h).join(""), cs.slice(h).join("")];
+  }
 
   // 標題欄（由左到右）：祝壽供品 ／ 主標題 ／ 恭祝 ／ 古亭院
   var HEAD_COLS = [{ w: 86 }, { w: 86 }, { w: 86 }, { w: 92 }]; // v83：欄寬放到 72 號字的寬度，避免左右被切
@@ -2280,7 +2294,7 @@
     var gapH = 2;
     var slotH = nameRowH + qtyRowH + gapH;
     var headMax = opt.big ? Math.round(namePt * 1.3) : namePt + 2;
-    var maxNameChars = data.items.reduce(function(m, it){ return Math.max(m, chars(headName(it.name))); }, 2);
+    var maxNameChars = data.items.reduce(function(m, it){ return Math.max(m, itemNameLines(it.name, opt.big).reduce(function(a, l){ return Math.max(a, chars(l)); }, 0)); }, 2);
     // 品名區高度：讓最長的品名也能用到約 7 成字級（短品名用最大字級），上限 300pt
     var headBudget = opt.big ? Math.min(900, Math.max(160, Math.min(maxNameChars, 5) * namePt * 1.05 * STEP))
       : Math.min(300, Math.max(110, maxNameChars * namePt * 0.7 * STEP));
@@ -2293,7 +2307,13 @@
       it.entries.forEach(function(e){ digits = Math.max(digits, String(e.qty).length); });
       var colW = Math.max(namePt + 6, digits * qtyPt * 0.6 + 6);
       if(cols.length === 1) colW = Math.max(colW, fmtNum(it.total).length * (qtyPt + 2) * 0.62 + 8, chars(it.unit || "") * qtyPt + 8);
-      return { item: it, cols: cols, colW: colW };
+      var nameLines = itemNameLines(it.name, opt.big);
+      // 品名分兩行：只有一個 Excel 欄的品項改成兩倍寬，左右各放一行
+      if(nameLines.length === 2){
+        var excelCols = cols.reduce(function(w, col){ return w + (colIsWide(col) ? 2 : 1); }, 0);
+        if(excelCols < 2) cols[0].forceWide = true;
+      }
+      return { item: it, cols: cols, colW: colW, nameLines: nameLines };
     });
     // v118 — 佛號分列時，各師尊大壽金上方多一行群組標題（各大師尊大壽金　共 N 捆）
     var groupH = data.items.some(function(it){ return it.group; }) ? (qtyPt + 2) * 1.6 + 4 : 0;
@@ -2385,12 +2405,21 @@
 
     p.items.forEach(function(pi, idx){
       var cc = itemCols[idx], it = pi.item;
-      var hf = p.fontFor(chars(headName(it.name)));
+      var lines = pi.nameLines || [headName(it.name)];
+      var hf = p.fontFor(lines.reduce(function(a, l){ return Math.max(a, chars(l)); }, 0));
       // 沒有群組的品項，品名往上併用群組標題那一列
       var nmTop = it.group ? 1 + G : 1;
       var nmBoxH = 0; for(var hr = nmTop; hr <= 1 + G; hr++) nmBoxH += sh.rowHeights[hr] || 0;
-      var nm = spreadName(it.name, nmBoxH, hf);
-      putMerged(nmTop, cc.c1, 1 + G, cc.c2, nm, { font: f(hf), h: "center", v: "top", rot: 255, border: B });
+      if(lines.length === 2 && cc.c2 > cc.c1){
+        // 右邊那一半的 Excel 欄放第一行（先讀），左邊放第二行
+        var mid = cc.c1 + Math.floor((cc.c2 - cc.c1 + 1) / 2);
+        var hSpec = { font: f(hf), h: "center", v: "top", rot: 255, border: B };
+        putMerged(nmTop, mid, 1 + G, cc.c2, lines[0], hSpec);
+        putMerged(nmTop, cc.c1, 1 + G, mid - 1, lines[1], hSpec);
+      } else {
+        var nm = spreadName(it.name, nmBoxH, hf);
+        putMerged(nmTop, cc.c1, 1 + G, cc.c2, nm, { font: f(hf), h: "center", v: "top", rot: 255, border: B });
+      }
       putMerged(2 + G, cc.c1, 2 + G, cc.c2, it.total > 0 ? it.total : null, { font: f(qtyPt + 2), h: "center", v: "center", border: B, numFmt: 3, shrink: true });
       putMerged(3 + G, cc.c1, 3 + G, cc.c2, it.unit || "", { font: f(qtyPt), h: "center", v: "center", border: B, shrink: true });
       pi.cols.forEach(function(colEntries, ci){
