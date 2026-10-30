@@ -1423,7 +1423,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v155";
+  var APP_VERSION = "v156";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1434,6 +1434,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v156", date: "2026-10-30", changes: [
+      "「📥 匯入去年登記 Excel」也能讀平台自己「匯出 Excel」的登記清單（一行一筆）：「各師尊大壽金－玄天上帝」會拆成品項和敬致仙佛，補運、補運地址一起帶入",
+      "平台裡已經有的場次不用匯入：開了下一場以後，打姓名帶出去年就會直接用到；匯入時會先提醒"
+    ]},
     { version: "v155", date: "2026-10-30", changes: [
       "修正「📥 匯入去年登記 Excel」：登記表寫「每顆30元」「一份 2000元」的品項，以前被當成整組一個價錢，數量變成 0.0769 這種小數；現在數量照 Excel 原樣（115 六月十九登記表合計 191,060 元，和 Excel 一致）",
       "各師尊大壽金寫成「玄天上帝(卓梅香)」時，括號內當姓名、括號外當敬致仙佛",
@@ -7568,6 +7572,51 @@
     }
     return { title: title, items: items, regs: regs };
   }
+  // v156 — 平台自己「匯出 Excel」的登記清單（一行一筆：姓名、電話、品項、數量、金額、收款狀態、補運、補運地址…）。
+  // 品項「17、各師尊大壽金－玄天上帝」拆成品項＋敬致仙佛；數量「4捆」「20,000元」取數字，單位取後面的字。
+  function parseExportSheet(rows, sheetName){
+    var out = { title: String(sheetName || "").trim(), items: [], regs: [], isExport: true };
+    var h = -1, col = {};
+    for(var i = 0; i < Math.min(rows.length, 10); i++){
+      var r = (rows[i] || []).map(function(c){ return String(c).trim(); });
+      if(r.indexOf("姓名") >= 0 && r.indexOf("品項") >= 0 && r.indexOf("數量") >= 0){
+        h = i;
+        ["姓名", "品項", "數量", "金額", "補運", "補運地址"].forEach(function(k){ col[k] = r.indexOf(k); });
+        break;
+      }
+    }
+    if(h < 0) return out;
+    var byKey = {};
+    for(var j = h + 1; j < rows.length; j++){
+      var row = rows[j] || [];
+      var name = String(row[col["姓名"]] == null ? "" : row[col["姓名"]]).trim();
+      var label = String(row[col["品項"]] == null ? "" : row[col["品項"]]).trim();
+      if(!name || !label) continue; // 最後的合計列
+      var m = label.match(/^(\d+)\s*[、.．]\s*(.*)$/);
+      var no = m ? m[1] : "", rest = m ? m[2] : label;
+      var dd = rest.split(/\s*[－—]\s*/);
+      var itemName = dd[0].trim(), dedicateTo = dd.length > 1 ? dd.slice(1).join("－").trim() : "";
+      var qtyText = String(row[col["數量"]] == null ? "" : row[col["數量"]]).trim();
+      var qty = parseFloat(qtyText.replace(/[,，\s]/g, "")) || 1;
+      var unit = qtyText.replace(/^[\d,，.\s]+/, "").trim();
+      var amount = col["金額"] >= 0 ? parseFloat(String(row[col["金額"]]).replace(/[,，$\s]/g, "")) || 0 : 0;
+      var key = (no || "") + "|" + itemName;
+      var it = byKey[key];
+      if(!it){
+        it = byKey[key] = { no: no || String(out.items.length + 1), name: itemName, dedicateTo: "", price: amount && qty ? Math.round(amount / qty * 100) / 100 : 0, unit: unit, desc: itemName, setOf: 0 };
+        out.items.push(it);
+      }
+      if(!it.price && amount && qty) it.price = Math.round(amount / qty * 100) / 100;
+      out.regs.push({
+        name: name, item: it, qty: qty, dedicateTo: dedicateTo,
+        buyunName: col["補運"] >= 0 ? String(row[col["補運"]] || "").trim() : "",
+        buyunAddr: col["補運地址"] >= 0 ? String(row[col["補運地址"]] || "").trim() : ""
+      });
+    }
+    out.items.forEach(function(it){ if(!it.price){ it.price = 1; it.unit = it.unit || "元"; } });
+    return out;
+  }
+
   document.getElementById("histImportBtn").addEventListener("click", function(){
     if(!fsCanEdit() || !fsReady){ showToast("請先用志工帳號登入後台"); return; }
     document.getElementById("histImportFile").click();
@@ -7579,11 +7628,13 @@
     Promise.all([histEnsureSheetJs(), file.arrayBuffer()]).then(function(res){
       var wb = res[0].read(new Uint8Array(res[1]), { type: "array" });
       var sheets = wb.SheetNames.map(function(sn){
-        var p = parseHistSheet(res[0].utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" }));
+        var rows = res[0].utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" });
+        var p = parseHistSheet(rows);
+        if(!p.regs.length) p = parseExportSheet(rows, sn); // v156 平台「匯出 Excel」的登記清單
         p.sheet = sn;
         return p;
       }).filter(function(p){ return p.regs.length; });
-      if(!sheets.length){ showToast("這個檔案找不到「姓名／數量」登記表格，請確認是供品登記 Excel"); return; }
+      if(!sheets.length){ showToast("這個檔案找不到「姓名／品項／數量」，請確認是供品登記 Excel 或平台匯出的登記清單"); return; }
       var pick = sheets[0];
       if(sheets.length > 1){
         var ans = prompt("這個檔案有 " + sheets.length + " 個登記工作表，要匯入哪一個？請輸入編號：\n" +
@@ -7607,6 +7658,9 @@
     if(!label){ showToast("請輸入場次名稱"); return; }
     // v155 — 同名的歷史場次重新匯入時直接取代（v126 匯入的數量算錯，要讓小朱重匯一次就好，不用先刪場次）
     var replaceOcc = occasions.filter(function(x){ return x.history && x.label === label; })[0] || null;
+    // v156 — 平台匯出的檔案：這場的報名本來就在平台裡，開了下一場以後「打姓名帶出去年」就會直接用到
+    var sameLive = p.isExport && occasions.filter(function(x){ return !x.history && p.title && x.label.indexOf(p.title) === 0; })[0];
+    if(sameLive && !replaceOcc && !confirm("這個檔案是平台匯出的「" + sameLive.label + "」，這場的報名本來就在平台裡：開了下一場以後，打姓名帶出去年就會直接用到，不用匯入。\n\n如果現在就要拿它來參考（例如還在這場裡打姓名測試），可以按「確定」匯入一份歷史資料。")) return;
     if(replaceOcc){
       if(!confirm("已經有同名的歷史場次「" + label + "」，要用這次的 Excel 取代它嗎？\n（舊的歷史登記會全部換成這次讀到的資料，今年的場次不受影響）")) return;
     } else if(occasions.some(function(x){ return x.label === label; }) && !confirm("已經有同名的場次「" + label + "」，確定要再匯入一份嗎？")) return;
@@ -7636,7 +7690,7 @@
       o.registrations.push({
         id: base + k, name: r.name, phone: "", catId: it.id, label: it.no + "、" + it.name, type: "item",
         qty: r.qty, unitPrice: it.price, amount: amount, paid: false, confirmed: false,
-        dedicateTo: r.dedicateTo || r.item.dedicateTo || "", buyunName: "", buyunAddr: "", time: "", source: "history"
+        dedicateTo: r.dedicateTo || r.item.dedicateTo || "", buyunName: r.buyunName || "", buyunAddr: r.buyunAddr || "", time: "", source: "history"
       });
     });
     o.items.forEach(function(it){ it.total = it.sponsored; });
