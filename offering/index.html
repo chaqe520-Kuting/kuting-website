@@ -1428,7 +1428,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v160";
+  var APP_VERSION = "v161";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1439,6 +1439,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v161", date: "2026-10-30", changes: [
+      "LINE 小幫手待確認：「跟上次一樣」「跟之前一樣」「上次一樣」「照舊」也當成同去年，帶入解析時帶出去年的品項；「我叫朱士仁，跟去年一樣」會認出姓名朱士仁"
+    ]},
     { version: "v160", date: "2026-10-30", changes: [
       "紅紙 A3「分成兩張」：超過 6 個字的品名（例：古亭院素三牲＋大壽金1捆）分成兩行直書（右行先讀，優先在「＋」「的」後面分開，例：莊恩柔家中的／菩賢菩薩），字可以放大"
     ]},
@@ -8031,14 +8034,14 @@
     });
   }
 
-  var HIST_SAME_RE = /(同|跟|和|照|如)\s*(去年|上次|上一次|往年)(一樣|相同|的)?|去年(一樣|同樣)/;
+  var HIST_SAME_RE = /(同|跟|和|照|如)\s*(去年|上次|上一次|上回|上一回|上一屆|之前|以前|前年|往年|往常)(一樣|相同|同樣|的)?|(去年|上次|上一次|上回|之前|以前|前年|往年)\s*(一樣|同樣|相同)|照舊/; // v161 加上次／之前／照舊等說法
   // 回傳要帶出去年報名的姓名；不是這種訊息回傳 null
   function lineInboxHistNames(text, m){
     var lines = String(text || "").split("\n").map(function(l){ return normalizeLine(l.trim()); }).filter(Boolean);
     if(!lines.length) return null;
     var same = HIST_SAME_RE.test(lines.join(" "));
     if(!same && !histAllNameLines(lines)) return null;
-    var rest = lines.join(" ").replace(HIST_SAME_RE, " ").replace(/(報名|贊助|供品|麻煩|謝謝|感恩|師姐|師兄|您好|你好|請|幫我|幫忙)/g, " ");
+    var rest = lines.join(" ").replace(HIST_SAME_RE, " ").replace(/(我叫|我是|我的名字是?|名字是?|姓名|報名|贊助|供品|麻煩|謝謝|感恩|師姐|師兄|您好|你好|請|幫我|幫忙|一樣|同樣)/g, " ");
     var names = histSplitNames(rest).filter(function(t){ return /^[\u4e00-\u9fff]{2,5}$/.test(t) && !resolveItemToken(t, current()); });
     if(names.length) return names;
     if(!same) return null;
