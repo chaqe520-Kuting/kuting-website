@@ -1423,8 +1423,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v154";
-  var APP_UPDATED = "2026-10-29";
+  var APP_VERSION = "v155";
+  var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1434,6 +1434,11 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v155", date: "2026-10-30", changes: [
+      "修正「📥 匯入去年登記 Excel」：登記表寫「每顆30元」「一份 2000元」的品項，以前被當成整組一個價錢，數量變成 0.0769 這種小數；現在數量照 Excel 原樣（115 六月十九登記表合計 191,060 元，和 Excel 一致）",
+      "各師尊大壽金寫成「玄天上帝(卓梅香)」時，括號內當姓名、括號外當敬致仙佛",
+      "同名的歷史場次再匯入一次會直接取代舊的（不用先刪場次）；已匯入的 115 六月十九請用同一個 Excel 重新匯入一次"
+    ]},
     { version: "v154", date: "2026-10-29", changes: [
       "紅紙 A3「分成兩張」：太長的聯名不再縮小字，改成分兩行直書（右行先讀、以「、」平均分開），那一欄變兩倍寬；每欄仍最多 6 格"
     ]},
@@ -7500,9 +7505,12 @@
     var prices = desc.match(/(\d[\d,]*)\s*元/g);
     if(prices) info.price = parseFloat(prices[prices.length - 1].replace(/[^\d.]/g, "")) || 0;
     else { var tail = desc.match(/1\s*\D\s*(\d[\d,]*)\s*$/); if(tail) info.price = parseFloat(tail[1].replace(/,/g, "")) || 0; }
-    var u = desc.match(/1\s*([^\d\s元*＊:：︰,，])\s*\d[\d,]*\s*元/) || desc.match(/[:：︰]\s*[\d,一二三四五六七八九十兩]+\s*([^\d\s元,，])/);
+    // v155 — 單價寫法有「1串15元」「每串15元」「一份 2000元」三種（115 六月十九的登記表用「每」，
+    // v126 只認「1」，結果每個品項都被當成整組一個價錢，數量被除成 0.0769 這種小數）
+    var u = desc.match(/(?:1|一|每)\s*([^\d\s元*＊:：︰,，])\s*\d[\d,]*\s*元/) || desc.match(/[:：︰]\s*[\d,一二三四五六七八九十兩]+\s*([^\d\s元,，])/);
     info.unit = u ? u[1] : "";
-    info.perUnit = /(^|[^\d])1\s*[^\d\s元]\s*[\d,]+\s*(元|$)/.test(desc);
+    info.perUnit = /(^|[^\d])(?:1|一|每)\s*[^\d\s元]\s*[\d,]+\s*(元|$)/.test(desc);
+    if(/共\s*[\d,]+\s*元/.test(desc)) info.unit = "組"; // 「紅湯圓：136碗 共 1500元」
     info.hasCount = /\d\s*[^\d\s元,，.]/.test(desc.replace(/\d[\d,]*\s*元/g, ""));
     if(!info.price){ info.price = 1; info.unit = "元"; } // 祝壽金這種只寫金額的
     return info;
@@ -7541,6 +7549,13 @@
         var nm = String(r[k] == null ? "" : r[k]).replace(/\s+/g, " ").trim();
         if(!nm || /^[\d,.$\s]+$/.test(nm)) continue;
         var qv = parseFloat(String(q[k] == null ? "" : q[k]).replace(/[,，\s]/g, ""));
+        // v155 — 各師尊大壽金寫成「玄天上帝(卓梅香)」：括號外是仙佛、括號內是姓名，每格各自一筆
+        var dm = cur.name === "各師尊大壽金" && nm.match(/^(.+?)\s*[（(]\s*(.+?)\s*[)）]$/);
+        if(dm){
+          last = { name: dm[2], item: cur, qty: isNaN(qv) || qv <= 0 ? 1 : qv, dedicateTo: dm[1] };
+          regs.push(last);
+          continue;
+        }
         if(isNaN(qv) || qv <= 0){
           if(last){ last.name += "、" + nm; continue; }
           qv = 1;
@@ -7590,10 +7605,15 @@
     if(label == null) return;
     label = label.trim();
     if(!label){ showToast("請輸入場次名稱"); return; }
-    if(occasions.some(function(o){ return o.label === label; }) && !confirm("已經有同名的場次「" + label + "」，確定要再匯入一份嗎？")) return;
+    // v155 — 同名的歷史場次重新匯入時直接取代（v126 匯入的數量算錯，要讓小朱重匯一次就好，不用先刪場次）
+    var replaceOcc = occasions.filter(function(x){ return x.history && x.label === label; })[0] || null;
+    if(replaceOcc){
+      if(!confirm("已經有同名的歷史場次「" + label + "」，要用這次的 Excel 取代它嗎？\n（舊的歷史登記會全部換成這次讀到的資料，今年的場次不受影響）")) return;
+    } else if(occasions.some(function(x){ return x.label === label; }) && !confirm("已經有同名的場次「" + label + "」，確定要再匯入一份嗎？")) return;
 
     // 品項：一尊一列的師尊大壽金併成一項「各師尊大壽金」，其他照原本項次
     var o = makeDefaultOccasion(label);
+    if(replaceOcc) o.id = replaceOcc.id;
     o.status = "closed";
     o.history = true;
     o.notes = "從 Excel 匯入的歷史資料（" + p.sheet + "），只供「打姓名帶出去年報名」參考";
@@ -7616,13 +7636,13 @@
       o.registrations.push({
         id: base + k, name: r.name, phone: "", catId: it.id, label: it.no + "、" + it.name, type: "item",
         qty: r.qty, unitPrice: it.price, amount: amount, paid: false, confirmed: false,
-        dedicateTo: r.item.dedicateTo || "", buyunName: "", buyunAddr: "", time: "", source: "history"
+        dedicateTo: r.dedicateTo || r.item.dedicateTo || "", buyunName: "", buyunAddr: "", time: "", source: "history"
       });
     });
     o.items.forEach(function(it){ it.total = it.sponsored; });
     o.regSeq = o.registrations.length + 1;
     buildCatalog(o);
-    if(!confirm("要新增歷史場次「" + label + "」嗎？\n\n" + o.items.length + " 個品項、" + o.registrations.length + " 筆登記，合計 " + total.toLocaleString() + " 元。\n\n" +
+    if(!confirm("要" + (replaceOcc ? "取代" : "新增") + "歷史場次「" + label + "」嗎？\n\n" + o.items.length + " 個品項、" + o.registrations.length + " 筆登記，合計 " + total.toLocaleString() + " 元。\n\n" +
       "歷史場次是「已關閉」狀態，信眾看不到也不能報名，只給「打姓名帶出去年報名」參考。匯入後可在「法會場次管理」點這個場次查看或刪除。")) return;
 
     showToast("正在匯入 " + o.registrations.length + " 筆歷史登記…");
@@ -7633,7 +7653,17 @@
     o.items.forEach(function(it){ first.set(occRef.collection("items").doc(it.id), it); });
     var chunks = [];
     for(var i = 0; i < o.registrations.length; i += 400) chunks.push(o.registrations.slice(i, i + 400));
-    first.commit().then(function(){
+    // 取代時先刪掉舊的品項與登記（每批最多 400 筆），再寫入新的
+    var clearOld = !replaceOcc ? Promise.resolve() : Promise.all([occRef.collection("registrations").get(), occRef.collection("items").get()]).then(function(snaps){
+      var refs = [];
+      snaps.forEach(function(sn){ sn.forEach(function(d){ refs.push(d.ref); }); });
+      var parts = [];
+      for(var j = 0; j < refs.length; j += 400) parts.push(refs.slice(j, j + 400));
+      return parts.reduce(function(chain, part){
+        return chain.then(function(){ var b = fsDb.batch(); part.forEach(function(ref){ b.delete(ref); }); return b.commit(); });
+      }, Promise.resolve());
+    });
+    clearOld.then(function(){ return first.commit(); }).then(function(){
       return chunks.reduce(function(chain, part){
         return chain.then(function(){
           var b = fsDb.batch();
@@ -7644,9 +7674,11 @@
     }).then(function(){
       histRegCache[o.id] = o.registrations;
       markOccConfirmed(o.id);
-      if(!occasions.some(function(x){ return x.id === o.id; })) occasions.push(o);
+      var at = -1;
+      occasions.forEach(function(x, idx){ if(x.id === o.id) at = idx; });
+      if(at >= 0) occasions[at] = o; else occasions.push(o);
       renderOccasionChips();
-      showToast("已匯入歷史場次「" + label + "」（" + o.registrations.length + " 筆），現在可以打姓名帶出去年報名");
+      showToast("已" + (replaceOcc ? "取代" : "匯入") + "歷史場次「" + label + "」（" + o.registrations.length + " 筆），現在可以打姓名帶出去年報名");
     }).catch(function(err){
       console.error("hist import write", err);
       showToast("匯入失敗：" + (err && err.message || err) + "。可到「法會場次管理」刪掉不完整的歷史場次再匯入一次");
