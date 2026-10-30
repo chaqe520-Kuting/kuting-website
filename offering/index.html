@@ -1428,7 +1428,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v161";
+  var APP_VERSION = "v162";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1439,6 +1439,9 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v162", date: "2026-10-30", changes: [
+      "小幫手網址不用再貼：志工登入後自動從雲端讀取（需小幫手 v1.35），手機、電腦第一次按「📨 小幫手私訊」都不會再跳出輸入框"
+    ]},
     { version: "v161", date: "2026-10-30", changes: [
       "LINE 小幫手待確認：「跟上次一樣」「跟之前一樣」「上次一樣」「照舊」也當成同去年，帶入解析時帶出去年的品項；「我叫朱士仁，跟去年一樣」會認出姓名朱士仁"
     ]},
@@ -3039,6 +3042,7 @@
     }
     updateAdminLockUI();
     lineInboxSync();
+    loadCloudBotUrl();
     renderStaffAccounts();
     try { renderAll(); } catch(e){}
   }
@@ -8935,9 +8939,19 @@
   // v106 — 小幫手私訊：把報名成功通知送給小幫手（Apps Script），由小幫手推播 LINE 卡片給
   // 當初傳訊息的人。網址存在這台電腦的瀏覽器；請求帶志工的登入憑證，小幫手驗證後才傳。
   var LINEBOT_URL_KEY = "gongpin_linebot_url";
+  // v162 — 小幫手 v1.35 會把自己的網址寫到 lineUsers/botConfig；志工登入後自動讀取，手機、電腦都不用再貼網址
+  var cloudBotUrl = "";
+  function loadCloudBotUrl(){
+    if(!(fsReady && fsDb && staffActive()) || cloudBotUrl) return;
+    fsDb.collection("lineUsers").doc("botConfig").get().then(function(d){
+      var u = d.exists ? String(d.data().botUrl || "") : "";
+      if(/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u)) cloudBotUrl = u;
+    }).catch(function(e){ console.warn("botConfig", e && e.code); });
+  }
   function linebotUrl(ask){
     var url = "";
     try { url = localStorage.getItem(LINEBOT_URL_KEY) || ""; } catch(e){}
+    if(!ask && cloudBotUrl) return cloudBotUrl; // v162 雲端的網址優先（小幫手重新部署換網址時也會跟著更新）
     if(url && !ask) return url;
     var input = prompt("第一次使用：請貼上小幫手的網址（LINE Developers 的 Webhook URL，或 Apps Script 部署的網頁應用程式網址）", url);
     if(input == null) return "";
