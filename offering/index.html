@@ -984,6 +984,11 @@
             <button class="ghost-btn" id="histImportBtn">📥 匯入去年登記 Excel</button>
             <input type="file" id="histImportFile" accept=".xlsx,.xls" style="display:none;">
           </div>
+          <div id="histSourceRow" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <label for="histSourceSel" style="font-weight:700;">目前參考：</label>
+            <select id="histSourceSel" style="max-width:100%; flex:1; min-width:220px;"></select>
+          </div>
+          <div id="histSourceInfo" class="pdesc" style="margin:4px 0 0; color:var(--cinnabar-ink);"></div>
           <p class="pdesc" id="histHint" style="margin:6px 0 0;">找到的品項和數量會加到下方預覽表，可以直接改品項、數量再按「確認加入登記清單」。下方大框只打姓名（每行一位）再按「解析預覽」也可以。</p>
         </div>
         <textarea id="bulkText" placeholder="建議格式，每行「姓名,項次或品項,數量」：&#10;王張牡丹,4,10&#10;陳小姐,壽桃,2"></textarea>
@@ -1423,7 +1428,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v156";
+  var APP_VERSION = "v157";
   var APP_UPDATED = "2026-10-30";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1434,6 +1439,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v157", date: "2026-10-30", changes: [
+      "「📜 打姓名帶出去年的報名」加「目前參考」：自動從雲端讀上次法會（同一個節日最近一屆優先）的報名，並顯示場次名稱、匯入的 Excel 檔名和讀到幾筆，讓您確認是不是要的參考資料",
+      "可以改選「只參考」某一場；不對的話按「📥 匯入去年登記 Excel」重新上傳（同名會取代）。這次之後匯入的 Excel 會記住檔名"
+    ]},
     { version: "v156", date: "2026-10-30", changes: [
       "「📥 匯入去年登記 Excel」也能讀平台自己「匯出 Excel」的登記清單（一行一筆）：「各師尊大壽金－玄天上帝」會拆成品項和敬致仙佛，補運、補運地址一起帶入",
       "平台裡已經有的場次不用匯入：開了下一場以後，打姓名帶出去年就會直接用到；匯入時會先提醒"
@@ -3806,7 +3815,8 @@
       deities: o.deities, deityPrice: o.deityPrice,
       baseDeityQty: o.baseDeityQty, baseDonationAmt: o.baseDonationAmt,
       itemIdSeq: o.itemIdSeq, regSeq: o.regSeq,
-      history: !!o.history // v126 從 Excel 匯入的歷史場次（只給「打姓名帶出去年報名」參考）
+      history: !!o.history, // v126 從 Excel 匯入的歷史場次（只給「打姓名帶出去年報名」參考）
+      sourceFile: o.sourceFile || "" // v157 匯入時的 Excel 檔名，「目前參考」顯示用
     };
   }
 
@@ -3848,7 +3858,7 @@
       deities: data.deities || [], deityPrice: data.deityPrice || 0,
       baseDeityQty: data.baseDeityQty || 0, baseDonationAmt: data.baseDonationAmt || 0,
       itemIdSeq: data.itemIdSeq || 1, regSeq: data.regSeq || 1,
-      history: !!data.history,
+      history: !!data.history, sourceFile: data.sourceFile || "",
       items: [],
       registrations: []
     };
@@ -5527,6 +5537,7 @@
     occChipRow.appendChild(add);
 
     renderOccActions();
+    renderHistSource();
   }
 
   function renderOccActions(){
@@ -7368,6 +7379,52 @@
       return b.year - a.year;
     });
   }
+  // v157 — 「目前參考」：預設「自動」（同節日最近一屆優先，找不到這個姓名再往其他場次找）；
+  // 也可以指定只參考某一場。自動時顯示會先參考哪一場、檔名（匯入的 Excel）與從雲端讀到幾筆，
+  // 讓小朱確認是不是她要的參考資料；不對就重新匯入 Excel 或改選。
+  var histSourceChoice = "auto";
+  try { histSourceChoice = localStorage.getItem("gongpin_hist_source") || "auto"; } catch(e){}
+  function histChosenCandidates(){
+    var all = histCandidates();
+    if(!histSourceChoice || histSourceChoice === "auto") return all;
+    var one = all.filter(function(c){ return c.occ.id === histSourceChoice; });
+    return one.length ? one : all;
+  }
+  function histSourceText(o){
+    return o.label + (o.sourceFile ? "（檔案：" + o.sourceFile + "）" : (o.history ? "（匯入的歷史資料）" : "（平台場次）"));
+  }
+  var histSourceReqSeq = 0;
+  function renderHistSource(){
+    var sel = document.getElementById("histSourceSel"), info = document.getElementById("histSourceInfo");
+    if(!sel || !info) return;
+    var all = histCandidates();
+    if(histSourceChoice && histSourceChoice !== "auto" && !all.some(function(c){ return c.occ.id === histSourceChoice; })) histSourceChoice = "auto";
+    var choice = histSourceChoice || "auto";
+    sel.innerHTML = '<option value="auto">自動（同一個節日最近一屆優先）</option>' + all.map(function(c){
+      return '<option value="' + escAttr(c.occ.id) + '">只參考：' + escHtml(c.occ.label) + (c.occ.history ? "（歷史資料）" : "") + '</option>';
+    }).join("");
+    sel.value = choice;
+    if(!all.length){ info.textContent = "還沒有可參考的場次，請按「📥 匯入去年登記 Excel」上傳去年的登記表。"; return; }
+    var first = histChosenCandidates()[0].occ;
+    var head = (choice === "auto" ? "會先參考：" : "只參考：") + histSourceText(first);
+    var tail = choice === "auto" && all.length > 1 ? "；這場找不到的姓名會再找其他場次" : "";
+    if(!fsCanEdit() || !fsReady){ info.textContent = head + tail + "。登入志工帳號後會從雲端讀取。"; return; }
+    info.textContent = head + "，正在從雲端讀取…";
+    var seq = histSourceReqSeq = (histSourceReqSeq || 0) + 1;
+    histLoadRegs(first).then(function(regs){
+      if(seq !== histSourceReqSeq) return;
+      info.textContent = head + "，已從雲端讀到 " + regs.length + " 筆" + tail + "。不是您要的，請在上面改選，或按「📥 匯入去年登記 Excel」重新上傳。";
+    }).catch(function(e){
+      if(seq !== histSourceReqSeq) return;
+      info.textContent = head + "，雲端讀取失敗：" + (e && e.message || e);
+    });
+  }
+  document.getElementById("histSourceSel").addEventListener("change", function(e){
+    histSourceChoice = e.target.value || "auto";
+    try { localStorage.setItem("gongpin_hist_source", histSourceChoice); } catch(err){}
+    renderHistSource();
+  });
+
   function histLoadRegs(occ){
     if(histRegCache[occ.id]) return Promise.resolve(histRegCache[occ.id]);
     if(occ.registrations && occ.registrations.length && fsSubscribedOccId === occ.id) return Promise.resolve(occ.registrations);
@@ -7431,7 +7488,7 @@
     names = names.map(function(n){ return String(n || "").trim(); }).filter(Boolean);
     if(!names.length){ showToast("請先輸入姓名"); return Promise.resolve(); }
     if(!fsCanEdit() || !fsReady){ showToast("請先用志工帳號登入後台，才能讀去年的報名資料"); return Promise.resolve(); }
-    var cands = histCandidates();
+    var cands = histChosenCandidates();
     if(!cands.length){ showToast("平台上還沒有其他場次的資料，可以先按「📥 匯入去年登記 Excel」"); return Promise.resolve(); }
     showToast("正在找去年的報名…");
     var rows = [], missing = [];
@@ -7643,14 +7700,14 @@
         pick = sheets[(parseInt(ans, 10) || 1) - 1];
         if(!pick){ showToast("編號不正確"); return; }
       }
-      histImportSheet(pick, sheets.length > 1);
+      histImportSheet(pick, sheets.length > 1, file.name);
     }).catch(function(err){
       console.error("hist import", err);
       showToast("讀取 Excel 失敗：" + (err && err.message || err));
     });
   });
 
-  function histImportSheet(p, multi){
+  function histImportSheet(p, multi, fileName){
     var defLabel = (p.title || p.sheet) + (multi ? "（" + p.sheet + "）" : "");
     var label = prompt("歷史場次名稱（請確認年份與節日，例如「114乙巳年九月十九…」，會用來判斷是不是「去年同一個節日」）：", defLabel);
     if(label == null) return;
@@ -7671,6 +7728,7 @@
     o.status = "closed";
     o.history = true;
     o.notes = "從 Excel 匯入的歷史資料（" + p.sheet + "），只供「打姓名帶出去年報名」參考";
+    o.sourceFile = fileName || "";
     var itemByKey = {}, seq = 0;
     p.items.forEach(function(src){
       var key = src.dedicateTo ? "deity:" + src.name : "no:" + src.no;
@@ -7731,6 +7789,7 @@
       var at = -1;
       occasions.forEach(function(x, idx){ if(x.id === o.id) at = idx; });
       if(at >= 0) occasions[at] = o; else occasions.push(o);
+      histSourceChoice = "auto";
       renderOccasionChips();
       showToast("已" + (replaceOcc ? "取代" : "匯入") + "歷史場次「" + label + "」（" + o.registrations.length + " 筆），現在可以打姓名帶出去年報名");
     }).catch(function(err){
