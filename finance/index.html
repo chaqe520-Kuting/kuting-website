@@ -945,9 +945,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.4';
+const APP_VERSION = 'v1.13.5';
 const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.5', date:'2026-10-31', items:[
+    '語音記帳按「開始錄音」沒反應的修正：按下後立刻顯示「正在開啟麥克風…」；麥克風被其他分頁或 App 占用、沒有權限、瀏覽器不支援時會顯示原因；錄音格式改用手機支援的格式',
+  ]},
   { version:'v1.13.4', date:'2026-10-31', items:[
     '紅包袋編號每個月重新編號：手動登記與語音記帳的重複提醒都只比對同一個月的登記',
   ]},
@@ -2825,36 +2828,75 @@ function voiceCommon(){
   };
 }
 
+let voiceStarting = false;
 async function startVoiceRec(){
+  if(voiceStarting) return;
+  voiceStarting = true;
+  try{ await startVoiceRecInner(); } finally { voiceStarting = false; }
+}
+async function startVoiceRecInner(){
   const msg = document.getElementById('voiceMsg');
-  if(!(fbAuth && fbAuth.currentUser)){ msg.textContent = '請先登入'; return; }
-  if(!voiceCommon().date){ msg.textContent = '請先選日期'; return; }
-  if(!(await getVoiceKey())){ msg.textContent = '還沒設定 AI 金鑰：請管理者按「設定 AI 金鑰」'; return; }
+  const say = t=>{ msg.innerHTML = `<span style="color:var(--temple-red);font-weight:700;">${escHtml(t)}</span>` + (voiceSegs.length ? '<br>' + msg.innerHTML : ''); };
+  if(!(fbAuth && fbAuth.currentUser)){ say('請先登入'); return; }
+  if(!voiceCommon().date){ say('請先選日期'); return; }
+  const timer = document.getElementById('voiceTimer');
+  timer.textContent = '準備中…';
+  let key = '';
+  try{ key = await getVoiceKey(); }catch(e){ console.error(e); }
+  if(!key){ timer.textContent = ''; say('還沒設定 AI 金鑰：請管理者按「設定 AI 金鑰」'); return; }
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || typeof MediaRecorder !== 'function'){
-    msg.textContent = '這個瀏覽器不能錄音，請改用手機錄音 App 錄好後按「選錄音檔」'; return;
+    timer.textContent = ''; say('這個瀏覽器不能錄音，請改用手機錄音 App 錄好後按「選錄音檔」'); return;
   }
+  timer.textContent = '正在開啟麥克風…';
+  // v1.13.5 麥克風被其他分頁／App 佔用時 getUserMedia 可能一直不回應：等 8 秒就提示
   let stream;
   try{
-    stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true } });
+    stream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } }),
+      new Promise((_, rej)=>setTimeout(()=>rej(new Error('timeout')), 8000)),
+    ]);
   }catch(e){
     console.error('getUserMedia', e);
-    msg.textContent = '沒有麥克風權限：請按網址列左邊的鎖頭／設定，允許使用麥克風後再試';
+    timer.textContent = '';
+    say(e && e.message === 'timeout'
+      ? '麥克風開不起來：可能被其他分頁或 App 占用。請關掉其他開著 kuting.tw 的分頁（或通話、錄音 App），重新整理這頁再試'
+      : '沒有麥克風權限：iPhone 請到「設定 → Safari（或 Chrome）→ 麥克風」選允許；電腦請按網址列左邊的圖示允許麥克風，再重新整理');
     return;
   }
-  const recorder = new MediaRecorder(stream);
+  let recorder;
+  try{
+    const types = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/aac'];
+    const type = (MediaRecorder.isTypeSupported ? types.find(t=>MediaRecorder.isTypeSupported(t)) : '') || '';
+    recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+  }catch(e){
+    try{ recorder = new MediaRecorder(stream); }catch(e2){
+      console.error('MediaRecorder', e2);
+      stream.getTracks().forEach(t=>t.stop());
+      timer.textContent = '';
+      say('這個瀏覽器不能錄音（' + ((e2 && e2.message) || e2) + '），請改用手機「語音備忘錄」錄好後按「選錄音檔」');
+      return;
+    }
+  }
   const chunks = [];
   recorder.ondataavailable = ev=>{ if(ev.data && ev.data.size) chunks.push(ev.data); };
   recorder.onstop = ()=>{
     stream.getTracks().forEach(t=>t.stop());
-    const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+    const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/mp4' });
     if(blob.size) sendVoiceBlob(blob, '錄音');
+    else say('沒有錄到聲音，請再試一次');
   };
-  recorder.start(1000);
+  try{ recorder.start(1000); }
+  catch(e){
+    console.error('recorder.start', e);
+    stream.getTracks().forEach(t=>t.stop());
+    timer.textContent = '';
+    say('錄音開始失敗（' + ((e && e.message) || e) + '），請重新整理頁面再試');
+    return;
+  }
   const t0 = Date.now();
   const btn = document.getElementById('voiceRecBtn');
   btn.textContent = '⏹ 停止錄音（送去整理）';
   btn.classList.add('on');
-  const timer = document.getElementById('voiceTimer');
   const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   timer.textContent = '● 錄音中 0:00';
   const tick = setInterval(()=>{
