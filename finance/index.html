@@ -245,6 +245,22 @@
   .bankshot-st.warn{color:#9A6400;font-weight:700;}
   .bankshot-st.ok{color:var(--jade);}
   .bankshot-sum{margin:8px 0;font-size:14px;line-height:1.7;}
+  /* v1.13.0 語音連續記帳 */
+  .voice-common{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0;}
+  .voice-common label{display:block;font-size:12.5px;color:var(--ink-soft);font-weight:700;margin-bottom:4px;}
+  .voice-common input, .voice-common select{width:100%;box-sizing:border-box;}
+  .voice-rec{font-size:16px;padding:10px 18px;}
+  .voice-rec.on{background:var(--temple-red);color:#fff;animation:voicePulse 1.2s infinite;}
+  @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(179,38,30,.5);}50%{box-shadow:0 0 0 8px rgba(179,38,30,0);}}
+  .voice-timer{font-weight:700;color:var(--temple-red-deep);font-variant-numeric:tabular-nums;}
+  .voice-table{width:1380px;}
+  .voice-table .auto-env{color:#8a7a5a;font-style:italic;}
+  .voice-table .row-del{color:var(--temple-red);cursor:pointer;background:none;border:none;font-size:15px;font-weight:700;}
+  .voice-table tr.st-new td{background:#FFFBEA;}
+  .voice-heard{font-size:12px;color:var(--ink-soft);line-height:1.35;white-space:normal;}
+  .voice-raw{margin-top:8px;font-size:13px;}
+  .voice-raw summary{cursor:pointer;color:var(--ink-soft);}
+  .voice-raw pre{white-space:pre-wrap;font-family:"Noto Sans TC",sans-serif;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0;}
 
   .form-row{
     display:grid;
@@ -514,6 +530,41 @@
             <div class="bankshot-paste" id="bankshotPasteZone" tabindex="0">📋 電腦截圖：按 <b>Win＋Shift＋S</b>（Mac 是 Ctrl＋Shift＋Cmd＋4）框選手機銀行畫面 → 點這裡 → 按 <b>Ctrl＋V</b> 貼上（或按上面「📋 貼上截圖」）</div>
             <div class="bankshot-thumbs" id="bankshotThumbs"></div>
             <div id="bankshotResult"></div>
+          </div>
+        </div>
+
+        <div class="bankshot-box" id="voiceBox">
+          <div class="bankshot-head">
+            <b>🎤 語音連續記帳</b>
+            <span class="muted" style="font-size:12.5px;">先設定共同條件，再一包一包說「紅包袋編號、姓名、金額、項目」→ AI 拆成多筆 → 核對後存</span>
+            <button class="btn secondary small" id="voiceToggleBtn">展開 ▾</button>
+          </div>
+          <div id="voiceBody" style="display:none;">
+            <p class="muted" style="margin:8px 0 0;line-height:1.7;">
+              說法例：「<b>12 號，王小明，一千。13 號，李大華，六百，添油香。下一包，陳美玉，兩千。</b>」<br>
+              ・日期、現金／銀行、收入／支出、活動<b>不用說</b>，照下面的共同條件；沒說項目就用「預設項目」。<br>
+              ・沒說編號會自動接上一號；說錯可以接著說「更正，上一筆是八百」。<br>
+              ・建議每段 10～20 包，按「停止」後 AI 約 10～40 秒整理好；整理時可以接著錄下一段。錄音不保存。<br>
+              ・AI 會參考平台已登記過的姓名、活動、項目；<b>勾選的才會存</b>，新姓名標黃色、紅包袋編號重複標紅色。
+            </p>
+            <div class="voice-common">
+              <div><label>日期</label><input type="date" id="voiceDate"></div>
+              <div><label>帳別</label><select id="voiceAccount"><option value="cash">現金</option><option value="bank">銀行</option></select></div>
+              <div><label>收支別</label><select id="voiceDirection"><option value="in">收入</option><option value="out">支出</option></select></div>
+              <div><label>活動名稱</label><input type="text" id="voiceActivity" list="activityList" placeholder="例如：中元普渡"></div>
+              <div><label>預設項目</label><input type="text" id="voiceItem" list="itemInList" placeholder="例如：香油錢"></div>
+              <div id="voiceCategoryWrap" style="display:none;"><label>分類（現金支出）</label><select id="voiceCategory"></select></div>
+            </div>
+            <div class="bankshot-tools">
+              <button class="btn voice-rec" id="voiceRecBtn">🎙 開始錄音</button>
+              <span class="voice-timer" id="voiceTimer"></span>
+              <label class="muted" style="font-size:13px;">或選錄音檔 <input type="file" id="voiceFile" accept="audio/*"></label>
+              <label class="muted" style="font-size:13px;"><input type="checkbox" id="voiceAutoEnv" checked> 沒說編號時自動接上一號</label>
+              <button class="btn secondary small" id="voiceClearBtn">清除</button>
+              <button class="btn secondary small" id="voiceKeyBtn">設定 AI 金鑰</button>
+            </div>
+            <div id="voiceMsg" class="muted" style="font-size:13.5px;"></div>
+            <div id="voiceResult"></div>
           </div>
         </div>
 
@@ -894,9 +945,14 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.12.2';
-const APP_DATE = '2026-10-22';
+const APP_VERSION = 'v1.13.0';
+const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.0', date:'2026-10-31', items:[
+    '新增「🎤 語音連續記帳」：先設定共同條件（日期、現金／銀行、收入／支出、活動、預設項目），再一包一包說「紅包袋編號、姓名、金額、項目」，錄完記帳平台直接交給 AI 拆成多筆，核對修改後勾選存入（也可選手機錄好的錄音檔）',
+    'AI 會參考平台已登記過的姓名、活動、項目來辨識同音字；不在名單的新姓名標黃色，紅包袋編號已登記過或同一批重複標紅色、不預先勾選',
+    '沒說紅包袋編號時自動接上一號；整理上一段時可以接著錄下一段；錄音不保存、不經過報名小幫手；第一次使用前由管理者按「設定 AI 金鑰」貼上 Google AI Studio 金鑰（所有會計人員共用）',
+  ]},
   { version:'v1.12.2', date:'2026-10-22', items:[
     '銀行截圖快速登記新增「📋 貼上截圖」按鈕與貼上區：電腦按 Win＋Shift＋S 截圖後，按按鈕或在頁面上按 Ctrl＋V 就能加入截圖辨識',
   ]},
@@ -2695,6 +2751,552 @@ async function saveBankshotRows(){
   if(m2) m2.textContent = `已存入 ${ok} 筆`;
 }
 
+/* ================= 語音連續記帳（v1.13.0）=================
+   會計人員先在畫面設定共同條件（日期、帳別、收支、活動、預設項目），再連續口述多包紅包
+   「紅包袋編號、姓名、金額、項目」。瀏覽器錄音後轉成 16kHz 單聲道 WAV，記帳平台直接交給
+   Google Gemini（不經過報名小幫手），參考平台既有的姓名、活動、項目拆成多筆；錄音與結果都不保存。
+   AI 金鑰由管理者在畫面上設定一次，存在 suggestions/aiConfig（只有登入的會計人員讀得到）。
+   核對、勾選後逐筆照一般登記的方式（含操作紀錄）存進 entries，另記 source:'voice'。 */
+
+const VOICE_MAX_SEC = 330;      // 一段最多 5 分半（WAV 約 10MB，AI 一次請求上限 20MB）
+let voiceRows = [];             // 每一筆：{seg, envSaid, envelopeNo, name, amount, item, ...}
+let voiceSegs = [];             // 每一段錄音：{no, state:'wait'|'done'|'fail', raw, fixed, sec, count}
+let voiceSegNo = 0;
+let voiceRec = null;            // {recorder, stream, chunks, t0, tick, stopTimer}
+
+function bindVoiceUi(){
+  const body = document.getElementById('voiceBody');
+  document.getElementById('voiceToggleBtn').addEventListener('click', ev=>{
+    const show = body.style.display === 'none';
+    body.style.display = show ? '' : 'none';
+    ev.target.textContent = show ? '收合 ▴' : '展開 ▾';
+    if(show && !document.getElementById('voiceDate').value){
+      document.getElementById('voiceDate').value = document.getElementById('entryDate').value || new Date().toISOString().slice(0,10);
+    }
+  });
+  const syncCommon = ()=>{
+    const out = document.getElementById('voiceDirection').value === 'out';
+    const cash = document.getElementById('voiceAccount').value === 'cash';
+    document.getElementById('voiceItem').setAttribute('list', out ? 'itemOutList' : 'itemInList');
+    document.getElementById('voiceCategoryWrap').style.display = (out && cash) ? '' : 'none';
+    const cat = document.getElementById('voiceCategory');
+    if(!cat.options.length) cat.innerHTML = document.getElementById('entryCategory').innerHTML;
+  };
+  document.getElementById('voiceDirection').addEventListener('change', syncCommon);
+  document.getElementById('voiceAccount').addEventListener('change', syncCommon);
+  document.getElementById('voiceRecBtn').addEventListener('click', ()=>{ voiceRec ? stopVoiceRec() : startVoiceRec(); });
+  document.getElementById('voiceFile').addEventListener('change', ev=>{
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if(f) sendVoiceBlob(f, '錄音檔');
+  });
+  document.getElementById('voiceAutoEnv').addEventListener('change', ()=>{ voiceDerive(); renderVoiceRows(); });
+  document.getElementById('voiceClearBtn').addEventListener('click', ()=>{
+    if(voiceRows.some(r=>!r.saved) && !confirm('清除還沒存的語音記帳結果？')) return;
+    voiceRows = []; voiceSegs = [];
+    document.getElementById('voiceMsg').textContent = '';
+    renderVoiceRows();
+  });
+  document.getElementById('voiceKeyBtn').addEventListener('click', setVoiceKey);
+}
+
+function voiceCommon(){
+  return {
+    date: document.getElementById('voiceDate').value,
+    account: document.getElementById('voiceAccount').value,
+    direction: document.getElementById('voiceDirection').value,
+    activity: document.getElementById('voiceActivity').value.trim(),
+    item: document.getElementById('voiceItem').value.trim(),
+    category: document.getElementById('voiceCategory').value || '',
+  };
+}
+
+async function startVoiceRec(){
+  const msg = document.getElementById('voiceMsg');
+  if(!(fbAuth && fbAuth.currentUser)){ msg.textContent = '請先登入'; return; }
+  if(!voiceCommon().date){ msg.textContent = '請先選日期'; return; }
+  if(!(await getVoiceKey())){ msg.textContent = '還沒設定 AI 金鑰：請管理者按「設定 AI 金鑰」'; return; }
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || typeof MediaRecorder !== 'function'){
+    msg.textContent = '這個瀏覽器不能錄音，請改用手機錄音 App 錄好後按「選錄音檔」'; return;
+  }
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true } });
+  }catch(e){
+    console.error('getUserMedia', e);
+    msg.textContent = '沒有麥克風權限：請按網址列左邊的鎖頭／設定，允許使用麥克風後再試';
+    return;
+  }
+  const recorder = new MediaRecorder(stream);
+  const chunks = [];
+  recorder.ondataavailable = ev=>{ if(ev.data && ev.data.size) chunks.push(ev.data); };
+  recorder.onstop = ()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+    if(blob.size) sendVoiceBlob(blob, '錄音');
+  };
+  recorder.start(1000);
+  const t0 = Date.now();
+  const btn = document.getElementById('voiceRecBtn');
+  btn.textContent = '⏹ 停止錄音（送去整理）';
+  btn.classList.add('on');
+  const timer = document.getElementById('voiceTimer');
+  const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  timer.textContent = '● 錄音中 0:00';
+  const tick = setInterval(()=>{
+    const s = Math.round((Date.now()-t0)/1000);
+    timer.textContent = `● 錄音中 ${fmt(s)}` + (s >= VOICE_MAX_SEC - 30 ? `（${fmt(VOICE_MAX_SEC)} 自動停止，請準備分下一段）` : '');
+  }, 500);
+  const stopTimer = setTimeout(stopVoiceRec, VOICE_MAX_SEC * 1000);
+  voiceRec = { recorder, stream, t0, tick, stopTimer };
+}
+
+function stopVoiceRec(){
+  if(!voiceRec) return;
+  const r = voiceRec; voiceRec = null;
+  clearInterval(r.tick); clearTimeout(r.stopTimer);
+  try{ r.recorder.state !== 'inactive' ? r.recorder.stop() : r.stream.getTracks().forEach(t=>t.stop()); }catch(e){ console.error(e); }
+  const btn = document.getElementById('voiceRecBtn');
+  btn.textContent = '🎙 開始錄音';
+  btn.classList.remove('on');
+  document.getElementById('voiceTimer').textContent = '';
+}
+
+// 錄音轉成 16kHz 單聲道 WAV：Gemini 一定看得懂，檔案也小（每分鐘約 1.9MB）
+async function voiceToWav(blob){
+  const buf = await blob.arrayBuffer();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ac = new AC();
+  let audio;
+  try{
+    audio = await new Promise((res, rej)=>{ const p = ac.decodeAudioData(buf.slice(0), res, rej); if(p && p.then) p.then(res, rej); });
+  } finally { try{ ac.close(); }catch(_){} }
+  const rate = 16000;
+  const len = Math.max(1, Math.ceil(audio.duration * rate));
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const off = new OAC(1, len, rate);
+  const src = off.createBufferSource();
+  src.buffer = audio; src.connect(off.destination); src.start(0);
+  const out = await off.startRendering();
+  const pcm = out.getChannelData(0);
+  const view = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const str = (o, t)=>{ for(let i=0;i<t.length;i++) view.setUint8(o+i, t.charCodeAt(i)); };
+  str(0,'RIFF'); view.setUint32(4, 36 + pcm.length*2, true); str(8,'WAVE'); str(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,rate,true); view.setUint32(28,rate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  str(36,'data'); view.setUint32(40, pcm.length*2, true);
+  for(let i=0;i<pcm.length;i++){ const v = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(44+i*2, v<0 ? v*0x8000 : v*0x7FFF, true); }
+  return { blob: new Blob([view], { type:'audio/wav' }), sec: audio.duration };
+}
+function blobToBase64(blob){
+  return new Promise((res, rej)=>{ const fr = new FileReader(); fr.onload = ()=>res(String(fr.result).split(',')[1] || ''); fr.onerror = rej; fr.readAsDataURL(blob); });
+}
+
+// 給 AI 參考的既有資料：歷史＋線上登記＋管理者自訂建議，常出現的排前面
+function voiceHints(dir){
+  const income = getIncomeRecordsAll(), bank = getBankRecordsAll();
+  const names = mergeWithCustom(customSuggestions.names, rankedUnique([
+    ...income.map(r=>r[2]), ...bank.map(r=>r[2]), ...liveEntries.map(e=>e.name),
+  ], 2500)).slice(0, 2500);
+  const activities = mergeWithCustom(customSuggestions.activities, rankedUnique([
+    ...income.map(r=>r[3]), ...liveEntries.map(e=>e.activity),
+  ], 150)).slice(0, 200);
+  const items = dir === 'out'
+    ? mergeWithCustom(customSuggestions.itemsOut, rankedUnique([...bank.filter(r=>r[5]==='out').map(r=>r[3]), ...liveEntries.filter(e=>e.direction==='out').map(e=>e.item)], 150)).slice(0, 200)
+    : mergeWithCustom(customSuggestions.itemsIn, rankedUnique([...income.map(r=>r[4]), ...liveEntries.filter(e=>e.direction==='in').map(e=>e.item)], 150)).slice(0, 200);
+  return { names, activities, items };
+}
+let voiceKnownNames = null;
+function voiceIsKnownName(name){
+  if(!voiceKnownNames){
+    voiceKnownNames = new Set();
+    [...getIncomeRecordsAll().map(r=>r[2]), ...getBankRecordsAll().map(r=>r[2]), ...liveEntries.map(e=>e.name), ...customSuggestions.names]
+      .forEach(n=>{ n = String(n||'').trim(); if(n) voiceKnownNames.add(n); });
+  }
+  return String(name||'').split(/[、,，]/).map(n=>n.trim()).filter(Boolean).every(n=>voiceKnownNames.has(n));
+}
+
+async function sendVoiceBlob(blob, label){
+  const msg = document.getElementById('voiceMsg');
+  const key = await getVoiceKey();
+  if(!key){ msg.textContent = '還沒設定 AI 金鑰：請管理者按「設定 AI 金鑰」'; return; }
+  const common = voiceCommon();
+  if(!common.date){ msg.textContent = '請先選日期'; return; }
+  const seg = { no: ++voiceSegNo, state:'wait', label, t0: Date.now() };
+  voiceSegs.push(seg);
+  renderVoiceSegMsg();
+  const tick = setInterval(renderVoiceSegMsg, 1000);
+  let out;
+  try{
+    let audio;
+    try{
+      const w = await voiceToWav(blob);
+      if(w.sec < 1) throw new Error('short');
+      if(w.sec > VOICE_MAX_SEC + 30) { out = { ok:false, error:`錄音有 ${Math.round(w.sec/60)} 分鐘，太長了，請分成每段 5 分鐘以內` }; }
+      audio = { mime:'audio/wav', base64: await blobToBase64(w.blob) };
+    }catch(e){
+      if(e && e.message === 'short'){ out = { ok:false, error:'錄音太短，沒有聲音' }; }
+      else {
+        // 瀏覽器轉不了格式時，直接送原檔
+        console.warn('voiceToWav', e);
+        const mime = String(blob.type||'').split(';')[0].replace('audio/x-m4a','audio/mp4').replace('audio/m4a','audio/mp4');
+        audio = { mime: mime || 'audio/mp4', base64: await blobToBase64(blob) };
+      }
+    }
+    if(!out){
+      const hints = voiceHints(common.direction);
+      try{ out = await voiceAskGemini(key, audio, common, hints); }
+      catch(e){ console.error('voice gemini', e); out = { ok:false, error: (e && e.message) || String(e) }; }
+    }
+  }catch(e){
+    console.error('voice', e);
+    out = { ok:false, error: (e && e.message) || String(e) };
+  } finally { clearInterval(tick); }
+
+  seg.sec = Math.round((Date.now()-seg.t0)/1000);
+  if(!out || !out.ok){
+    seg.state = 'fail'; seg.error = (out && out.error) || '不明原因';
+    renderVoiceSegMsg(); renderVoiceRows();
+    return;
+  }
+  seg.state = 'done'; seg.raw = out.raw || ''; seg.fixed = out.fixed || '';
+  const list = (out.entries||[]).filter(en=>en.name || en.amount || en.envelopeNo);
+  seg.count = list.length;
+  list.forEach((en, i)=>{
+    const dir = en.direction || common.direction, acc = en.account || common.account;
+    voiceRows.push({
+      seg: seg.no, idx: i,
+      envSaid: String(en.envelopeNo||'').trim(), envelopeNo: String(en.envelopeNo||'').trim(),
+      name: String(en.name||'').trim(), amount: Math.round(Number(en.amount)||0),
+      item: String(en.item||'').trim() || common.item, note: String(en.note||'').trim(),
+      date: en.date || common.date, account: acc, direction: dir,
+      activity: String(en.activity||'').trim() || common.activity,
+      category: (dir==='out' && acc==='cash') ? (common.category || 'misc') : '',
+      heard: String(en.heard||'').trim(),
+      checked: true, saved: false,
+    });
+  });
+  voiceRows.sort((a,b)=> a.seg-b.seg || a.idx-b.idx);
+  voiceDerive(true);
+  renderVoiceSegMsg(); renderVoiceRows();
+}
+
+function renderVoiceSegMsg(){
+  const el = document.getElementById('voiceMsg');
+  el.innerHTML = voiceSegs.map(s=>{
+    if(s.state==='wait') return `第 ${s.no} 段${s.label}：AI 整理中… 已等 ${Math.round((Date.now()-s.t0)/1000)} 秒`;
+    if(s.state==='fail') return `<span style="color:var(--temple-red);font-weight:700;">第 ${s.no} 段${s.label}失敗：${escHtml(s.error)}</span>`;
+    return `第 ${s.no} 段${s.label}：聽出 <b>${s.count}</b> 筆（${s.sec} 秒）`;
+  }).join('<br>');
+}
+
+// 自動接續紅包袋編號、重新檢查每一筆（newRows：剛加入的筆依檢查結果預設勾選）
+function voiceDerive(newRows){
+  const auto = document.getElementById('voiceAutoEnv').checked;
+  let prev = null;
+  voiceRows.forEach(r=>{
+    if(!r.saved){
+      if(r.envSaid) r.envelopeNo = r.envSaid;
+      else r.envelopeNo = (auto && prev !== null) ? String(prev + 1) : '';
+      r.envAuto = !r.envSaid && !!r.envelopeNo;
+    }
+    const m = String(r.envelopeNo||'').match(/^\d+$/);
+    prev = m ? Number(m[0]) : null;
+  });
+  voiceRows.forEach(r=>{
+    if(r.saved) return;
+    const old = r.status && r.status.level;
+    r.status = voiceStatus(r);
+    // 第一次檢查、或從紅色變成可以存時：依結果預設勾選
+    if(newRows && old === undefined) r.checked = r.status.level==='ok' || r.status.level==='new';
+  });
+}
+
+function voiceStatus(r){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date||'')) return { level:'warn', text:'缺日期' };
+  if(!(r.amount > 0)) return { level:'warn', text:'金額沒聽到，請補上' };
+  if(!r.name) return { level:'warn', text:'沒聽到姓名，請補上（或填無名氏）' };
+  if(/[?？]/.test(r.name)) return { level:'warn', text:'姓名有聽不清楚的字（？），請改正' };
+  if(r.envelopeNo){
+    const dups = findEnvelopeDuplicates(r.envelopeNo, null);
+    if(dups.length) return { level:'dup', text:`紅包袋 ${r.envelopeNo} 號已登記過（${dups.slice(0,2).map(e=>`${e.name||'未填姓名'} ${moneyPlain(e.amount)}`).join('、')}）` };
+    const n = /^\d+$/.test(r.envelopeNo) ? Number(r.envelopeNo) : null;
+    const twin = voiceRows.filter(x=>x!==r && !x.removed && (x.envelopeNo===r.envelopeNo || (n!==null && /^\d+$/.test(x.envelopeNo||'') && Number(x.envelopeNo)===n)));
+    if(twin.length) return { level:'dup', text:`這批裡紅包袋 ${r.envelopeNo} 號重複（${twin.map(x=>x.name||'未填姓名').join('、')}）` };
+  }
+  if(!voiceIsKnownName(r.name)) return { level:'new', text:'新姓名（平台沒登記過），請確認寫法' };
+  return { level:'ok', text:'OK' };
+}
+
+function voiceRowClass(r){
+  if(r.saved) return 'st-saved';
+  const l = r.status && r.status.level;
+  return l==='dup' ? 'st-dup' : l==='warn' ? 'st-maybe' : l==='new' ? 'st-new' : '';
+}
+function voiceStClass(r){
+  const l = r.saved ? 'ok' : r.status && r.status.level;
+  return l==='dup' ? 'dup' : (l==='warn' || l==='new') ? 'warn' : 'ok';
+}
+
+function renderVoiceRows(){
+  const box = document.getElementById('voiceResult');
+  const rows = voiceRows.filter(r=>!r.removed);
+  if(!rows.length){ box.innerHTML = ''; return; }
+  const opts = (list, v)=>list.map(([k,t])=>`<option value="${k}"${k===v?' selected':''}>${t}</option>`).join('');
+  const html = voiceRows.map((r,i)=>{
+    if(r.removed) return '';
+    const dis = r.saved ? ' disabled' : '';
+    const inp = (f, extra)=>`<input data-i="${i}" data-f="${f}" value="${escHtml(r[f]===null?'':r[f])}"${extra||''}${dis}>`;
+    const st = r.saved ? '✅ 已存入' : r.status.text;
+    return `<tr class="${voiceRowClass(r)}" data-row="${i}">
+      <td style="text-align:center;"><input type="checkbox" data-i="${i}" data-f="checked"${r.checked?' checked':''}${dis} style="width:18px;height:18px;"></td>
+      <td><input data-i="${i}" data-f="envelopeNo" value="${escHtml(r.envelopeNo)}" class="${r.envAuto?'auto-env':''}" title="${r.envAuto?'自動接續上一號':''}" inputmode="numeric"${dis}></td>
+      <td>${inp('name', ' list="nameList"')}</td>
+      <td>${inp('amount', ' inputmode="numeric"')}</td>
+      <td>${inp('item', r.direction==='in' ? ' list="itemInList"' : ' list="itemOutList"')}</td>
+      <td>${inp('activity', ' list="activityList"')}</td>
+      <td>${inp('date', ' type="date"')}</td>
+      <td><select data-i="${i}" data-f="account"${dis}>${opts([['cash','現金'],['bank','銀行']], r.account)}</select></td>
+      <td><select data-i="${i}" data-f="direction"${dis}>${opts([['in','收入'],['out','支出']], r.direction)}</select></td>
+      <td>${inp('note')}</td>
+      <td><div class="voice-heard">${escHtml(r.heard)}</div></td>
+      <td><div class="bankshot-st ${voiceStClass(r)}">${escHtml(st)}</div></td>
+      <td style="text-align:center;">${r.saved ? '' : `<button class="row-del" data-del="${i}" title="刪除這一筆">✕</button>`}</td>
+    </tr>`;
+  }).join('');
+  const raws = voiceSegs.filter(s=>s.state==='done' && s.raw).map(s=>
+    `<b>第 ${s.no} 段</b>${s.fixed ? `（依已登記姓名更正：${escHtml(s.fixed)}）` : ''}<pre>${escHtml(s.raw)}</pre>`).join('');
+  box.innerHTML = `
+    <div class="bankshot-wrap"><table class="bankshot-table voice-table">
+      <colgroup><col style="width:36px"><col style="width:70px"><col style="width:130px"><col style="width:96px"><col style="width:130px"><col style="width:130px"><col style="width:140px"><col style="width:72px"><col style="width:72px"><col style="width:130px"><col style="width:150px"><col style="width:170px"><col style="width:40px"></colgroup>
+      <thead><tr><th>存</th><th>紅包袋</th><th>姓名</th><th>金額</th><th>項目</th><th>活動名稱</th><th>日期</th><th>帳別</th><th>收支</th><th>備註</th><th>AI 聽到</th><th>檢查</th><th></th></tr></thead>
+      <tbody>${html}</tbody>
+    </table></div>
+    ${raws ? `<details class="voice-raw"><summary>看 AI 聽寫的全文</summary>${raws}</details>` : ''}
+    <div class="bankshot-sum" id="voiceSum"></div>
+    <div class="form-footer" style="margin-top:4px;">
+      <button class="btn" id="voiceSaveBtn">存入勾選的登記</button>
+      <span id="voiceSaveMsg" class="muted"></span>
+    </div>`;
+  box.querySelectorAll('[data-f]').forEach(el=>{
+    const instant = el.type==='checkbox' || el.tagName==='SELECT' || el.type==='date';
+    el.addEventListener(instant ? 'change' : 'input', onVoiceEdit);
+    if(!instant) el.addEventListener('change', onVoiceEditDone);
+  });
+  box.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{
+    const r = voiceRows[+b.dataset.del];
+    r.removed = true; r.checked = false;
+    voiceRows = voiceRows.filter(x=>!x.removed || x.saved);
+    voiceDerive(); renderVoiceRows();
+  }));
+  document.getElementById('voiceSaveBtn').addEventListener('click', saveVoiceRows);
+  renderVoiceSum();
+}
+
+// 打字中只改資料與合計；離開欄位（change）時再重新接續編號、檢查（不重畫表格，游標不會跳走）
+function onVoiceEdit(ev){
+  const el = ev.target, r = voiceRows[+el.dataset.i], f = el.dataset.f;
+  if(f==='checked'){ r.checked = el.checked; renderVoiceSum(); return; }
+  if(f==='amount') r.amount = Math.round(Number(String(el.value).replace(/[^\d.]/g,''))||0);
+  else if(f==='envelopeNo'){ r.envSaid = el.value.trim(); el.classList.remove('auto-env'); }
+  else r[f] = el.value;
+  if(f==='direction' || f==='account'){
+    r.category = (r.direction==='out' && r.account==='cash') ? (r.category || voiceCommon().category || 'misc') : '';
+    if(f==='direction'){ const it = document.querySelector(`#voiceResult input[data-i="${el.dataset.i}"][data-f="item"]`); if(it) it.setAttribute('list', r.direction==='in' ? 'itemInList' : 'itemOutList'); }
+  }
+  if(el.tagName==='SELECT' || el.type==='date') onVoiceEditDone();
+  renderVoiceSum();
+}
+function onVoiceEditDone(){
+  voiceDerive();
+  document.querySelectorAll('#voiceResult tr[data-row]').forEach(tr=>{
+    const r = voiceRows[+tr.dataset.row];
+    if(!r) return;
+    tr.className = voiceRowClass(r);
+    const env = tr.querySelector('[data-f="envelopeNo"]');
+    if(env && document.activeElement !== env){ env.value = r.envelopeNo; env.className = r.envAuto ? 'auto-env' : ''; }
+    const st = tr.querySelector('.bankshot-st');
+    if(st){ st.className = 'bankshot-st ' + voiceStClass(r); st.textContent = r.saved ? '✅ 已存入' : r.status.text; }
+  });
+  renderVoiceSum();
+}
+
+function renderVoiceSum(){
+  const el = document.getElementById('voiceSum');
+  if(!el) return;
+  const pick = voiceRows.filter(r=>r.checked && !r.saved && !r.removed);
+  const sumIn = pick.filter(r=>r.direction==='in').reduce((s,r)=>s+r.amount, 0);
+  const sumOut = pick.filter(r=>r.direction==='out').reduce((s,r)=>s+r.amount, 0);
+  const all = voiceRows.filter(r=>!r.removed);
+  const cnt = lv=>all.filter(r=>!r.saved && r.status && r.status.level===lv).length;
+  const notes = [cnt('dup') ? `<span style="color:var(--temple-red);font-weight:700;">紅包袋重複 ${cnt('dup')} 筆</span>` : '',
+    cnt('warn') ? `<span style="color:#9A6400;font-weight:700;">要補資料 ${cnt('warn')} 筆</span>` : '',
+    cnt('new') ? `<span style="color:#9A6400;">新姓名 ${cnt('new')} 筆</span>` : ''].filter(Boolean).join('、');
+  el.innerHTML = `共 ${all.length} 筆，勾選 <b>${pick.length}</b> 筆：收入 <b>${moneyPlain(sumIn)}</b>${sumOut ? `、支出 <b>${moneyPlain(sumOut)}</b>` : ''}${notes ? `<br>${notes}` : ''}`;
+  const btn = document.getElementById('voiceSaveBtn');
+  btn.textContent = `存入勾選的登記（${pick.length} 筆）`;
+  btn.disabled = !pick.length;
+}
+
+async function saveVoiceRows(){
+  const msg = document.getElementById('voiceSaveMsg');
+  if(!currentUser){ msg.textContent = '請先登入'; return; }
+  voiceDerive();
+  const pick = voiceRows.filter(r=>r.checked && !r.saved && !r.removed);
+  const bad = pick.find(r=>!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !(r.amount > 0));
+  if(bad){ alert(`勾選的登記有缺日期或金額（${bad.name||'未填姓名'}），請補上或取消勾選`); return; }
+  const warnPick = pick.filter(r=>r.status && (r.status.level==='dup' || r.status.level==='warn'));
+  const sumIn = pick.filter(r=>r.direction==='in').reduce((s,r)=>s+r.amount, 0);
+  const sumOut = pick.filter(r=>r.direction==='out').reduce((s,r)=>s+r.amount, 0);
+  if(!confirm(`存入 ${pick.length} 筆登記？\n收入 ${moneyPlain(sumIn)}` + (sumOut ? `、支出 ${moneyPlain(sumOut)}` : '')
+    + (warnPick.length ? `\n\n⚠ 其中 ${warnPick.length} 筆有紅色／黃色提醒，確定也要存？` : ''))) return;
+  const btn = document.getElementById('voiceSaveBtn');
+  btn.disabled = true;
+  let ok = 0;
+  for(const r of pick){
+    msg.textContent = `儲存中… ${ok+1}／${pick.length}`;
+    const {year, month} = gregorianToROC(r.date);
+    const now = new Date().toISOString();
+    const entry = {
+      date: r.date, year, month, account: r.account, direction: r.direction, amount: r.amount,
+      note: (r.note||'').trim(), envelopeNo: String(r.envelopeNo||'').trim(), counterAcct: '',
+      name: (r.name||'').trim(), activity: (r.activity||'').trim(), item: (r.item||'').trim(),
+      category: (r.direction==='out' && r.account==='cash') ? (r.category || 'misc') : '',
+      source: 'voice', enteredBy: currentUser.name, updatedAt: now, createdAt: now, deleted: false,
+    };
+    try{
+      await saveEntryWithLog(null, null, entry, 'create');
+      r.saved = true; r.checked = false; ok++;
+    }catch(e){
+      console.error(e);
+      alert(`第 ${ok+1} 筆（${r.name||''} ${moneyPlain(r.amount)}）儲存失敗，後面的先不存：` + (e && e.code === 'permission-denied' ? '權限不足，請重新整理頁面' : (e && e.message || e)));
+      break;
+    }
+  }
+  voiceKnownNames = null;
+  renderVoiceRows();
+  const m2 = document.getElementById('voiceSaveMsg');
+  if(m2) m2.textContent = `已存入 ${ok} 筆`;
+}
+
+/* ---------- AI 金鑰（管理者設定一次，存在 suggestions/aiConfig） ---------- */
+let voiceKeyCache = null;
+async function getVoiceKey(){
+  if(voiceKeyCache && voiceKeyCache.key) return voiceKeyCache.key;
+  try{
+    const d = await fbDb.collection('suggestions').doc('aiConfig').get();
+    voiceKeyCache = d.exists ? { key: d.data().geminiKey || '', model: d.data().geminiModel || '' } : { key:'', model:'' };
+  }catch(e){ console.error('aiConfig', e); voiceKeyCache = null; return ''; }
+  return voiceKeyCache.key;
+}
+async function setVoiceKey(){
+  if(!currentUser){ alert('請先登入'); return; }
+  if(!isAdminUser){ alert('只有管理者可以設定 AI 金鑰'); return; }
+  const has = !!(await getVoiceKey());
+  const input = prompt((has ? '已經設定過 AI 金鑰，貼上新的會取代舊的。\n' : '') +
+    '請貼上 Google AI Studio 的 API 金鑰（AIza 開頭）。\n建議用付費專案的金鑰（不用排隊、比較快），並在 Google Cloud 把金鑰限制只能從 https://kuting.tw 使用。', '');
+  if(input == null) return;
+  const k = String(input).trim();
+  if(!/^AIza[0-9A-Za-z_\-]{30,}$/.test(k)){ alert('金鑰格式不對，應該是 AIza 開頭的一長串'); return; }
+  try{
+    await fbDb.collection('suggestions').doc('aiConfig').set({ geminiKey: k, geminiModel: (voiceKeyCache && voiceKeyCache.model) || '', updatedBy: currentUser.name, updatedAt: new Date().toISOString() });
+    voiceKeyCache = { key: k, model: (voiceKeyCache && voiceKeyCache.model) || '' };
+    addAuditLogQuiet('aiKeySet', 'suggestions', '設定語音記帳 AI 金鑰（…' + k.slice(-4) + '）');
+    alert('已設定，所有會計人員都可以用語音記帳了');
+  }catch(e){ console.error(e); alert('儲存失敗：' + (e && e.message || e)); }
+}
+
+/* ---------- 直接呼叫 Gemini ---------- */
+const VOICE_THINKING = [{ thinkingLevel:'low' }, { thinkingBudget:0 }, null];   // 不支援的設定會回 400，換下一個
+async function voiceGemini(key, parts, maxTokens){
+  const model = (voiceKeyCache && voiceKeyCache.model) || 'gemini-flash-latest';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const call = t=>{
+    const cfg = { responseMimeType:'application/json', temperature:0, maxOutputTokens: maxTokens || 32768 };
+    if(t) cfg.thinkingConfig = t;
+    return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ contents:[{ parts }], generationConfig: cfg }) });
+  };
+  let k = 0, res = await call(VOICE_THINKING[k]);
+  while(res.status === 400 && k < VOICE_THINKING.length - 1){ k++; res = await call(VOICE_THINKING[k]); }
+  for(let i=0; i<2 && [429,500,503].includes(res.status); i++){
+    await new Promise(r=>setTimeout(r, 3000*(i+1)));
+    res = await call(VOICE_THINKING[k]);
+  }
+  const text = await res.text();
+  if(res.status === 429) throw new Error('AI 目前使用量已滿，請過一分鐘再試');
+  if(res.status === 400 && /API key|API_KEY/i.test(text)) throw new Error('AI 金鑰無效，請管理者重新設定');
+  if(res.status === 403) throw new Error('AI 金鑰沒有權限（可能限制了網址，或專案沒開 Generative Language API）');
+  if(res.status === 402) throw new Error('AI 付費專案的儲值用完了');
+  if(res.status !== 200) throw new Error(`AI 錯誤 ${res.status}：${text.slice(0, 200)}`);
+  const out = JSON.parse(text);
+  const p = (out.candidates && out.candidates[0] && out.candidates[0].content && out.candidates[0].content.parts) || [];
+  return JSON.parse(p.map(x=>x.text||'').join('').replace(/^```(?:json)?\s*|\s*```$/g, ''));
+}
+
+async function voiceAskGemini(key, audio, c, hints){
+  const commonText = [c.date ? '日期 ' + c.date : '', c.account==='bank' ? '銀行' : '現金', c.direction==='out' ? '支出' : '收入',
+    c.activity ? `活動「${c.activity}」` : '', c.item ? `預設項目「${c.item}」` : ''].filter(Boolean).join('、');
+  const prompt =
+    '這是寺廟「古亭院」會計人員整理紅包袋時，用國語（可能夾雜台語）連續口述多筆收支登記的錄音。請聽寫並拆成一筆一筆。\n' +
+    `共同條件已經在畫面上設定好（${commonText}），錄音裡每一筆通常只說：紅包袋編號、姓名、金額、項目（項目常省略）。` +
+    '順序可能不同，例如「12 號，王小明，一千」「王小明 一千二 紅包十三」「下一包，李大華，六百，添油香」「十五號 無名氏 兩百」。\n' +
+    '規則：\n' +
+    '1. 按說話順序，一個紅包（一位或一家捐款人）一筆。\n' +
+    '2. amount 是阿拉伯數字整數：「一千二」＝1200、「兩千五」＝2500、「三千六」＝3600、「一萬」＝10000、「一萬二」＝12000、「六百」＝600、「一千零五十」＝1050。聽不清楚填 0。\n' +
+    '3. envelopeNo 紅包袋編號，只填數字（例如 "12"）；說「下一包」「下一號」或沒說編號時填空字串（網頁會自動接續上一號）。' +
+    '要分清楚編號和金額：「十二號」「第十二包」「紅包十二」是編號，「十二塊」「一千」是金額。\n' +
+    '4. name：同音字很多，先對照下面的已知姓名，讀音相同或非常接近（含台語、口音）就用已知姓名的寫法；都不像時照聽到的寫，沒把握的字用「？」。' +
+    '有說明字形（「王，三橫王」「陳，耳東陳」）照說明寫，說明本身不要放進姓名。多人合包用「、」分隔。「無名氏」「善心人士」「不具名」照寫。\n' +
+    '5. item：這筆說到的項目（例如 添油香、香油錢、光明燈），優先用下面已知項目的寫法；沒說就填空字串（網頁會用預設項目）。\n' +
+    '6. 某一筆特別說了不同的日期、現金或銀行、收入或支出、活動時，才填 date（YYYY-MM-DD）、account（cash 或 bank）、direction（in 或 out）、activity；否則都填空字串。\n' +
+    '7. 說「更正」「剛剛那筆改成…」「上一筆錯了，是…」時，直接修改前一筆，不要多列一筆；說「刪掉上一筆」就拿掉前一筆。\n' +
+    '8. note：這筆其他的補充（例如「附支票」），沒有填空字串。heard：這一筆原本聽到的話（簡短）。\n' +
+    '9. 「嗯」「好」「下一個」等口頭語、計算總數的話不是一筆。\n' +
+    (hints.names.length ? '已知姓名：' + hints.names.join('、') + '\n' : '') +
+    (hints.activities.length ? '已知活動：' + hints.activities.join('、') + '\n' : '') +
+    (hints.items.length ? '已知項目：' + hints.items.join('、') + '\n' : '') +
+    '只回傳 JSON：{"raw":"聽寫的完整內容（繁體中文）","entries":[{"envelopeNo":"","name":"","amount":0,"item":"","note":"","date":"","account":"","direction":"","activity":"","heard":""}]}';
+  const ai = await voiceGemini(key, [{ text: prompt }, { inline_data: { mime_type: audio.mime, data: audio.base64 } }]) || {};
+  const entries = Array.isArray(ai.entries) ? ai.entries : [];
+  // 第二步：不在已知名單的姓名，請 AI 只比讀音找同音的已知姓名（和 LINE 語音報名同一套做法）
+  let fixed = '';
+  try{ fixed = await voiceFixNames(key, entries, hints.names); }catch(e){ console.error('voice fixNames', e); }
+  const plain = v=>Math.round(Number(String(v==null?'':v).replace(/[^\d.\-]/g,''))||0);
+  return { ok:true, raw: String(ai.raw||''), fixed, entries: entries.map(en=>({
+    envelopeNo: String(en.envelopeNo==null ? '' : en.envelopeNo).replace(/[^\d\-]/g,'').slice(0,10),
+    name: String(en.name||'').trim().slice(0,40), amount: plain(en.amount),
+    item: String(en.item||'').trim().slice(0,40), note: String(en.note||'').trim().slice(0,100),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(en.date||'')) ? String(en.date) : '',
+    account: en.account==='cash' || en.account==='bank' ? en.account : '',
+    direction: en.direction==='in' || en.direction==='out' ? en.direction : '',
+    activity: String(en.activity||'').trim().slice(0,40), heard: String(en.heard||'').trim().slice(0,80),
+  })) };
+}
+
+async function voiceFixNames(key, entries, known){
+  const knownSet = new Set(known);
+  const heard = new Set();
+  entries.forEach(en=>String(en.name||'').split('、').forEach(n=>{ n = n.trim(); if(n && !/[?？]/.test(n) && !knownSet.has(n)) heard.add(n); }));
+  const names = [...heard];
+  if(!names.length || !known.length) return '';
+  const lens = new Set(names.map(n=>n.length));
+  const pool = known.filter(k=>lens.has(k.length));
+  if(!pool.length) return '';
+  const prompt = '下面「聽到的姓名」是語音轉文字的結果，同音字常寫錯。請在「已知姓名」裡找讀音相同的名字：' +
+    '每個字的國語讀音相同（聲調不同也算）或台語讀音相同，才算相同；只是字形像、或只有一兩個字同音的不算。\n' +
+    '聽到的姓名：' + names.join('、') + '\n已知姓名：' + pool.join('、') + '\n' +
+    '只回傳 JSON：{"聽到的姓名":"對應的已知姓名"}，找不到的不要列。';
+  const map = await voiceGemini(key, [{ text: prompt }], 4096) || {};
+  const done = [];
+  Object.keys(map).forEach(h=>{
+    const k = String(map[h]||'').trim();
+    if(!heard.has(h) || !knownSet.has(k) || k.length !== h.length) return;
+    done.push(h + '→' + k);
+    entries.forEach(en=>{ en.name = String(en.name||'').split('、').map(n=>n.trim()===h ? k : n).join('、'); });
+  });
+  return done.join('、');
+}
+
 /* ================= 操作紀錄（v1.11.0）=================
    auditLogs 集合：只能新增、不能修改刪除（資料庫規則保護），只有管理者能讀。
    收支登記（entries）的新增／修改／刪除，一定和一筆紀錄在同一批次寫入；
@@ -2702,6 +3304,7 @@ async function saveBankshotRows(){
 
 const AUDIT_ACTIONS = {
   create:'新增登記', update:'修改登記', delete:'刪除登記',
+  aiKeySet:'設定 AI 金鑰',
   seedImport:'匯入歷史資料', suggestAdd:'新增建議詞', suggestRemove:'刪除建議詞',
   adminSetup:'設定第一位管理者', adminAdd:'新增管理者', adminRemove:'移除管理者'
 };
@@ -3116,6 +3719,7 @@ function init(){
     if(ev.target.value.length===5 && !nameEl.value.trim()) nameEl.value = nameForCounterAcct(ev.target.value);
   });
   bindBankshotUi();
+  bindVoiceUi();
   document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
   document.getElementById('exportDetailBtn').addEventListener('click', exportDetailExcel);
   document.getElementById('exportSuggestBtn').addEventListener('click', exportSuggestExcel);
