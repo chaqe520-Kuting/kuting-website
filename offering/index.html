@@ -1428,8 +1428,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v163";
-  var APP_UPDATED = "2026-10-30";
+  var APP_VERSION = "v164";
+  var APP_UPDATED = "2026-10-31";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1439,6 +1439,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v164", date: "2026-10-31", changes: [
+      "修正：其他志工第一次打開後台時，會停在匯入的歷史場次（例如 115 六月十九的 192 筆），看起來像舊資料跟這次的混在一起；現在第一次打開會停在開放中的場次，沒有開放中就停在最近的平台場次，不會停在歷史場次",
+      "已經停在歷史場次的手機，重新整理一次就會自動換回平台場次（之後要看歷史場次，從場次選單自己選就可以）"
+    ]},
     { version: "v163", date: "2026-10-30", changes: [
       "「📜 打姓名帶出去年的報名」的「目前參考」改成只參考一個場次，存在雲端（這個場次的設定），所有志工和 LINE 小幫手的「同去年」都用同一場，不會再各自找到不同場次",
       "沒選過時自動選：同一個節日最近一屆、同年同名時平台場次優先（匯入的歷史資料排後面），畫面上會寫「自動選」",
@@ -2800,6 +2804,7 @@
   // 的是示範的品項與數量，按下送出也會把報名寫進一個雲端上根本不存在的假場
   // 次，志工後台永遠看不到。見 applyIncomingOccMeta。
   var demoSeedOccIds = {};
+  var occFirstSnapshotDone = false; // v164 剛打開網頁的第一份雲端場次快照還沒套用
   demoSeedOccIds[seed.id] = true;
 
   function current(){
@@ -4730,7 +4735,13 @@
     });
     list = merged;
 
-    var keepId = occasions.some(function(o){ return o.id === currentOccasionId; }) ? currentOccasionId : list[0].id;
+    // v164 — 目前場次不在這份清單裡（第一次打開、本機只有示範場次）時，以前直接取 list[0]（依文件 id 排序，
+    //        剛好是匯入的歷史場次 occ2p2ghe），下面挑開放中場次的邏輯永遠用不到；改成交給 openFallback 挑。
+    //        剛打開網頁的第一份快照若停在歷史場次（本機記住的），也換回平台場次；之後志工自己選歷史場次就照選。
+    var keepId = list.some(function(o){ return o.id === currentOccasionId; }) ? currentOccasionId : null;
+    if(keepId && !occFirstSnapshotDone && list.some(function(o){ return o.id === keepId && o.history; }) &&
+      list.some(function(o){ return !o.history && o.status !== "draft"; })) keepId = null;
+    occFirstSnapshotDone = true;
     occasions = list;
     // v74 — 目前選取的場次不在這份快照裡（例如第一次打開網頁、本機只有示範
     // 場次的信眾）時，優先挑「開放報名中」的場次，而不是單純取清單第一個
@@ -4738,7 +4749,7 @@
     // v116 — 準備中（draft）的場次不能報名，信眾第一次打開時優先停在開放中、其次已關閉的場次
     // v126 — 從 Excel 匯入的歷史場次不當成信眾的預設場次
     var openFallback = occasions.filter(function(o){ return o.status === "open"; })[0] || occasions.filter(function(o){ return o.status !== "draft" && !o.history; })[0];
-    var resolvedId = occasions.some(function(o){ return o.id === keepId; }) ? keepId : (openFallback || occasions[0]).id;
+    var resolvedId = keepId || (openFallback || occasions[0]).id;
     var occasionChanged = resolvedId !== currentOccasionId;
     // currentOccasionId itself is always updated synchronously — current(),
     // findItem(), etc. all read it directly, and a bulk operation this same
