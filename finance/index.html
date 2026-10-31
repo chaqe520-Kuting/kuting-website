@@ -945,9 +945,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.1';
+const APP_VERSION = 'v1.13.2';
 const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.2', date:'2026-10-31', items:[
+    '語音記帳沒拆出登記時，顯示 AI 聽到的內容與錄音秒數，並可播放剛才的錄音；錄到靜音時直接提醒檢查麥克風權限',
+  ]},
   { version:'v1.13.1', date:'2026-10-31', items:[
     '設定 AI 金鑰可貼 Google AI Studio 新格式（AQ. 開頭）的金鑰；金鑰改放在請求標頭傳送，不放在網址上',
   ]},
@@ -2882,6 +2885,7 @@ async function voiceToWav(blob){
   src.buffer = audio; src.connect(off.destination); src.start(0);
   const out = await off.startRendering();
   const pcm = out.getChannelData(0);
+  let peak = 0; for(let i=0;i<pcm.length;i+=8){ const a = Math.abs(pcm[i]); if(a > peak) peak = a; }
   const view = new DataView(new ArrayBuffer(44 + pcm.length * 2));
   const str = (o, t)=>{ for(let i=0;i<t.length;i++) view.setUint8(o+i, t.charCodeAt(i)); };
   str(0,'RIFF'); view.setUint32(4, 36 + pcm.length*2, true); str(8,'WAVE'); str(12,'fmt ');
@@ -2889,7 +2893,7 @@ async function voiceToWav(blob){
   view.setUint32(24,rate,true); view.setUint32(28,rate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
   str(36,'data'); view.setUint32(40, pcm.length*2, true);
   for(let i=0;i<pcm.length;i++){ const v = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(44+i*2, v<0 ? v*0x8000 : v*0x7FFF, true); }
-  return { blob: new Blob([view], { type:'audio/wav' }), sec: audio.duration };
+  return { blob: new Blob([view], { type:'audio/wav' }), sec: audio.duration, peak };
 }
 function blobToBase64(blob){
   return new Promise((res, rej)=>{ const fr = new FileReader(); fr.onload = ()=>res(String(fr.result).split(',')[1] || ''); fr.onerror = rej; fr.readAsDataURL(blob); });
@@ -2926,6 +2930,7 @@ async function sendVoiceBlob(blob, label){
   const common = voiceCommon();
   if(!common.date){ msg.textContent = '請先選日期'; return; }
   const seg = { no: ++voiceSegNo, state:'wait', label, t0: Date.now() };
+  try{ seg.audioUrl = URL.createObjectURL(blob); }catch(_){}
   voiceSegs.push(seg);
   renderVoiceSegMsg();
   const tick = setInterval(renderVoiceSegMsg, 1000);
@@ -2934,7 +2939,9 @@ async function sendVoiceBlob(blob, label){
     let audio;
     try{
       const w = await voiceToWav(blob);
+      seg.audioSec = Math.round(w.sec); seg.peak = w.peak;
       if(w.sec < 1) throw new Error('short');
+      if(w.peak < 0.01) { out = { ok:false, error:`錄到 ${Math.round(w.sec)} 秒，但幾乎沒有聲音。請按下面的播放鍵聽聽看；若是靜音，請確認麥克風權限（iPhone：設定 → Safari／Chrome → 麥克風 → 允許），或改用手機「語音備忘錄」錄好後按「選錄音檔」` }; }
       if(w.sec > VOICE_MAX_SEC + 30) { out = { ok:false, error:`錄音有 ${Math.round(w.sec/60)} 分鐘，太長了，請分成每段 5 分鐘以內` }; }
       audio = { mime:'audio/wav', base64: await blobToBase64(w.blob) };
     }catch(e){
@@ -2988,8 +2995,12 @@ function renderVoiceSegMsg(){
   const el = document.getElementById('voiceMsg');
   el.innerHTML = voiceSegs.map(s=>{
     if(s.state==='wait') return `第 ${s.no} 段${s.label}：AI 整理中… 已等 ${Math.round((Date.now()-s.t0)/1000)} 秒`;
-    if(s.state==='fail') return `<span style="color:var(--temple-red);font-weight:700;">第 ${s.no} 段${s.label}失敗：${escHtml(s.error)}</span>`;
-    return `第 ${s.no} 段${s.label}：聽出 <b>${s.count}</b> 筆（${s.sec} 秒）`;
+    const play = s.audioUrl ? `<br><audio controls src="${s.audioUrl}" style="height:34px;max-width:100%;margin-top:4px;"></audio>` : '';
+    const len = s.audioSec ? `錄音 ${s.audioSec} 秒，` : '';
+    if(s.state==='fail') return `<span style="color:var(--temple-red);font-weight:700;">第 ${s.no} 段${s.label}失敗：${escHtml(s.error)}</span>${play}`;
+    if(!s.count) return `<span style="color:#9A6400;font-weight:700;">第 ${s.no} 段${s.label}：${len}沒有拆出登記。</span>`
+      + (s.raw ? `AI 聽到：「${escHtml(s.raw)}」` : 'AI 沒有聽到任何話（可能錄到靜音）') + play;
+    return `第 ${s.no} 段${s.label}：${len}聽出 <b>${s.count}</b> 筆（${s.sec} 秒）${play}`;
   }).join('<br>');
 }
 
@@ -3260,7 +3271,7 @@ async function voiceAskGemini(key, audio, c, hints){
     (hints.items.length ? '已知項目：' + hints.items.join('、') + '\n' : '') +
     '只回傳 JSON：{"raw":"聽寫的完整內容（繁體中文）","entries":[{"envelopeNo":"","name":"","amount":0,"item":"","note":"","date":"","account":"","direction":"","activity":"","heard":""}]}';
   const ai = await voiceGemini(key, [{ text: prompt }, { inline_data: { mime_type: audio.mime, data: audio.base64 } }]) || {};
-  const entries = Array.isArray(ai.entries) ? ai.entries : [];
+  const entries = Array.isArray(ai) ? ai : Array.isArray(ai.entries) ? ai.entries : Array.isArray(ai.items) ? ai.items : [];
   // 第二步：不在已知名單的姓名，請 AI 只比讀音找同音的已知姓名（和 LINE 語音報名同一套做法）
   let fixed = '';
   try{ fixed = await voiceFixNames(key, entries, hints.names); }catch(e){ console.error('voice fixNames', e); }
