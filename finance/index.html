@@ -945,9 +945,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.5';
+const APP_VERSION = 'v1.13.6';
 const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.6', date:'2026-10-31', items:[
+    '語音記帳還沒存的結果會記在這台手機／電腦，離開網頁或切到別的 App 再回來會自動接回（錄音本身不保存）；按「清除」或全部存入後就刪掉',
+  ]},
   { version:'v1.13.5', date:'2026-10-31', items:[
     '語音記帳按「開始錄音」沒反應的修正：按下後立刻顯示「正在開啟麥克風…」；麥克風被其他分頁或 App 占用、沒有權限、瀏覽器不支援時會顯示原因；錄音格式改用手機支援的格式',
   ]},
@@ -1813,6 +1816,7 @@ function subscribeEntries(){
       showLiveStatus(liveEntries.length ? `線上即時登記 ${liveEntries.length} 筆` : '');
       render();
       if(currentUser){ renderLiveEntryTable(); renderAccountBalances(); }
+      voiceRefreshFromLive();
     }, err=>{
       console.error('entries 訂閱失敗', err);
       showLiveStatus('連線 Firebase 失敗，顯示的是歷史資料');
@@ -2815,6 +2819,41 @@ function bindVoiceUi(){
     renderVoiceRows();
   });
   document.getElementById('voiceKeyBtn').addEventListener('click', setVoiceKey);
+  voiceRestoreDraft();
+}
+
+/* v1.13.6 還沒存的語音記帳結果記在這台裝置（localStorage），離開網頁或手機切 App 回來會自動接回；錄音本身不保存 */
+const VOICE_DRAFT_KEY = 'finance_voice_draft';
+function voiceSaveDraft(){
+  try{
+    const rows = voiceRows.filter(r=>!r.saved && !r.removed);
+    if(!rows.length){ localStorage.removeItem(VOICE_DRAFT_KEY); return; }
+    const segs = voiceSegs.filter(x=>x.state==='done').map(x=>({ no:x.no, state:'done', label:x.label, raw:x.raw, fixed:x.fixed, count:x.count, sec:x.sec, audioSec:x.audioSec }));
+    localStorage.setItem(VOICE_DRAFT_KEY, JSON.stringify({ at: new Date().toISOString(), segNo: voiceSegNo, rows: rows.map(r=>{ const c = Object.assign({}, r); delete c.status; return c; }), segs, common: voiceCommon() }));
+  }catch(e){ console.warn('voiceSaveDraft', e); }
+}
+function voiceRestoreDraft(){
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(VOICE_DRAFT_KEY) || 'null'); }catch(_){}
+  if(!d || !Array.isArray(d.rows) || !d.rows.length) return;
+  voiceRows = d.rows; voiceSegs = d.segs || []; voiceSegNo = d.segNo || voiceSegs.length;
+  const c = d.common || {};
+  const setv = (id, v)=>{ if(v !== undefined && v !== null && v !== '') document.getElementById(id).value = v; };
+  setv('voiceDate', c.date); setv('voiceAccount', c.account); setv('voiceDirection', c.direction); setv('voiceActivity', c.activity); setv('voiceItem', c.item);
+  voiceDerive();
+  const body = document.getElementById('voiceBody');
+  if(body.style.display === 'none') document.getElementById('voiceToggleBtn').click();
+  renderVoiceRows();
+  const t = new Date(d.at);
+  const msg = document.getElementById('voiceMsg');
+  msg.innerHTML = `<span style="color:var(--jade);font-weight:700;">已接回 ${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} 還沒存的語音記帳 ${voiceRows.length} 筆</span>，核對後按「存入勾選的登記」；不要了請按「清除」。` + (msg.innerHTML ? '<br>' + msg.innerHTML : '');
+}
+// 線上登記更新時（例如剛存入、別人也在登記）重新檢查紅包袋重複與新姓名
+function voiceRefreshFromLive(){
+  voiceKnownNames = null;
+  if(!voiceRows.some(r=>!r.saved && !r.removed)) return;
+  if(document.querySelector('#voiceResult tr[data-row]')) onVoiceEditDone();
+  else { voiceDerive(); renderVoiceRows(); }
 }
 
 function voiceCommon(){
@@ -3105,6 +3144,7 @@ function voiceStClass(r){
 }
 
 function renderVoiceRows(){
+  voiceSaveDraft();
   const box = document.getElementById('voiceResult');
   const rows = voiceRows.filter(r=>!r.removed);
   if(!rows.length){ box.innerHTML = ''; return; }
@@ -3188,6 +3228,7 @@ function onVoiceEditDone(){
 }
 
 function renderVoiceSum(){
+  voiceSaveDraft();
   const el = document.getElementById('voiceSum');
   if(!el) return;
   const pick = voiceRows.filter(r=>r.checked && !r.saved && !r.removed);
