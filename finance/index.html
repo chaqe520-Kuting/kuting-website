@@ -945,9 +945,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.3';
+const APP_VERSION = 'v1.13.4';
 const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.4', date:'2026-10-31', items:[
+    '紅包袋編號每個月重新編號：手動登記與語音記帳的重複提醒都只比對同一個月的登記',
+  ]},
   { version:'v1.13.3', date:'2026-10-31', items:[
     '語音記帳的紅包袋編號重複檢查只比對同一個活動（每場活動重新編號），不再把其他活動的同號登記當成重複',
   ]},
@@ -2193,13 +2196,15 @@ function clearEntryForm(){
   renderBalancePreview();
 }
 
-function findEnvelopeDuplicates(envNo, excludeId){
+// v1.13.4 紅包袋每個月重新編號：只和同一個月（日期的年月）的登記比對；沒給月份時比對全部
+function findEnvelopeDuplicates(envNo, excludeId, ym){
   if(!envNo) return [];
   const m = envNo.match(/\d+/);
   const n = m ? Number(m[0]) : null;
   const plain = envNo.replace(/\s/g,'');
   return liveEntries.filter(e=>{
     if(e.id === excludeId || !e.envelopeNo) return false;
+    if(ym && String(e.date||'').slice(0,7) !== ym) return false;
     const other = String(e.envelopeNo).trim();
     if(other.replace(/\s/g,'') === plain) return true;
     // 只有數字的編號，001 和 1 視為同一號
@@ -2220,7 +2225,7 @@ async function handleSubmitEntry(){
 
   // v1.11.8 紅包袋編號重複：列出已使用這個號碼的登記，確認後才儲存
   const envInput = document.getElementById('entryEnvelope').value.trim();
-  const dups = findEnvelopeDuplicates(envInput, editingEntryId);
+  const dups = findEnvelopeDuplicates(envInput, editingEntryId, dateStr.slice(0,7));
   if(dups.length){
     const list = dups.slice(0, 5).map(e=>`・${e.date}　${e.name||'（未填姓名）'}　${moneyPlain(e.amount)}　${joinLabel(e.activity, e.item)}`).join('\n');
     const more = dups.length > 5 ? `\n…另有 ${dups.length-5} 筆` : '';
@@ -3035,12 +3040,12 @@ function voiceStatus(r){
   if(!r.name) return { level:'warn', text:'沒聽到姓名，請補上（或填無名氏）' };
   if(/[?？]/.test(r.name)) return { level:'warn', text:'姓名有聽不清楚的字（？），請改正' };
   if(r.envelopeNo){
-    // v1.13.3 紅包袋每場活動重新編號：只和同一個活動的登記比對（沒填活動時和同年同月、也沒填活動的比對）
-    const act = (r.activity||'').trim(), ym = String(r.date||'').slice(0,7);
-    const dups = findEnvelopeDuplicates(r.envelopeNo, null).filter(e=> act ? (e.activity||'').trim()===act : (!(e.activity||'').trim() && String(e.date||'').slice(0,7)===ym));
-    if(dups.length) return { level:'dup', text:`「${act||ym}」的紅包袋 ${r.envelopeNo} 號已登記過（${dups.slice(0,2).map(e=>`${e.name||'未填姓名'} ${moneyPlain(e.amount)}`).join('、')}）` };
+    // v1.13.4 紅包袋每個月重新編號：只和同一個月的登記比對
+    const ym = String(r.date||'').slice(0,7);
+    const dups = findEnvelopeDuplicates(r.envelopeNo, null, ym);
+    if(dups.length) return { level:'dup', text:`${Number(ym.slice(5))} 月的紅包袋 ${r.envelopeNo} 號已登記過（${dups.slice(0,2).map(e=>`${e.name||'未填姓名'} ${moneyPlain(e.amount)}`).join('、')}）` };
     const n = /^\d+$/.test(r.envelopeNo) ? Number(r.envelopeNo) : null;
-    const twin = voiceRows.filter(x=>x!==r && !x.removed && !x.saved && (x.activity||'').trim()===act && (x.envelopeNo===r.envelopeNo || (n!==null && /^\d+$/.test(x.envelopeNo||'') && Number(x.envelopeNo)===n)));
+    const twin = voiceRows.filter(x=>x!==r && !x.removed && !x.saved && String(x.date||'').slice(0,7)===ym && (x.envelopeNo===r.envelopeNo || (n!==null && /^\d+$/.test(x.envelopeNo||'') && Number(x.envelopeNo)===n)));
     if(twin.length) return { level:'dup', text:`這批裡紅包袋 ${r.envelopeNo} 號重複（${twin.map(x=>x.name||'未填姓名').join('、')}）` };
   }
   if(!voiceIsKnownName(r.name)) return { level:'new', text:'新姓名（平台沒登記過），請確認寫法' };
