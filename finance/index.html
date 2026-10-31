@@ -945,9 +945,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.0';
+const APP_VERSION = 'v1.13.1';
 const APP_DATE = '2026-10-31';
 const CHANGELOG = [
+  { version:'v1.13.1', date:'2026-10-31', items:[
+    '設定 AI 金鑰可貼 Google AI Studio 新格式（AQ. 開頭）的金鑰；金鑰改放在請求標頭傳送，不放在網址上',
+  ]},
   { version:'v1.13.0', date:'2026-10-31', items:[
     '新增「🎤 語音連續記帳」：先設定共同條件（日期、現金／銀行、收入／支出、活動、預設項目），再一包一包說「紅包袋編號、姓名、金額、項目」，錄完記帳平台直接交給 AI 拆成多筆，核對修改後勾選存入（也可選手機錄好的錄音檔）',
     'AI 會參考平台已登記過的姓名、活動、項目來辨識同音字；不在名單的新姓名標黃色，紅包袋編號已登記過或同一批重複標紅色、不預先勾選',
@@ -3194,10 +3197,10 @@ async function setVoiceKey(){
   if(!isAdminUser){ alert('只有管理者可以設定 AI 金鑰'); return; }
   const has = !!(await getVoiceKey());
   const input = prompt((has ? '已經設定過 AI 金鑰，貼上新的會取代舊的。\n' : '') +
-    '請貼上 Google AI Studio 的 API 金鑰（AIza 開頭）。\n建議用付費專案的金鑰（不用排隊、比較快），並在 Google Cloud 把金鑰限制只能從 https://kuting.tw 使用。', '');
+    '請貼上 Google AI Studio 的 API 金鑰（AIza 或 AQ. 開頭）。\n建議用付費專案的金鑰（不用排隊、比較快），並在 Google Cloud 把金鑰限制只能從 https://kuting.tw 使用。', '');
   if(input == null) return;
   const k = String(input).trim();
-  if(!/^AIza[0-9A-Za-z_\-]{30,}$/.test(k)){ alert('金鑰格式不對，應該是 AIza 開頭的一長串'); return; }
+  if(!/^(AIza[0-9A-Za-z_\-]{30,}|AQ\.[0-9A-Za-z_\-.]{20,})$/.test(k)){ alert('金鑰格式不對，應該是 AIza 或 AQ. 開頭的一長串'); return; }
   try{
     await fbDb.collection('suggestions').doc('aiConfig').set({ geminiKey: k, geminiModel: (voiceKeyCache && voiceKeyCache.model) || '', updatedBy: currentUser.name, updatedAt: new Date().toISOString() });
     voiceKeyCache = { key: k, model: (voiceKeyCache && voiceKeyCache.model) || '' };
@@ -3210,11 +3213,11 @@ async function setVoiceKey(){
 const VOICE_THINKING = [{ thinkingLevel:'low' }, { thinkingBudget:0 }, null];   // 不支援的設定會回 400，換下一個
 async function voiceGemini(key, parts, maxTokens){
   const model = (voiceKeyCache && voiceKeyCache.model) || 'gemini-flash-latest';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const call = t=>{
     const cfg = { responseMimeType:'application/json', temperature:0, maxOutputTokens: maxTokens || 32768 };
     if(t) cfg.thinkingConfig = t;
-    return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ contents:[{ parts }], generationConfig: cfg }) });
+    return fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents:[{ parts }], generationConfig: cfg }) });
   };
   let k = 0, res = await call(VOICE_THINKING[k]);
   while(res.status === 400 && k < VOICE_THINKING.length - 1){ k++; res = await call(VOICE_THINKING[k]); }
@@ -3224,7 +3227,7 @@ async function voiceGemini(key, parts, maxTokens){
   }
   const text = await res.text();
   if(res.status === 429) throw new Error('AI 目前使用量已滿，請過一分鐘再試');
-  if(res.status === 400 && /API key|API_KEY/i.test(text)) throw new Error('AI 金鑰無效，請管理者重新設定');
+  if(res.status === 401 || (res.status === 400 && /API key|API_KEY/i.test(text))) throw new Error('AI 金鑰無效，請管理者重新設定');
   if(res.status === 403) throw new Error('AI 金鑰沒有權限（可能限制了網址，或專案沒開 Generative Language API）');
   if(res.status === 402) throw new Error('AI 付費專案的儲值用完了');
   if(res.status !== 200) throw new Error(`AI 錯誤 ${res.status}：${text.slice(0, 200)}`);
