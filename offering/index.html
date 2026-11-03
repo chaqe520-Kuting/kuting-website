@@ -132,6 +132,21 @@
   .stat .value small{ font-size:.6em; font-weight:600; color:var(--ink-soft); }
   @media (max-width:560px){ .stats{grid-template-columns:1fr 1fr;} .stat:last-child{grid-column:1/-1;} }
   .reg-stats{ grid-template-columns:repeat(3,1fr); margin-top:14px; }
+  /* v165 — 已收款／未收款卡片可點，列出完整名單 */
+  .stat.stat-click{ cursor:pointer; position:relative; transition:border-color .15s, box-shadow .15s; }
+  .stat.stat-click:hover, .stat.stat-click:focus-visible{ border-color:var(--gold, #b8893a); box-shadow:0 0 0 2px rgba(184,137,58,.25); outline:none; }
+  .stat.stat-click .stat-hint{ position:absolute; right:12px; top:12px; font-size:.72rem; font-weight:700; color:var(--cinnabar-ink); }
+  .pay-list-sum{ font-size:.86rem; color:var(--ink-soft); margin-bottom:8px; }
+  .pay-list-sum b{ color:var(--cinnabar-ink); }
+  .pay-list-tools{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .pay-list-tools input{ flex:1; min-width:140px; }
+  .pay-list-table{ width:100%; min-width:0; border-collapse:collapse; font-size:.86rem; }
+  .pay-list-table td:last-child, .pay-list-table td:nth-child(2){ white-space:nowrap; }
+  .pay-list-table th{ text-align:left; font-size:.74rem; color:var(--ink-soft); border-bottom:1px solid var(--border); padding:6px 4px; position:sticky; top:-18px; background:var(--paper-raised); }
+  .pay-list-table th, .pay-list-table td{ white-space:normal; }
+  .pay-list-table td{ border-bottom:1px solid var(--border); padding:6px 4px; vertical-align:top; }
+  .pay-list-table td.num{ text-align:right; white-space:nowrap; }
+  .pay-list-table .pl-item{ font-size:.78rem; color:var(--ink-soft); }
   .reg-stats .stat:last-child{ grid-column:auto; }
   @media (max-width:640px){ .reg-stats{ grid-template-columns:1fr 1fr; } }
 
@@ -1047,11 +1062,13 @@
           <div class="label">報名筆數</div>
           <div class="value num" id="regStatCount">0 <small>筆</small></div>
         </div>
-        <div class="stat">
+        <div class="stat stat-click" id="regStatPaidCard" role="button" tabindex="0" title="點一下列出已收款名單">
+          <span class="stat-hint">看名單 ›</span>
           <div class="label">已收款</div>
           <div class="value num" id="regStatPaid">0 <small>筆</small></div>
         </div>
-        <div class="stat">
+        <div class="stat stat-click" id="regStatUnpaidCard" role="button" tabindex="0" title="點一下列出未收款名單">
+          <span class="stat-hint">看名單 ›</span>
           <div class="label">未收款</div>
           <div class="value num" id="regStatUnpaid">0 <small>筆</small></div>
         </div>
@@ -1081,6 +1098,22 @@
 </div>
 
 <div id="toast"></div>
+
+<div class="modal-overlay" id="payListOverlay" style="display:none;">
+  <div class="modal-card" style="max-width:640px;">
+    <div class="modal-head">
+      <h3 id="payListTitle">已收款名單</h3>
+      <button class="modal-close" id="payListCloseBtn" type="button" aria-label="關閉">×</button>
+    </div>
+    <div class="pay-list-sum" id="payListSum"></div>
+    <div class="pay-list-tools">
+      <input type="search" id="payListSearch" placeholder="找姓名、品項或金額">
+      <button type="button" class="icon-btn" id="payListSwitchBtn">切換</button>
+      <button type="button" class="icon-btn" id="payListCopyBtn">📋 複製名單</button>
+    </div>
+    <div id="payListBody"></div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="changelogOverlay" style="display:none;">
   <div class="modal-card" id="changelogCard" style="max-width:560px;">
@@ -1428,8 +1461,8 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v164";
-  var APP_UPDATED = "2026-10-31";
+  var APP_VERSION = "v165";
+  var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -1439,6 +1472,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v165", date: "2026-11-03", changes: [
+      "登記清單下方的「已收款」「未收款」卡片可以點，點了直接列出該狀態的完整名單（不分頁），顯示筆數、人數與合計金額",
+      "名單可以找姓名／品項／金額、一鍵切換已收款／未收款、複製名單；點姓名看報名資料，點收款狀態可直接改，名單即時更新"
+    ]},
     { version: "v164", date: "2026-10-31", changes: [
       "修正：其他志工第一次打開後台時，會停在匯入的歷史場次（例如 115 六月十九的 192 筆），看起來像舊資料跟這次的混在一起；現在第一次打開會停在開放中的場次，沒有開放中就停在最近的平台場次，不會停在歷史場次",
       "已經停在歷史場次的手機，重新整理一次就會自動換回平台場次（之後要看歷史場次，從場次選單自己選就可以）"
@@ -8320,7 +8357,97 @@
     document.getElementById("regStatAmount").textContent = fmt(total);
     document.getElementById("regStatPaidAmount").textContent = fmt(paidAmount);
     document.getElementById("regStatUnpaidAmount").textContent = fmt(total - paidAmount);
+    if(payListMode && document.getElementById("payListOverlay").style.display !== "none") renderPayList();
   }
+
+  // v165 — 點「已收款」「未收款」卡片，一次列出該狀態的完整名單（不分頁），
+  // 依登記順序；點姓名看報名資料、點收款狀態可直接切換（跟清單同一套
+  // toggleRegPaid），名單會即時更新。
+  var payListMode = null; // "paid" | "unpaid"
+  function payListRegs(){
+    var want = payListMode === "paid";
+    return current().registrations.filter(function(r){ return !!r.paid === want; });
+  }
+  function payListFiltered(){
+    var kw = (document.getElementById("payListSearch").value || "").trim().toLowerCase();
+    var regs = payListRegs();
+    if(!kw) return regs;
+    return regs.filter(function(r){
+      var hay = [r.name, r.phone, r.label, r.dedicateTo, String(r.amount), fmt(r.amount)].join(" ").toLowerCase();
+      return hay.indexOf(kw) >= 0;
+    });
+  }
+  function renderPayList(){
+    var paidMode = payListMode === "paid";
+    var all = payListRegs();
+    var regs = payListFiltered();
+    var sumAll = all.reduce(function(s,r){ return s + (r.amount || 0); }, 0);
+    var people = {};
+    all.forEach(function(r){ people[(r.name || "").trim()] = 1; });
+    document.getElementById("payListTitle").textContent = (paidMode ? "已收款" : "未收款") + "名單（" + (current().label || "") + "）";
+    document.getElementById("payListSwitchBtn").textContent = paidMode ? "改看未收款" : "改看已收款";
+    var sum = '共 <b>' + all.length + '</b> 筆（' + Object.keys(people).length + ' 人）　合計 <b>' + fmt(sumAll) + '</b>';
+    if(regs.length !== all.length) sum += '　｜　找到 ' + regs.length + ' 筆，' + fmt(regs.reduce(function(s,r){ return s + (r.amount || 0); }, 0));
+    document.getElementById("payListSum").innerHTML = sum;
+    var body = document.getElementById("payListBody");
+    if(!regs.length){
+      body.innerHTML = '<p class="pay-list-sum">' + (all.length ? "沒有符合的資料。" : (paidMode ? "目前沒有已收款的報名。" : "全部都已收款了。")) + '</p>';
+      return;
+    }
+    var html = '<table class="pay-list-table"><thead><tr><th>#</th><th>姓名</th><th>品項</th><th style="text-align:right">金額</th><th>收款狀態</th></tr></thead><tbody>';
+    regs.forEach(function(r, i){
+      html += '<tr><td>' + (i + 1) + '</td>' +
+        '<td><button type="button" class="link-btn" data-act="preview" data-id="' + r.id + '">' + escHtml(r.name || "—") + '</button>' + (r.phone ? '<div class="pl-item">' + escHtml(r.phone) + '</div>' : '') + '</td>' +
+        '<td>' + escHtml(r.label + (r.dedicateTo ? "－" + r.dedicateTo : "")) + '<div class="pl-item">' + regQtyText(r, findCatalog(r.catId), "") + '</div></td>' +
+        '<td class="num">' + fmt(r.amount) + '</td>' +
+        '<td><button type="button" class="paid-pill ' + (r.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + r.id + '">' + (r.paid ? "已收款" : "待收款") + '</button></td></tr>';
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  }
+  function openPayList(mode){
+    payListMode = mode;
+    document.getElementById("payListSearch").value = "";
+    renderPayList();
+    document.getElementById("payListOverlay").style.display = "flex";
+  }
+  (function setupPayList(){
+    var overlay = document.getElementById("payListOverlay");
+    function close(){ overlay.style.display = "none"; payListMode = null; }
+    [["regStatPaidCard","paid"],["regStatUnpaidCard","unpaid"]].forEach(function(p){
+      var card = document.getElementById(p[0]);
+      card.addEventListener("click", function(){ openPayList(p[1]); });
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); openPayList(p[1]); } });
+    });
+    document.getElementById("payListCloseBtn").addEventListener("click", close);
+    overlay.addEventListener("click", function(e){ if(e.target === overlay) close(); });
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && overlay.style.display !== "none" && document.getElementById("regPreviewOverlay").style.display === "none") close();
+    }, true);
+    document.getElementById("payListSearch").addEventListener("input", renderPayList);
+    document.getElementById("payListSwitchBtn").addEventListener("click", function(){
+      openPayList(payListMode === "paid" ? "unpaid" : "paid");
+    });
+    document.getElementById("payListCopyBtn").addEventListener("click", function(){
+      var regs = payListFiltered();
+      var lines = regs.map(function(r, i){
+        return (i + 1) + ". " + (r.name || "") + "　" + r.label + (r.dedicateTo ? "－" + r.dedicateTo : "") + "　" + fmt(r.amount);
+      });
+      var text = (payListMode === "paid" ? "已收款" : "未收款") + "名單（" + (current().label || "") + "）共 " + regs.length + " 筆\n" + lines.join("\n");
+      var done = function(){ showToast("已複製 " + regs.length + " 筆名單"); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done, function(){ window.prompt("請手動複製：", text); });
+      } else window.prompt("請手動複製：", text);
+    });
+    document.getElementById("payListBody").addEventListener("click", function(e){
+      var btn = e.target.closest("button");
+      if(!btn) return;
+      var id = +btn.getAttribute("data-id");
+      var act = btn.getAttribute("data-act");
+      if(act === "preview") openRegPreview(id);
+      else if(act === "paid"){ toggleRegPaid(id); renderPayList(); }
+    });
+  })();
 
   function updateRegSelectionUI(){
     var count = Object.keys(selectedRegIds).length;
