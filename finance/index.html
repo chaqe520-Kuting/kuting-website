@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.15.1';
+const APP_VERSION = 'v1.15.2';
 const APP_DATE = '2026-11-03';
 const CHANGELOG = [
+  { version:'v1.15.2', date:'2026-11-03', items:[
+    '紅包袋編號不同（兩筆都有寫）就不算疑似重複；有一筆沒寫紅包袋或編號一樣才標',
+  ] },
   { version:'v1.15.1', date:'2026-11-03', items:[
     '「疑似重複」會直接寫出和哪一筆一樣（日期、紅包袋編號、項目、登記人）；紅包袋編號不同的標「紅包袋不同」，多半是不同的兩筆',
     '點「疑似重複 N 筆」只看重複的，同一組排在一起並標第幾組，再點一次看全部',
@@ -2574,7 +2577,7 @@ function renderRecon(){
   const dupKey = e=> [e.date, e.account, e.direction, Math.round(e.amount), (e.name||'').trim()].join('|');
   monthEntries.forEach(e=>{ const k = dupKey(e); dupCount[k] = (dupCount[k]||0) + 1; (dupGroup[k] = dupGroup[k] || []).push(e); });
   const dupOrder = {}; let dupSeq = 0;
-  Object.keys(dupGroup).forEach(k=>{ if(dupGroup[k].length > 1) dupOrder[k] = ++dupSeq; });
+  Object.keys(dupGroup).forEach(k=>{ if(dupGroup[k].length > 1) dupOrder[k] = 0; });
   const calc = monthEntries.map(e=>{
     const a = e.account === 'cash' ? 'cash' : 'bank';
     const amt = Number(e.amount)||0;
@@ -2583,11 +2586,11 @@ function renderRecon(){
     if(run[a] !== null){ run[a] += e.direction==='in' ? amt : -amt; if(!(seedPart[a].in || seedPart[a].out)) bal = run[a]; }
     const shotBad = a==='bank' && e.bankBalance!=null && e.bankBalance!=='' && bal!==null
       && !(seedPart.bank.in || seedPart.bank.out) && Math.round(Number(e.bankBalance)) !== Math.round(bal);
-    const dk = dupKey(e), dup = dupCount[dk] > 1;
-    const others = dup ? dupGroup[dk].filter(x=>x !== e) : [];
-    // 紅包袋編號都不一樣（各自有寫）＝很可能是不同的兩筆，只是同名同額
-    const envs = dup ? dupGroup[dk].map(x=>String(x.envelopeNo||'').trim().replace(/^0+/,'')) : [];
-    const diffEnv = dup && envs.every(v=>v) && new Set(envs).size === envs.length;
+    // v1.15.2 紅包袋編號不同（兩筆都有寫）＝不同的兩筆，不算重複（小朱決定）
+    const envOf = x=> String(x.envelopeNo||'').trim().replace(/^0+/,'');
+    const dk = dupKey(e), myEnv = envOf(e);
+    const others = dupCount[dk] > 1 ? dupGroup[dk].filter(x=>x !== e && (!myEnv || !envOf(x) || envOf(x) === myEnv)) : [];
+    const dup = others.length > 0, diffEnv = false;
     return { e, a, amt, bal, dup, dk, others, diffEnv, shotBad };
   });
 
@@ -2628,6 +2631,7 @@ function renderRecon(){
     if(/^\d+$/.test(qd) && (Math.round(c.amt)===Number(qd) || String(e.envelopeNo||'').replace(/^0+/,'')===qd.replace(/^0+/,''))) return true;
     return `${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.counterAcct||''} ${e.date||''} ${e.enteredBy||''}`.toLowerCase().includes(q);
   });
+  calc.forEach(c=>{ if(c.dup && !dupOrder[c.dk]) dupOrder[c.dk] = ++dupSeq; });
   if(reconState.dupOnly) shown.sort((x,y)=> (dupOrder[x.dk]||0) - (dupOrder[y.dk]||0));
   const fin = shown.filter(c=>c.e.direction==='in').reduce((t,c)=>t+c.amt,0);
   const fout = shown.filter(c=>c.e.direction!=='in').reduce((t,c)=>t+c.amt,0);
