@@ -1585,7 +1585,8 @@ window.KutingFinMatch = function(opts){
   }
   function build(){
     var keep = {};
-    rows.forEach(function(row){ keep[row.id] = row; });
+    var prevPos = {};
+    rows.forEach(function(row, i){ keep[row.id] = row; prevPos[row.id] = i; });
     rows = [];
     if(!entries) return;
     var linked = {};
@@ -1606,6 +1607,35 @@ window.KutingFinMatch = function(opts){
       var out = ps.filter(function(p){ return (et.length && meet(et, p.tokens)) || al.indexOf(p.key) >= 0; });
       metCache[e.id] = out; return out;
     };
+    // 手動選的先處理（v175：以前排在自動對照後面，手動加人後重畫會被「姓名相符」蓋回去，看起來沒反應）
+    // 可以選好幾位；同樣的人選在好幾筆收入上就合成一列＝分次付款
+    var manualByKeys = {};
+    list.forEach(function(e){
+      if(used[e.id]) return;
+      var prev = keep[e.id];
+      if(prev && prev.level === "none" && prev.userCleared){ used[e.id] = 1; var nr = mk([e], [], [], "none", false); nr.userCleared = true; rows.push(nr); return; }
+      if(prev && prev.level === "manual" && prev.keys.length){
+        var sig = prev.keys.slice().sort().join("|");
+        if(manualByKeys[sig]){ manualByKeys[sig].entries.push(e); used[e.id] = 1; return; }
+        var f = union(prev.keys);
+        if(f.length){
+          claim(f); used[e.id] = 1;
+          var row = mk([e], prev.keys.slice(), f, "manual", prev.checked);
+          manualByKeys[sig] = row; rows.push(row); return;
+        }
+      }
+    });
+    // 被合併到手動列的收入（不是第一筆）
+    Object.keys(keep).forEach(function(k){
+      var prev = keep[k];
+      if(prev.level !== "manual" || prev.entries.length < 2) return;
+      var sig = prev.keys.slice().sort().join("|"), row = manualByKeys[sig];
+      if(!row) return;
+      prev.entries.slice(1).forEach(function(pe){
+        var e = list.filter(function(x){ return x.id === pe.id; })[0];
+        if(e && !used[e.id]){ row.entries.push(e); used[e.id] = 1; }
+      });
+    });
     // 0. 記住的姓名對照（之前確認過這個姓名＝哪幾位）：整組帶入
     list.forEach(function(e){
       var al = aliasMap[normName(e.name)] || [];
@@ -1677,35 +1707,11 @@ window.KutingFinMatch = function(opts){
       var f = free(hit[0]); claim(f); used[e.id] = 1;
       rows.push(mk([e], [hit[0].key], f, "amt", false));
     });
-    // 5. 手動選的（可以選好幾位；同樣的人選在好幾筆收入上就合成一列＝分次付款）
-    var manualByKeys = {};
-    list.forEach(function(e){
-      if(used[e.id]) return;
-      var prev = keep[e.id];
-      if(prev && prev.level === "manual" && prev.keys.length){
-        var sig = prev.keys.slice().sort().join("|");
-        if(manualByKeys[sig]){ manualByKeys[sig].entries.push(e); used[e.id] = 1; return; }
-        var f = union(prev.keys);
-        if(f.length){
-          claim(f); used[e.id] = 1;
-          var row = mk([e], prev.keys.slice(), f, "manual", prev.checked);
-          manualByKeys[sig] = row; rows.push(row); return;
-        }
-      }
-    });
-    // 被合併到手動列的收入（不是第一筆）
-    Object.keys(keep).forEach(function(k){
-      var prev = keep[k];
-      if(prev.level !== "manual" || prev.entries.length < 2) return;
-      var sig = prev.keys.slice().sort().join("|"), row = manualByKeys[sig];
-      if(!row) return;
-      prev.entries.slice(1).forEach(function(pe){
-        var e = list.filter(function(x){ return x.id === pe.id; })[0];
-        if(e && !used[e.id]){ row.entries.push(e); used[e.id] = 1; }
-      });
-    });
     // 6. 其他：沒對到
     list.forEach(function(e){ if(!used[e.id]) rows.push(mk([e], [], [], "none", false)); });
+    // 重畫時維持原本的順序（手動選的先處理，但不要跳到最上面）
+    rows = rows.map(function(row, i){ return { row: row, k: prevPos.hasOwnProperty(row.id) ? prevPos[row.id] : 1e6 + i }; })
+      .sort(function(a, b){ return a.k - b.k; }).map(function(x){ return x.row; });
     rows.forEach(function(row){ row.amount = row.entries.reduce(function(s, e){ return s + e.amount; }, 0); });
     rows.forEach(function(row){ var prev = keep[row.id]; if(prev && prev.level === row.level && prev.keys.join("|") === row.keys.join("|")) row.checked = prev.checked; });
   }
@@ -2087,7 +2093,7 @@ window.KutingFinMatch = function(opts){
       if(t.hasAttribute("data-kfm-ck")){ var r = rows[+t.getAttribute("data-kfm-ck")]; if(r) r.checked = t.checked; hint(); }
       else if(t.hasAttribute("data-kfm-pick")){
         var r2 = rows[+t.getAttribute("data-kfm-pick")]; if(!r2 || !t.value) return;
-        r2.keys = r2.keys.concat([t.value]); r2.level = "manual"; r2.aliasDiff = false; r2.checked = true;
+        r2.keys = r2.keys.concat([t.value]); r2.level = "manual"; r2.aliasDiff = false; r2.userCleared = false; r2.checked = true;
         render();
       }
     });
@@ -2097,7 +2103,7 @@ window.KutingFinMatch = function(opts){
         var ru = rows[+u.getAttribute("data-kfm-unpick")]; if(!ru) return;
         var k = u.getAttribute("data-key");
         ru.keys = ru.keys.filter(function(x){ return x !== k; });
-        ru.level = ru.keys.length ? "manual" : "none"; ru.checked = !!ru.keys.length;
+        ru.level = ru.keys.length ? "manual" : "none"; ru.userCleared = !ru.keys.length; ru.aliasDiff = false; ru.checked = !!ru.keys.length;
         render(); return;
       }
       var b = e.target.closest("[data-kfm-preview]"); if(!b || !opts.preview) return;
@@ -2203,7 +2209,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v174";
+  var APP_VERSION = "v175";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2214,6 +2220,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v175", date: "2026-11-03", changes: [
+      "修正對照財務收入：黃色「姓名相符、金額不同」那列按「＋ 再加一位」或「×」沒反應（選了又被蓋回去），現在會保留您選的人，列的位置也不會跳動"
+    ] },
     { version: "v174", date: "2026-11-03", changes: [
       "記住姓名對照改成「一整組」：財務收入（紅包袋）寫的姓名確認對應到哪幾位報名後，就記住這一組，下次同樣的姓名自動帶入同一組人（綠色「🧠 記住的對照」，金額相符會先勾好）",
       "所有確認過的對應都會記（不只手動選的）；再確認不同組合時以最新的為準",
