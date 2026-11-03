@@ -1572,12 +1572,51 @@ window.KutingFinMatch = function(opts){
     });
     return order.map(function(k){ return map[k]; });
   }
+  // v177 只列紅包袋活動名稱跟本場次對得上的收入：
+  // 先找農曆月日（九月十九、九月初一…），兩邊都有就要一樣；場次名稱沒有農曆月日時，比 3 個字以上相同的詞
+  var LUNAR_RE = /([正一二三四五六七八九十冬臘臘]{1,2})月(初[一二三四五六七八九十]|廿[一二三四五六七八九]?|三十|[二]?十[一二三四五六七八九]?|[一二三四五六七八九])/g;
+  var CN = { "一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10 };
+  function cnNum(t){
+    t = t.replace(/^初/, "").replace(/^廿/, "二十");
+    if(t === "正") return 1; if(t === "冬") return 11; if(t === "臘") return 12;
+    if(t.length === 1) return CN[t] || 0;
+    if(t[0] === "十") return 10 + (CN[t[1]] || 0);
+    if(t[1] === "十") return CN[t[0]] * 10 + (CN[t[2]] || 0);
+    return 0;
+  }
+  function lunarKeys(str){
+    var out = [], m; LUNAR_RE.lastIndex = 0;
+    while((m = LUNAR_RE.exec(String(str || "")))){ var k = cnNum(m[1]) + "/" + cnNum(m[2]); if(out.indexOf(k) < 0) out.push(k); }
+    return out;
+  }
+  var GENERIC = /古亭院|昇龍|觀世音|菩薩|農曆|國曆|丙午|乙巳|丁未|[0-9０-９]+|年|月|日|法會|供品|贊助|報名|線上|聖誕|千秋|祝壽|活動/g;
+  function eventMatcher(){
+    var t = String(opts.title() || "");
+    var lk = lunarKeys(t);
+    if(lk.length) return { text: (t.match(LUNAR_RE) || []).filter(function(x, i, a){ return a.indexOf(x) === i; }).join("、"), test: function(e){
+      var ek = lunarKeys([e.activity, e.item, e.note].join(" "));
+      return ek.some(function(k){ return lk.indexOf(k) >= 0; });
+    } };
+    var words = t.replace(LUNAR_RE, " ").replace(GENERIC, " ").split(/[\s\-－—…．.、，,（）()／/]+/).filter(function(w){ return w.length >= 2; });
+    if(!words.length) return null;
+    return { text: words.join("、"), test: function(e){
+      var hay = [e.activity, e.item, e.note].join(" ");
+      return words.some(function(w){
+        if(w.length <= 3) return hay.indexOf(w) >= 0;
+        for(var i = 0; i + 3 <= w.length; i++) if(hay.indexOf(w.substr(i, 3)) >= 0) return true;
+        return false;
+      });
+    } };
+  }
+  function evOnly(){ return !built || $("EvOnly").checked; }
   function viewEntries(){
     if(!entries) return [];
     var kw = built ? String($("Kw").value || "").trim().toLowerCase() : "";
     var kws = kw ? kw.split(/[\s,，、]+/).filter(Boolean) : [];
+    var em = evOnly() ? eventMatcher() : null;
     return entries.filter(function(e){
       if(acctView !== "all" && e.acct !== acctView) return false;
+      if(em && !em.test(e)) return false;
       if(!kws.length) return true;
       var hay = [e.activity, e.item, e.note, e.name].join(" ").toLowerCase();
       return kws.some(function(k){ return hay.indexOf(k) >= 0; });
@@ -1767,6 +1806,8 @@ window.KutingFinMatch = function(opts){
     if(!entries){ sum.textContent = ""; body.innerHTML = ""; hint(); return; }
     build();
     var ps = persons(), view = viewEntries();
+    var emNow = eventMatcher();
+    $("EvNote").textContent = !$("EvOnly").checked ? "（目前列出全部活動）" : emNow ? "（依「" + emNow.text + "」比對；沒寫活動名稱的收入不會列出）" : "（場次名稱找不到可比對的字，先列出全部）";
     var unpaidN = ps.reduce(function(s, p){ return s + p.regs.length; }, 0);
     var linkedN = view.length - rows.reduce(function(s, r){ return s + r.entries.length; }, 0);
     var c = { full: 0, part: 0, multi: 0, split: 0, name: 0, amt: 0, none: 0, manual: 0, alias: 0 };
@@ -2035,6 +2076,7 @@ window.KutingFinMatch = function(opts){
       '<span id="kfmAcctPills"><button type="button" class="kfm-btn" data-acct="all">全部</button><button type="button" class="kfm-btn" data-acct="cash">現金</button><button type="button" class="kfm-btn" data-acct="bank">銀行</button></span>' +
       '<label>日期 <input type="date" id="kfmFrom" value="' + dstr(d) + '"></label><label>到 <input type="date" id="kfmTo" value="' + dstr(new Date()) + '"></label>' +
       '<button type="button" class="kfm-btn" id="kfmReload">🔄 重新讀取</button></div>' +
+      '<div class="kfm-row"><label><input type="checkbox" id="kfmEvOnly" checked> 只列紅包袋活動名稱對應本場次的收入</label><span class="kfm-muted" id="kfmEvNote"></span></div>' +
       '<div class="kfm-row"><label>只看活動／項目含 <input type="search" id="kfmKw" placeholder="例如：供品 梁皇（空白＝全部）" style="min-width:240px;"></label><span class="kfm-muted">多個字用空白或頓號分開，符合任一個就列出</span><label style="margin-left:auto"><input type="checkbox" id="kfmShowNone"> 也列出沒對到的收入（可手動選是誰的）</label></div>' +
       '<div class="kfm-muted" id="kfmSum" style="margin-bottom:8px;"></div><div id="kfmBody"></div>' +
       '<div class="kfm-foot"><button type="button" class="kfm-btn main" id="kfmApply">✅ 勾選的標為已收款</button><span class="kfm-muted" id="kfmHint"></span></div>' +
@@ -2076,6 +2118,9 @@ window.KutingFinMatch = function(opts){
     });
     $("LogKw").addEventListener("input", renderLog);
     $("ShowNone").addEventListener("change", render);
+    var evKey = "kuting_finmatch_evonly_" + (opts.id || "x");
+    try { if(localStorage.getItem(evKey) === "0") $("EvOnly").checked = false; } catch(e){}
+    $("EvOnly").addEventListener("change", function(){ try { localStorage.setItem(evKey, $("EvOnly").checked ? "1" : "0"); } catch(e){} rows = []; render(); });
     $("LogCopy").addEventListener("click", copyLog);
     $("Xlsx").addEventListener("click", exportXlsx);
     $("Reload").addEventListener("click", function(){ rows = []; load(); });
@@ -2209,7 +2254,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v176";
+  var APP_VERSION = "v177";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2220,6 +2265,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v177", date: "2026-11-03", changes: [
+      "對照財務收入預設「只列紅包袋活動名稱對應本場次的收入」：依場次名稱的農曆月日（例如九月十九）比對財務的活動／項目，其他場次（例如九月初一渡祖先）和沒寫活動的收入不列；取消勾選可看全部"
+    ] },
     { version: "v176", date: "2026-11-03", changes: [
       "修正對照財務收入：選了好幾位後報名明細擠成一長行、蓋到右邊的報名金額；現在會自動換行，好幾位時每筆報名一行"
     ] },
