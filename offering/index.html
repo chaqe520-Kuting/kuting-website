@@ -1873,6 +1873,8 @@ window.KutingFinMatch = function(opts){
       if(!initAuth()){ toast("無法連到財務記帳，請重新整理頁面"); return; }
       mode = "match";
       $("Msg").textContent = "";
+      if(!$("Name").value) $("Name").value = finUser() || staffName();
+      if(!auth.currentUser) setTimeout(function(){ try { ($("Name").value ? $("Pw") : $("Name")).focus(); } catch(e){} }, 50);
       $("Overlay").style.display = "flex";
       if(auth.currentUser && !entries && !loading) load(); else render();
     },
@@ -1929,7 +1931,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v170";
+  var APP_VERSION = "v171";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1940,8 +1942,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
-    { version: "v170", date: "2026-11-03", changes: [
+    { version: "v171", date: "2026-11-03", changes: [
       "匯出 Excel 的登記清單最前面加「編號」欄（1、2、3…），和法會報名的匯出一致"
+    ]},
+    { version: "v170", date: "2026-11-03", changes: [
+      "對照財務收入的登入框會自動帶入後台登入的姓名，只要輸入財務密碼（新版上線前就登入後台的，請登出後台再登入一次就會自動連上財務）"
     ]},
     { version: "v169", date: "2026-11-03", changes: [
       "對照財務收入不用再另外登入：登入供品後台時，自動用同一組姓名密碼連上財務記帳（財務密碼不同時才需要在對照視窗登入一次，這台會記住；登出後台時一起登出）",
@@ -6242,7 +6247,7 @@ window.KutingFinMatch = function(opts){
   // the two paths can never drift out of sync with each other.
   function buildOccasionExportRows(occ){
     var hasConfirm = !!occ.confirmFieldName;
-    var header = ["編號", "姓名", "電話", "品項", "數量", "金額", "收款狀態"]; // v170 比照法會報名，最前面加編號
+    var header = ["編號", "姓名", "電話", "品項", "數量", "金額", "收款狀態"]; // v171 比照法會報名，最前面加編號
     // v149 — 法船等補運品項的「補運」「補運地址」原本沒匯出（小朱）
     var hasBuyun = (occ.items || []).some(function(it){ return it.needsBuyun; }) ||
       occ.registrations.some(function(r){ return r.buyunName || r.buyunAddr || r.buyun; });
