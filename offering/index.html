@@ -1482,18 +1482,27 @@ window.KutingFinMatch = function(opts){
       if(m && typeof m === "object"){ Object.keys(m).forEach(function(k){ aliasMap[k] = m[k]; }); try { localStorage.setItem(ALIAS_KEY, JSON.stringify(aliasMap)); } catch(e){} rows = []; render(); }
     }, function(){});
   }
-  // 記住「財務寫的姓名 → 報名姓名」：志工手動選過或確認過金額不同的，下次自動對上
+  // v174 記住「財務寫的姓名（紅包袋上的姓名）→ 這筆對應的報名姓名（可好幾位）」：
+  // 確認對應後就記下這一組，下次同樣的姓名自動帶入同一組人；再確認不同組合時以最新的為準
   function rememberAliases(pairs){
     var add = {}, n = 0;
     Object.keys(pairs).forEach(function(k){
       if(!k) return;
-      var cur = aliasMap[k] || [], merged = cur.slice();
-      pairs[k].forEach(function(v){ if(merged.indexOf(v) < 0) merged.push(v); });
-      if(merged.length !== cur.length){ aliasMap[k] = merged; add[k] = merged; n++; }
+      var v = pairs[k].filter(function(x, i, a){ return x && a.indexOf(x) === i; });
+      if(!v.length) return;
+      var cur = aliasMap[k] || [];
+      if(cur.length === v.length && cur.every(function(x){ return v.indexOf(x) >= 0; })) return;
+      aliasMap[k] = v; add[k] = v; n++;
     });
-    if(!n) return;
+    if(!n) return 0;
     try { localStorage.setItem(ALIAS_KEY, JSON.stringify(aliasMap)); } catch(e){}
     if(opts.aliasStore) Promise.resolve(opts.aliasStore.save(add)).catch(function(){});
+    return n;
+  }
+  function removeAlias(k){
+    delete aliasMap[k];
+    try { localStorage.setItem(ALIAS_KEY, JSON.stringify(aliasMap)); } catch(e){}
+    if(opts.aliasStore && opts.aliasStore.remove) Promise.resolve(opts.aliasStore.remove(k)).catch(function(){});
   }
   function regEntryIds(r){ return r.finEntryIds && r.finEntryIds.length ? r.finEntryIds : (r.finEntryId ? [r.finEntryId] : []); }
   function regMatches(r){ return r.finMatches && r.finMatches.length ? r.finMatches : (r.finMatch ? [r.finMatch] : []); }
@@ -1597,8 +1606,24 @@ window.KutingFinMatch = function(opts){
       var out = ps.filter(function(p){ return (et.length && meet(et, p.tokens)) || al.indexOf(p.key) >= 0; });
       metCache[e.id] = out; return out;
     };
+    // 0. 記住的姓名對照（之前確認過這個姓名＝哪幾位）：整組帶入
+    list.forEach(function(e){
+      var al = aliasMap[normName(e.name)] || [];
+      if(!al.length) return;
+      var ks = al.filter(function(k){ return byKey[k] && free(byKey[k]).length; });
+      if(!ks.length) return;
+      var u = union(ks), sub = findSubset(u, e.amount);
+      if(sub){
+        ks = ks.filter(function(k){ return sub.some(function(r){ return byKey[k].regs.indexOf(r) >= 0; }); });
+        claim(sub); used[e.id] = 1;
+        var row = mk([e], ks, sub, "alias", true); row.alias = al.slice(); rows.push(row); return;
+      }
+      claim(u); used[e.id] = 1;
+      var row2 = mk([e], ks, u, "alias", false); row2.alias = al.slice(); row2.aliasDiff = true; rows.push(row2);
+    });
     // 1. 一筆收入：姓名＋金額（一位，或好幾位合付）
     list.forEach(function(e){
+      if(used[e.id]) return;
       var m = met(e); if(!m.length) return;
       var best = null;
       m.forEach(function(p){
@@ -1684,6 +1709,7 @@ window.KutingFinMatch = function(opts){
     rows.forEach(function(row){ row.amount = row.entries.reduce(function(s, e){ return s + e.amount; }, 0); });
     rows.forEach(function(row){ var prev = keep[row.id]; if(prev && prev.level === row.level && prev.keys.join("|") === row.keys.join("|")) row.checked = prev.checked; });
   }
+  function byKeyNow(k){ return persons().some(function(p){ return p.key === k; }); }
   function regsOf(row){
     var all = opts.regs();
     return row.regIds.map(function(id){ return all.filter(function(r){ return opts.key(r) === id; })[0]; }).filter(function(r){ return r && !opts.isPaid(r); });
@@ -1719,6 +1745,8 @@ window.KutingFinMatch = function(opts){
     $("Title").textContent = "對照財務收入（" + (opts.title() || "") + "）";
     Array.prototype.forEach.call(document.querySelectorAll("#kfmTabs button"), function(b){ b.classList.toggle("on", b.getAttribute("data-mode") === mode); });
     $("Log").style.display = mode === "log" ? "" : "none";
+    $("AliasBox").style.display = mode === "alias" ? "" : "none";
+    if(mode === "alias"){ $("LoginBox").style.display = "none"; $("Main").style.display = "none"; $("SumBox").style.display = "none"; renderAliases(); return; }
     if(mode === "log"){ $("LoginBox").style.display = "none"; $("Main").style.display = "none"; $("SumBox").style.display = "none"; renderLog(); return; }
     $("LoginBox").style.display = user ? "none" : "";
     $("Main").style.display = user && mode === "match" ? "" : "none";
@@ -1735,13 +1763,13 @@ window.KutingFinMatch = function(opts){
     var ps = persons(), view = viewEntries();
     var unpaidN = ps.reduce(function(s, p){ return s + p.regs.length; }, 0);
     var linkedN = view.length - rows.reduce(function(s, r){ return s + r.entries.length; }, 0);
-    var c = { full: 0, part: 0, multi: 0, split: 0, name: 0, amt: 0, none: 0, manual: 0 };
+    var c = { full: 0, part: 0, multi: 0, split: 0, name: 0, amt: 0, none: 0, manual: 0, alias: 0 };
     rows.forEach(function(r){ c[r.level]++; });
     var acctName = acctView === "cash" ? "現金" : acctView === "bank" ? "銀行" : "現金＋銀行";
     var kwNow = String($("Kw").value || "").trim();
     sum.innerHTML = '這段期間財務' + acctName + '收入' + (kwNow ? '（活動／項目含「' + esc(kwNow) + '」）' : '') + ' <b>' + view.length + '</b> 筆' + (linkedN ? '（其中 ' + linkedN + ' 筆已對應過）' : '') +
       '；本場次未收款 <b>' + unpaidN + '</b> 筆（' + ps.length + ' 人）。　' +
-      '<span class="kfm-tag full">姓名金額相符 ' + (c.full + c.part + c.multi + c.split) + '</span> <span class="kfm-tag name">請確認 ' + (c.name + c.amt) + '</span> <span class="kfm-tag manual">沒對到 ' + (c.none + c.manual) + '</span>';
+      '<span class="kfm-tag full">姓名金額相符 ' + (c.full + c.part + c.multi + c.split) + '</span>' + (c.alias ? ' <span class="kfm-tag alias">記住的對照 ' + c.alias + '</span>' : '') + ' <span class="kfm-tag name">請確認 ' + (c.name + c.amt) + '</span> <span class="kfm-tag manual">沒對到 ' + (c.none + c.manual) + '</span>';
     if(!rows.length){
       body.innerHTML = '<p class="kfm-muted">' + (view.length ? "這段期間的收入都已經對應過了。" : "這段期間財務沒有" + acctName + "收入，可以調整上面的日期再讀一次。") + '</p>';
       hint(); return;
@@ -1755,7 +1783,8 @@ window.KutingFinMatch = function(opts){
       var tag = { full: '<span class="kfm-tag full">金額相符</span>', part: '<span class="kfm-tag part">相符（部分品項）</span>',
         multi: '<span class="kfm-tag full">相符（好幾位合付）</span>', split: '<span class="kfm-tag full">相符（分 ' + row.entries.length + ' 次付款）</span>',
         name: '<span class="kfm-tag name">姓名相符、金額不同</span>', amt: '<span class="kfm-tag name">只有金額相符</span>',
-        manual: '<span class="kfm-tag manual">手動選的</span>', none: '<span class="kfm-muted">沒對到</span>' }[row.level];
+        manual: '<span class="kfm-tag manual">手動選的</span>', none: '<span class="kfm-muted">沒對到</span>',
+        alias: '<span class="kfm-tag alias">🧠 記住的對照' + (row.aliasDiff ? '（金額不同）' : '') + '</span>' }[row.level];
       var fin = row.entries.map(function(e){
         return '<div class="kfm-fin"><span class="kfm-acct ' + e.acct + '">' + (e.acct === "bank" ? "銀行" : "現金") + '</span> <b>' + esc(e.name || "（沒寫姓名）") + '</b>' +
           (row.entries.length > 1 ? ' <span class="kfm-sub">' + fmt(e.amount) + '</span>' : '') + '<div class="kfm-sub">' +
@@ -1763,16 +1792,18 @@ window.KutingFinMatch = function(opts){
           (e.activity || e.item ? '　' + esc([e.activity, e.item].filter(Boolean).join("／")) : '') + (e.note ? '<br>備註：' + esc(e.note) : '') + '</div></div>';
       }).join("");
       var regList = '<div class="kfm-sub">' + regs.map(function(r){ return (row.keys.length > 1 ? esc(opts.name(r)) + "：" : "") + esc(opts.label(r)) + " " + fmt(amt(r)); }).join("、") + '</div>';
-      var editable = row.level === "none" || row.level === "manual" || row.level === "name" || row.level === "amt";
+      var editable = row.level === "none" || row.level === "manual" || row.level === "name" || row.level === "amt" || row.level === "alias";
       var names = row.keys.map(function(k){
         return '<span class="kfm-chip">' + (opts.preview ? '<button type="button" class="kfm-link" data-kfm-preview="' + idx + '" data-key="' + esc(k) + '">' + esc(k) + '</button>' : '<b>' + esc(k) + '</b>') +
           (editable ? '<button type="button" class="kfm-unpick" data-kfm-unpick="' + idx + '" data-key="' + esc(k) + '" title="拿掉這位">×</button>' : '') + '</span>';
       }).join(" ");
       var add = editable ? '<select data-kfm-pick="' + idx + '"><option value="">' + (row.keys.length ? "＋ 再加一位（好幾位合付）" : "— 選擇這筆是誰的 —") + '</option>' +
         optsHtml.filter(function(o){ return row.keys.indexOf(o.key) < 0; }).map(function(o){ return '<option value="' + esc(o.key) + '">' + esc(o.text) + '</option>'; }).join("") + '</select>' : '';
-      var regCell = names + (regs.length ? regList : "") + add;
+      var aliasNote = row.level === "alias" ? '<div class="kfm-sub">上次確認「' + esc(row.entries[0].name) + '」＝' + esc(row.alias.join("、")) +
+        (row.alias.length !== row.keys.length ? '（' + esc(row.alias.filter(function(k){ return row.keys.indexOf(k) < 0; }).join("、")) + ' 這次沒有未收款）' : '') + '</div>' : '';
+      var regCell = names + (regs.length ? regList : "") + aliasNote + add;
       var diff = regs.length && Math.round(rs) !== Math.round(row.amount) ? '<div class="kfm-sub kfm-diff">差 ' + fmt(Math.abs(row.amount - rs)) + '</div>' : '';
-      html += '<tr class="' + (row.level === "name" || row.level === "amt" ? "kfm-warn" : "") + '">' +
+      html += '<tr class="' + (row.level === "name" || row.level === "amt" || row.aliasDiff ? "kfm-warn" : "") + '">' +
         '<td class="kfm-ck"><input type="checkbox" data-kfm-ck="' + idx + '"' + (row.checked ? " checked" : "") + (regs.length ? "" : " disabled") + '></td>' +
         '<td>' + fin + '</td><td class="kfm-num" data-l="收入">' + fmt(row.amount) + '</td><td>' + regCell + '</td>' +
         '<td class="kfm-num" data-l="報名">' + (regs.length ? fmt(rs) : "—") + diff + '</td><td>' + tag + '</td></tr>';
@@ -1786,7 +1817,18 @@ window.KutingFinMatch = function(opts){
     var btn = $("Apply");
     btn.disabled = !n;
     btn.textContent = n ? "✅ 勾選的 " + n + " 筆報名標為已收款" : "✅ 勾選的標為已收款";
-    $("Hint").textContent = n ? "對應 " + k + " 列財務收入，報名合計 " + fmt(a) : "綠色「金額相符」已先幫您勾好；黃色請確認後再勾。手動選過的姓名會記住，下次自動對上。";
+    $("Hint").textContent = n ? "對應 " + k + " 列財務收入，報名合計 " + fmt(a) : "綠色「金額相符」、「🧠 記住的對照」已先幫您勾好；黃色請確認後再勾。確認過的姓名對應（例如紅包袋姓名＝哪幾位）會記住，下次自動帶入。";
+  }
+  // v174 記住的姓名對照清單（所有志工共用），可刪除錯的
+  function renderAliases(){
+    var kw = String($("AliasKw").value || "").trim();
+    var ks = Object.keys(aliasMap).filter(function(k){ return (aliasMap[k] || []).length; }).sort(function(a, b){ return a.localeCompare(b, "zh-Hant"); });
+    var all = ks.length;
+    if(kw) ks = ks.filter(function(k){ return (k + " " + aliasMap[k].join(" ")).indexOf(kw) >= 0; });
+    $("AliasSum").textContent = "共 " + all + " 組" + (kw ? "，符合 " + ks.length + " 組" : "") + "。財務收入（紅包袋）寫的姓名確認對應後會記在這裡，下次同樣的姓名自動帶入同一組報名姓名；對錯了可以刪掉。";
+    $("AliasBody").innerHTML = ks.length ? '<table class="kfm-table"><thead><tr><th>財務寫的姓名</th><th>自動帶入的報名姓名</th><th style="width:80px"></th></tr></thead><tbody>' +
+      ks.map(function(k){ return '<tr><td><b>' + esc(k) + '</b></td><td>' + esc(aliasMap[k].join("、")) + '</td><td><button type="button" class="kfm-link" data-kfm-delalias="' + esc(k) + '">刪除</button></td></tr>'; }).join("") +
+      '</tbody></table>' : '<p class="kfm-muted">' + (all ? "沒有符合的對照。" : "還沒有記住的對照。在「💵 對照收入」確認對應後就會自動記下。") + '</p>';
   }
   // 對照紀錄：每筆報名的 finLog（確認對應／改回未收款），依時間新到舊
   function logRows(){
@@ -1907,7 +1949,7 @@ window.KutingFinMatch = function(opts){
     if(opts.canEdit && !opts.canEdit()){ toast("需要用啟用中的志工帳號登入，才能改收款狀態"); return; }
     var picked = rows.filter(function(row){ return row.checked && regsOf(row).length; });
     if(!picked.length) return;
-    var warn = picked.filter(function(row){ return row.level === "name" || row.level === "amt" || row.level === "manual"; }).length;
+    var warn = picked.filter(function(row){ return row.level === "name" || row.level === "amt" || row.level === "manual" || row.aliasDiff; }).length;
     var total = picked.reduce(function(s, row){ return s + regsOf(row).length; }, 0);
     if(!confirm("確定把 " + total + " 筆報名標為「已收款」？" + (warn ? "\n（其中 " + warn + " 筆是金額不同、只有金額相符或手動選的，請再確認一次）" : ""))) return;
     var list = [], pairs = {}, now = new Date().toISOString();
@@ -1916,9 +1958,12 @@ window.KutingFinMatch = function(opts){
         return { id: e.id, acct: e.acct, date: e.date, name: e.name, amount: e.amount, env: e.env, acct5: e.acct5, by: staffName(), finUser: finUser(), at: now };
       });
       regsOf(row).forEach(function(reg){ list.push({ reg: reg, matches: ms, match: ms[0] }); });
-      if(row.level === "name" || row.level === "amt" || row.level === "manual"){
-        row.entries.forEach(function(e){ var k = normName(e.name); if(k) pairs[k] = row.keys.slice(); });
-      }
+      row.entries.forEach(function(e){
+        var k = normName(e.name); if(!k || !row.keys.length) return;
+        if(row.keys.length === 1 && normName(row.keys[0]) === k && !aliasMap[k]) return; // 姓名一模一樣，不用記
+        if(row.level === "alias" && row.alias && row.keys.length < row.alias.length && row.alias.every(function(x){ return row.keys.indexOf(x) >= 0 || !byKeyNow(x); })) return; // 有人這次沒有未收款，保留原本整組
+        pairs[k] = row.keys.slice();
+      });
     });
     rememberAliases(pairs);
     $("Apply").disabled = true;
@@ -1957,7 +2002,7 @@ window.KutingFinMatch = function(opts){
       ".kfm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px;}.kfm-card{border:1px solid var(--border,var(--line,#e2d6c2));border-radius:10px;padding:8px 10px;}.kfm-card b{display:block;font-size:1.15rem;color:var(--cinnabar-ink,var(--vermilion,#9b2c1f));}" +
       ".kfm-h4{margin:14px 0 6px;font-size:.95rem;color:var(--cinnabar-ink,var(--vermilion,#9b2c1f));}" +
       ".kfm-tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:.74rem;font-weight:700;white-space:nowrap;}" +
-      ".kfm-tag.full{background:#e3f4e6;color:#1e6b34;}.kfm-tag.part{background:#e3f0fb;color:#1f5f99;}.kfm-tag.name{background:#fff4d6;color:#8a5a00;}.kfm-tag.manual{background:#efe6f7;color:#5b2d82;}" +
+      ".kfm-tag.full{background:#e3f4e6;color:#1e6b34;}.kfm-tag.alias{background:#e0f2f1;color:#0f5f5a;}.kfm-tag.part{background:#e3f0fb;color:#1f5f99;}.kfm-tag.name{background:#fff4d6;color:#8a5a00;}.kfm-tag.manual{background:#efe6f7;color:#5b2d82;}" +
       ".kfm-acct{display:inline-block;border-radius:4px;padding:0 5px;font-size:.72rem;font-weight:700;}.kfm-acct.cash{background:#fbe7d6;color:#8a4210;}.kfm-acct.bank{background:#dfeaf7;color:#1f4f87;}" +
       ".kfm-foot{position:sticky;bottom:0;background:var(--paper-raised,var(--paper,#fffaf2));display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 0 14px;border-top:1px solid var(--border,var(--line,#e2d6c2));margin-top:8px;}" +
       "@media (max-width:760px){#kfmOverlay{padding:8px;}#kfmCard{padding:14px 12px 0;}.kfm-table thead{display:none;}.kfm-table,.kfm-table tbody{display:block;}" +
@@ -1971,7 +2016,8 @@ window.KutingFinMatch = function(opts){
     ov.innerHTML =
       '<div id="kfmCard" role="dialog" aria-modal="true">' +
       '<div class="kfm-head"><h3 id="kfmTitle">對照財務收入</h3><button type="button" class="kfm-x" id="kfmClose" aria-label="關閉">×</button></div>' +
-      '<div class="kfm-row" id="kfmTabs"><button type="button" class="kfm-btn" data-mode="match">💵 對照收入</button><button type="button" class="kfm-btn" data-mode="sum">📊 對帳總表</button><button type="button" class="kfm-btn" data-mode="log">📜 對照紀錄（誰確認的）</button></div>' +
+      '<div class="kfm-row" id="kfmTabs"><button type="button" class="kfm-btn" data-mode="match">💵 對照收入</button><button type="button" class="kfm-btn" data-mode="sum">📊 對帳總表</button><button type="button" class="kfm-btn" data-mode="log">📜 對照紀錄（誰確認的）</button><button type="button" class="kfm-btn" data-mode="alias">🧠 記住的姓名對照</button></div>' +
+      '<div id="kfmAliasBox" style="display:none;padding-bottom:14px;"><div class="kfm-row"><input type="search" id="kfmAliasKw" placeholder="找財務姓名或報名姓名" style="flex:1;min-width:160px;"></div><div class="kfm-muted" id="kfmAliasSum" style="margin-bottom:8px;"></div><div id="kfmAliasBody"></div></div>' +
       '<div id="kfmLog" style="display:none;"><div class="kfm-row"><input type="search" id="kfmLogKw" placeholder="找姓名、確認人、紅包袋或金額" style="flex:1;min-width:160px;"><button type="button" class="kfm-btn" id="kfmLogCopy">📋 複製紀錄（可貼到 Excel）</button></div>' +
       '<div class="kfm-muted" id="kfmLogSum" style="margin-bottom:8px;"></div><div id="kfmLogBody" style="padding-bottom:14px;"></div></div>' +
       '<div class="kfm-box" id="kfmLoginBox"><b>連上財務記帳</b><p class="kfm-muted">平台登入時會自動用同一組姓名和密碼連上財務記帳；如果您的財務密碼不一樣，或這台是之前就登入的，才需要在這裡登入一次（這台會記住，登出平台時一起登出）。這裡只會「讀」財務的現金和銀行收入，不會改到財務資料。</p>' +
@@ -2013,7 +2059,14 @@ window.KutingFinMatch = function(opts){
     $("Tabs").addEventListener("click", function(e){
       var b = e.target.closest("button[data-mode]"); if(!b) return;
       mode = b.getAttribute("data-mode");
-      if(mode !== "log" && auth && auth.currentUser && !entries && !loading) load(); else render();
+      if(mode !== "log" && mode !== "alias" && auth && auth.currentUser && !entries && !loading) load(); else render();
+    });
+    $("AliasKw").addEventListener("input", renderAliases);
+    $("AliasBody").addEventListener("click", function(e){
+      var b = e.target.closest("[data-kfm-delalias]"); if(!b) return;
+      var k = b.getAttribute("data-kfm-delalias");
+      if(!confirm("刪除「" + k + "」的姓名對照？\n（已經標好的已收款不會改，只是下次不再自動帶入）")) return;
+      removeAlias(k); rows = []; renderAliases(); toast("已刪除「" + k + "」的對照");
     });
     $("LogKw").addEventListener("input", renderLog);
     $("ShowNone").addEventListener("change", render);
@@ -2034,7 +2087,7 @@ window.KutingFinMatch = function(opts){
       if(t.hasAttribute("data-kfm-ck")){ var r = rows[+t.getAttribute("data-kfm-ck")]; if(r) r.checked = t.checked; hint(); }
       else if(t.hasAttribute("data-kfm-pick")){
         var r2 = rows[+t.getAttribute("data-kfm-pick")]; if(!r2 || !t.value) return;
-        r2.keys = r2.keys.concat([t.value]); r2.level = "manual"; r2.checked = true;
+        r2.keys = r2.keys.concat([t.value]); r2.level = "manual"; r2.aliasDiff = false; r2.checked = true;
         render();
       }
     });
@@ -2150,7 +2203,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v173";
+  var APP_VERSION = "v174";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2161,6 +2214,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v174", date: "2026-11-03", changes: [
+      "記住姓名對照改成「一整組」：財務收入（紅包袋）寫的姓名確認對應到哪幾位報名後，就記住這一組，下次同樣的姓名自動帶入同一組人（綠色「🧠 記住的對照」，金額相符會先勾好）",
+      "所有確認過的對應都會記（不只手動選的）；再確認不同組合時以最新的為準",
+      "新增「🧠 記住的姓名對照」分頁：看所有記住的對照，對錯了可以刪除"
+    ] },
     { version: "v173", date: "2026-11-03", changes: [
       "對照財務收入：一筆收入付好幾位（例如「卓梅香、黃鈺真」合包一個紅包）會自動找出加起來剛好的那幾位；手動也可以「＋再加一位」選好幾位",
       "一位分好幾次付款：同一位的幾筆收入加起來剛好等於他的未收款，會合成一列「分 N 次付款」；手動把兩筆收入選同一位也會合在一起",
@@ -9194,7 +9252,8 @@ window.KutingFinMatch = function(opts){
     // v173：手動選過的「財務姓名 → 報名姓名」存在 finAliases/map，所有志工共用（規則還沒發布時只記在這台）
     aliasStore: {
       load: function(){ return fsDb ? fsDb.collection("finAliases").doc("map").get().then(function(d){ return (d.exists && d.data().pairs) || {}; }) : Promise.resolve({}); },
-      save: function(add){ return fsDb ? fsDb.collection("finAliases").doc("map").set({ pairs: add }, { merge: true }) : Promise.resolve(); }
+      save: function(add){ return fsDb ? fsDb.collection("finAliases").doc("map").set({ pairs: add }, { merge: true }) : Promise.resolve(); },
+      remove: function(k){ if(!fsDb) return Promise.resolve(); var o = {}; o[k] = firebase.firestore.FieldValue.delete(); return fsDb.collection("finAliases").doc("map").set({ pairs: o }, { merge: true }); }
     },
     canEdit: function(){ return fsCanEdit(); },
     staffName: function(){ return (staff && staff.name) || ""; },
