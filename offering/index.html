@@ -1797,7 +1797,7 @@ window.KutingFinMatch = function(opts){
           esc(shortDate(e.date)) + (e.time ? " " + esc(e.time) : "") + (e.env ? '　紅包袋 ' + esc(e.env) : '') + (e.acct5 ? '　帳號末5碼 ' + esc(e.acct5) : '') +
           (e.activity || e.item ? '　' + esc([e.activity, e.item].filter(Boolean).join("／")) : '') + (e.note ? '<br>備註：' + esc(e.note) : '') + '</div></div>';
       }).join("");
-      var regList = '<div class="kfm-sub">' + regs.map(function(r){ return (row.keys.length > 1 ? esc(opts.name(r)) + "：" : "") + esc(opts.label(r)) + " " + fmt(amt(r)); }).join("、") + '</div>';
+      var regList = '<div class="kfm-sub">' + regs.map(function(r){ return (row.keys.length > 1 ? esc(opts.name(r)) + "：" : "") + esc(opts.label(r)) + " " + fmt(amt(r)); }).join(row.keys.length > 1 ? "<br>" : "、") + '</div>';
       var editable = row.level === "none" || row.level === "manual" || row.level === "name" || row.level === "amt" || row.level === "alias";
       var names = row.keys.map(function(k){
         return '<span class="kfm-chip">' + (opts.preview ? '<button type="button" class="kfm-link" data-kfm-preview="' + idx + '" data-key="' + esc(k) + '">' + esc(k) + '</button>' : '<b>' + esc(k) + '</b>') +
@@ -1997,7 +1997,7 @@ window.KutingFinMatch = function(opts){
       ".kfm-muted{color:var(--ink-soft,var(--muted,#7a6a58));font-size:.86rem;}" +
       ".kfm-table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed;}" +
       ".kfm-table th{text-align:left;font-size:.76rem;color:var(--ink-soft,var(--muted,#7a6a58));border-bottom:1px solid var(--border,var(--line,#e2d6c2));padding:6px;white-space:nowrap;}" +
-      ".kfm-table td{border-bottom:1px solid var(--border,var(--line,#e2d6c2));padding:7px 6px;vertical-align:top;word-break:break-word;}" +
+      ".kfm-table td{border-bottom:1px solid var(--border,var(--line,#e2d6c2));padding:7px 6px;vertical-align:top;word-break:break-word;white-space:normal;}" +
       ".kfm-table.kfm-log{table-layout:auto;}" +
       ".kfm-table select{width:100%;max-width:100%;padding:5px;border-radius:6px;}" +
       ".kfm-num{text-align:right;white-space:nowrap;}.kfm-sub{font-size:.78rem;color:var(--ink-soft,var(--muted,#7a6a58));}.kfm-diff{color:#b3261e;}" +
@@ -2209,7 +2209,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v175";
+  var APP_VERSION = "v176";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2220,6 +2220,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v176", date: "2026-11-03", changes: [
+      "修正對照財務收入：選了好幾位後報名明細擠成一長行、蓋到右邊的報名金額；現在會自動換行，好幾位時每筆報名一行"
+    ] },
     { version: "v175", date: "2026-11-03", changes: [
       "修正對照財務收入：黃色「姓名相符、金額不同」那列按「＋ 再加一位」或「×」沒反應（選了又被蓋回去），現在會保留您選的人，列的位置也不會跳動"
     ] },
