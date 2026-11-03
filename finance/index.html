@@ -300,6 +300,36 @@
   .btn.secondary:hover{background:rgba(140,42,38,0.06);}
   .btn.small{padding:5px 12px;font-size:12.5px;}
   .form-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  /* v1.14.0 本月收支對帳 */
+  .recon-box{border:1.5px solid var(--gold);border-radius:10px;background:var(--card);padding:14px 16px;margin:12px 0 6px;}
+  .recon-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;}
+  .recon-ctrl select,.recon-ctrl input[type=text]{width:auto;min-width:0;padding:6px 10px;font-size:14px;}
+  .recon-ctrl input[type=text]{flex:1 1 180px;}
+  .recon-chip{border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:16px;padding:4px 12px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:700;}
+  .recon-chip.on{border-color:var(--temple-red);background:var(--temple-red);color:#fff;}
+  .recon-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+  .recon-card{background:var(--paper-deep);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px;}
+  .recon-card h4{margin:0 0 6px;font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;}
+  .recon-card .ln{display:flex;justify-content:space-between;gap:8px;padding:2px 0;}
+  .recon-card .ln b{font-variant-numeric:tabular-nums;}
+  .recon-card .ln.click{cursor:pointer;border-radius:4px;}
+  .recon-card .ln.click:hover{background:rgba(184,134,46,0.15);}
+  .recon-card .ln.end{border-top:1px dashed var(--line);margin-top:4px;padding-top:5px;}
+  .recon-card .actual{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+  .recon-card .actual input{width:130px;padding:5px 8px;font-size:14px;}
+  .recon-diff{font-weight:700;}
+  .recon-diff.ok{color:var(--jade);}
+  .recon-diff.bad{color:var(--temple-red);}
+  .recon-in{color:var(--jade);}
+  .recon-out{color:var(--temple-red);}
+  #reconBody tr{cursor:pointer;}
+  #reconBody tr:hover td{background:rgba(184,134,46,0.10);}
+  #reconBody td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  #reconBody tr.dup td{background:#FFF4C2;}
+  .recon-flag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:4px;padding:0 5px;margin-left:4px;}
+  .recon-flag.dup{background:#F2C94C;color:#5a4300;}
+  .recon-flag.bal{background:var(--temple-red);color:#fff;}
+  @media (max-width:760px){ .recon-cards{grid-template-columns:1fr;} }
   #loginMsg, #entryMsg{font-size:13px;color:var(--jade);font-weight:700;}
   #liveEntryBody .row-edit{color:var(--gold);cursor:pointer;background:none;border:none;font-size:12.5px;margin-right:8px;text-decoration:underline;font-family:inherit;}
   #liveEntryBody td:nth-child(6){white-space:nowrap;}
@@ -648,7 +678,34 @@
         <div class="form-footer">
           <button class="btn" id="submitEntryBtn">新增登記</button>
           <button class="btn secondary" id="cancelEditBtn" style="display:none;">取消編輯</button>
+          <button class="btn secondary" id="reconToggleBtn">📋 本月收支對帳 ▾</button>
           <span id="entryMsg" class="muted"></span>
+        </div>
+
+        <div class="recon-box" id="reconBox" style="display:none;">
+          <div class="recon-ctrl">
+            <select id="reconMonth"></select>
+            <span>
+              <button class="recon-chip on" data-acct="all">全部</button>
+              <button class="recon-chip" data-acct="cash">現金</button>
+              <button class="recon-chip" data-acct="bank">銀行</button>
+            </span>
+            <span>
+              <button class="recon-chip on" data-dir="all">收入＋支出</button>
+              <button class="recon-chip" data-dir="in">只看收入</button>
+              <button class="recon-chip" data-dir="out">只看支出</button>
+            </span>
+            <input type="text" id="reconSearch" autocomplete="off" placeholder="篩選：姓名、項目、紅包袋或金額">
+          </div>
+          <div class="recon-cards" id="reconCards"></div>
+          <div id="reconInfo" class="muted" style="margin:0 0 6px;font-size:13.5px;"></div>
+          <div class="detail-table-wrap" style="max-height:460px;">
+            <table id="reconTable">
+              <thead><tr><th>日期</th><th>帳別</th><th style="text-align:left;">姓名／項目</th><th style="text-align:right;">收入</th><th style="text-align:right;">支出</th><th style="text-align:right;">登記後餘額</th><th>登記人</th></tr></thead>
+              <tbody id="reconBody"></tbody>
+            </table>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:8px 0 0;">點任一筆可帶到上方表單修改。「登記後餘額」是從本月期初依日期逐筆加減，可和存摺／銀行 App 每筆後的餘額對照；黃底＝同日、同帳別、同金額、同姓名的疑似重複；「截圖餘額不符」＝銀行截圖讀到的餘額和平台算出的不同。</p>
         </div>
 
         <h3 style="font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;margin:22px 0 10px;">最近登記（線上即時）</h3>
@@ -945,9 +1002,15 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.13.6';
-const APP_DATE = '2026-10-31';
+const APP_VERSION = 'v1.14.0';
+const APP_DATE = '2026-11-03';
 const CHANGELOG = [
+  { version:'v1.14.0', date:'2026-11-03', items:[
+    '「新增登記」旁新增「📋 本月收支對帳」：選月份（預設本月），可點選只看現金／銀行、收入／支出，或輸入姓名、項目、紅包袋、金額篩選，逐筆列出每筆登記的金額',
+    '現金、銀行各自顯示期初餘額、本月收入、本月支出與目前（月底）餘額；點收入或支出那一行就只列那些登記',
+    '每筆顯示「登記後餘額」（從期初依日期逐筆加減），可和存摺／銀行 App 每筆後的餘額對照；可輸入實際點算現金、存摺實際餘額，馬上算出差多少',
+    '同日、同帳別、同金額、同姓名的登記標黃色「疑似重複」；銀行截圖讀到的餘額和平台算出的不同時標紅色；點任一筆可帶到上方表單修改',
+  ]},
   { version:'v1.13.6', date:'2026-10-31', items:[
     '語音記帳還沒存的結果會記在這台手機／電腦，離開網頁或切到別的 App 再回來會自動接回（錄音本身不保存）；按「清除」或全部存入後就刪掉',
   ]},
@@ -1815,7 +1878,7 @@ function subscribeEntries(){
       rebuildLiveDerived();
       showLiveStatus(liveEntries.length ? `線上即時登記 ${liveEntries.length} 筆` : '');
       render();
-      if(currentUser){ renderLiveEntryTable(); renderAccountBalances(); }
+      if(currentUser){ renderLiveEntryTable(); renderAccountBalances(); renderRecon(); }
       voiceRefreshFromLive();
     }, err=>{
       console.error('entries 訂閱失敗', err);
@@ -2390,6 +2453,181 @@ function renderLiveEntryTable(){
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="8" class="muted">${found ? '查無符合資料' : '尚無線上登記資料'}</td></tr>`;
+}
+
+
+/* ================= v1.14.0 本月收支對帳 =================
+   在「新增登記」旁按「📋 本月收支對帳」展開：選月份、篩選現金／銀行、收入／支出，
+   逐筆列出網頁登記金額，並從該月期初依日期逐筆算出登記後餘額，和月份明細的期初／月底餘額對照。
+   只讀不寫。 */
+const reconState = { month:'', acct:'all', dir:'all', actualCash:'', actualBank:'' };
+function reconMonthKey(y,m){ return `${y}-${m}`; }
+function reconCurrentKey(){
+  const d = new Date();
+  return reconMonthKey(d.getFullYear()-1911, d.getMonth()+1);
+}
+function bindReconUi(){
+  const btn = document.getElementById('reconToggleBtn');
+  if(!btn || btn.dataset.bound) return;
+  btn.dataset.bound = '1';
+  btn.onclick = ()=>{
+    const box = document.getElementById('reconBox');
+    const show = box.style.display === 'none';
+    box.style.display = show ? '' : 'none';
+    btn.textContent = show ? '📋 本月收支對帳 ▴' : '📋 本月收支對帳 ▾';
+    if(show) renderRecon();
+  };
+  document.getElementById('reconMonth').onchange = ev=>{ reconState.month = ev.target.value; renderRecon(); };
+  document.getElementById('reconSearch').addEventListener('input', renderRecon);
+  document.querySelectorAll('#reconBox .recon-chip').forEach(ch=>{
+    ch.onclick = ()=>{
+      if(ch.dataset.acct) reconState.acct = ch.dataset.acct;
+      if(ch.dataset.dir) reconState.dir = ch.dataset.dir;
+      renderRecon();
+    };
+  });
+  document.getElementById('reconCards').addEventListener('click', ev=>{
+    const ln = ev.target.closest('.ln.click');
+    if(!ln) return;
+    reconState.acct = ln.dataset.acct; reconState.dir = ln.dataset.dir;
+    renderRecon();
+  });
+  document.getElementById('reconCards').addEventListener('input', ev=>{
+    if(!ev.target.matches('input[data-actual]')) return;
+    formatAmountInput(ev.target);
+    reconState[ev.target.dataset.actual==='cash' ? 'actualCash' : 'actualBank'] = ev.target.value;
+    reconUpdateDiffs();
+  });
+}
+function reconSortKey(e){
+  return `${e.date||''} ${e.bankTime||''} ${e.createdAt||''}`;
+}
+let reconLastEnd = { cash:null, bank:null };
+function reconUpdateDiffs(){
+  ['cash','bank'].forEach(a=>{
+    const el = document.getElementById('reconDiff_'+a);
+    if(!el) return;
+    const raw = reconState[a==='cash' ? 'actualCash' : 'actualBank'];
+    const actual = Number(String(raw||'').replace(/[,，\s]/g,''));
+    const end = reconLastEnd[a];
+    if(!raw || end === null){ el.textContent = ''; el.className = 'recon-diff'; return; }
+    const diff = actual - end;
+    el.className = 'recon-diff ' + (diff === 0 ? 'ok' : 'bad');
+    el.textContent = diff === 0 ? '✔ 一致' : `差 ${diff>0?'+':''}${Math.round(diff).toLocaleString()}（實際${diff>0?'多':'少'} ${Math.abs(Math.round(diff)).toLocaleString()}）`;
+  });
+}
+function renderRecon(){
+  const box = document.getElementById('reconBox');
+  if(!box || box.style.display === 'none') return;
+  // 月份選單：網頁登記出現過的月份＋本月，新到舊
+  const keys = new Set([reconCurrentKey()]);
+  liveEntries.forEach(e=>{ if(e.year && e.month) keys.add(reconMonthKey(e.year, e.month)); });
+  const list = Array.from(keys).map(k=>k.split('-').map(Number)).sort((a,b)=> b[0]-a[0] || b[1]-a[1]);
+  if(!reconState.month || !keys.has(reconState.month)) reconState.month = reconCurrentKey();
+  const sel = document.getElementById('reconMonth');
+  sel.innerHTML = list.map(([y,m])=>{
+    const k = reconMonthKey(y,m);
+    return `<option value="${k}"${k===reconState.month?' selected':''}>民國 ${y} 年 ${m} 月${k===reconCurrentKey()?'（本月）':''}</option>`;
+  }).join('');
+  box.querySelectorAll('.recon-chip').forEach(ch=>{
+    ch.classList.toggle('on', ch.dataset.acct ? ch.dataset.acct===reconState.acct : ch.dataset.dir===reconState.dir);
+  });
+
+  const [Y, M] = reconState.month.split('-').map(Number);
+  const monthEntries = liveEntries.filter(e=>e.year===Y && e.month===M)
+    .slice().sort((a,b)=> reconSortKey(a) < reconSortKey(b) ? -1 : reconSortKey(a) > reconSortKey(b) ? 1 : 0);
+
+  // 期初：月份明細同一個月的期初餘額；沒有該月資料時，用最近一個更早月份的月底餘額
+  const rows = computeRows();
+  const row = rows.find(r=>r.year===Y && r.month===M);
+  const before = [...rows].reverse().find(r=> r.year < Y || (r.year===Y && r.month < M));
+  const open = {
+    cash: row ? row.openCash : (before ? (before.cumCash ?? before.openCash) : null),
+    bank: row ? row.openBank : (before ? (before.cumBank ?? before.openBank) : null),
+  };
+  // 歷史帳本（seed）若已有這個月的金額，逐筆餘額會少算那部分，要提醒
+  const seed = SEED_MONTHS.find(m=>m.year===Y && m.month===M) || {};
+  const seedPart = {
+    cash: { in: seed.cashIn||0, out: seed.cashOut||0 },
+    bank: { in: seed.bankIn||0, out: seed.bankOut||0 },
+  };
+
+  // 逐筆餘額＋疑似重複
+  const run = { cash: open.cash, bank: open.bank };
+  const sums = { cash:{in:0,out:0,n:0}, bank:{in:0,out:0,n:0} };
+  const dupCount = {};
+  const dupKey = e=> [e.date, e.account, e.direction, Math.round(e.amount), (e.name||'').trim()].join('|');
+  monthEntries.forEach(e=>{ const k = dupKey(e); dupCount[k] = (dupCount[k]||0) + 1; });
+  const calc = monthEntries.map(e=>{
+    const a = e.account === 'cash' ? 'cash' : 'bank';
+    const amt = Number(e.amount)||0;
+    sums[a][e.direction==='in'?'in':'out'] += amt; sums[a].n++;
+    let bal = null;
+    if(run[a] !== null){ run[a] += e.direction==='in' ? amt : -amt; if(!(seedPart[a].in || seedPart[a].out)) bal = run[a]; }
+    const shotBad = a==='bank' && e.bankBalance!=null && e.bankBalance!=='' && bal!==null
+      && !(seedPart.bank.in || seedPart.bank.out) && Math.round(Number(e.bankBalance)) !== Math.round(bal);
+    return { e, a, amt, bal, dup: dupCount[dupKey(e)] > 1, shotBad };
+  });
+
+  // 對照卡片
+  const end = {
+    cash: open.cash===null ? null : open.cash + seedPart.cash.in - seedPart.cash.out + sums.cash.in - sums.cash.out,
+    bank: open.bank===null ? null : open.bank + seedPart.bank.in - seedPart.bank.out + sums.bank.in - sums.bank.out,
+  };
+  reconLastEnd = end;
+  const isLatest = !rows.some(r=> (r.year > Y || (r.year===Y && r.month > M)) && (r.cumCash!==null || r.cumBank!==null));
+  const card = (a, label)=>{
+    const s = sums[a], sp = seedPart[a];
+    const seedLine = (sp.in || sp.out)
+      ? `<div class="ln muted"><span>歷史帳本已有（非網頁登記）</span><b>收 ${moneyPlain(sp.in)}／支 ${moneyPlain(sp.out)}</b></div>` : '';
+    const actualVal = escapeHtmlText(reconState[a==='cash'?'actualCash':'actualBank']||'');
+    return `<div class="recon-card">
+      <h4>${label}</h4>
+      <div class="ln"><span>期初餘額（上月底）</span><b>${moneyPlain(open[a])}</b></div>
+      ${seedLine}
+      <div class="ln click" data-acct="${a}" data-dir="in" title="點一下只看${label}收入"><span class="recon-in">＋ 本月收入（${calc.filter(c=>c.a===a&&c.e.direction==='in').length} 筆）</span><b class="recon-in">${moneyPlain(s.in)}</b></div>
+      <div class="ln click" data-acct="${a}" data-dir="out" title="點一下只看${label}支出"><span class="recon-out">－ 本月支出（${calc.filter(c=>c.a===a&&c.e.direction!=='in').length} 筆）</span><b class="recon-out">${moneyPlain(s.out)}</b></div>
+      <div class="ln end"><span><b>${isLatest ? '目前' : '月底'}${label}餘額（平台）</b></span><b style="color:var(--temple-red-deep);font-size:16px;">${moneyPlain(end[a])}</b></div>
+      <div class="actual"><span>${a==='cash'?'實際點算現金':'存摺／App 實際餘額'}</span><input type="text" inputmode="numeric" data-actual="${a}" value="${actualVal}" placeholder="輸入後比對"><span id="reconDiff_${a}" class="recon-diff"></span></div>
+    </div>`;
+  };
+  document.getElementById('reconCards').innerHTML = card('cash','現金') + card('bank','銀行');
+  reconUpdateDiffs();
+
+  // 篩選
+  const q = (document.getElementById('reconSearch').value||'').trim().toLowerCase();
+  const qd = q.replace(/[,，\s]/g,'');
+  const shown = calc.filter(c=>{
+    if(reconState.acct!=='all' && c.a!==reconState.acct) return false;
+    if(reconState.dir!=='all' && (c.e.direction==='in' ? 'in' : 'out')!==reconState.dir) return false;
+    if(!q) return true;
+    const e = c.e;
+    if(/^\d+$/.test(qd) && (Math.round(c.amt)===Number(qd) || String(e.envelopeNo||'').replace(/^0+/,'')===qd.replace(/^0+/,''))) return true;
+    return `${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.counterAcct||''} ${e.date||''} ${e.enteredBy||''}`.toLowerCase().includes(q);
+  });
+  const fin = shown.filter(c=>c.e.direction==='in').reduce((t,c)=>t+c.amt,0);
+  const fout = shown.filter(c=>c.e.direction!=='in').reduce((t,c)=>t+c.amt,0);
+  const dups = shown.filter(c=>c.dup).length, bads = shown.filter(c=>c.shotBad).length;
+  document.getElementById('reconInfo').innerHTML =
+    `顯示 ${shown.length} 筆　收入合計 <b class="recon-in">${moneyPlain(fin)}</b>　支出合計 <b class="recon-out">${moneyPlain(fout)}</b>　差額 <b>${moneyPlain(fin-fout)}</b>`
+    + (dups ? `　<span class="recon-flag dup">疑似重複 ${dups} 筆</span>` : '')
+    + (bads ? `　<span class="recon-flag bal">截圖餘額不符 ${bads} 筆</span>` : '');
+  document.getElementById('reconBody').innerHTML = shown.map(c=>{
+    const e = c.e;
+    const catLabel = (e.direction==='out' && e.account==='cash') ? (CAT_LABELS[e.category]||'') : '';
+    const sub = [joinLabel(e.activity, e.item), catLabel && `（${catLabel}）`, e.envelopeNo && `紅包袋 ${e.envelopeNo}`, e.counterAcct && `帳號後5碼 ${e.counterAcct}`, e.note].filter(Boolean).map(escapeHtmlText).join('　');
+    const flags = (c.dup ? '<span class="recon-flag dup">疑似重複</span>' : '')
+      + (c.shotBad ? `<span class="recon-flag bal" title="截圖讀到的餘額">截圖餘額 ${moneyPlain(Number(e.bankBalance))}</span>` : '');
+    return `<tr class="${c.dup?'dup':''}" onclick="startEditEntry('${e.id}')" title="點一下帶到上方表單修改">
+      <td style="white-space:nowrap;">${escapeHtmlText(String(e.date||'').slice(5))}${e.bankTime?`<br><span class="muted" style="font-size:12px;">${escapeHtmlText(e.bankTime)}</span>`:''}</td>
+      <td style="white-space:nowrap;">${c.a==='cash'?'現金':'銀行'}</td>
+      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}</td>
+      <td class="num recon-in">${e.direction==='in' ? moneyPlain(c.amt) : ''}</td>
+      <td class="num recon-out">${e.direction!=='in' ? moneyPlain(c.amt) : ''}</td>
+      <td class="num">${c.bal===null ? '—' : moneyPlain(c.bal)}<br><span class="muted" style="font-size:11.5px;">${c.a==='cash'?'現金':'銀行'}</span></td>
+      <td class="muted" style="white-space:nowrap;">${escapeHtmlText(e.enteredBy||'')}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="muted">這個月份沒有符合的網頁登記</td></tr>`;
 }
 
 /* ================= 銀行截圖快速登記（v1.12.0）=================
@@ -3827,6 +4065,7 @@ function init(){
   });
   bindBankshotUi();
   bindVoiceUi();
+  bindReconUi();
   document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
   document.getElementById('exportDetailBtn').addEventListener('click', exportDetailExcel);
   document.getElementById('exportSuggestBtn').addEventListener('click', exportSuggestExcel);
