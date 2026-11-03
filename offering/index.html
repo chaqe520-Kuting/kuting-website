@@ -140,13 +140,35 @@
   .pay-list-sum b{ color:var(--cinnabar-ink); }
   .pay-list-tools{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .pay-list-tools input{ flex:1; min-width:140px; }
-  .pay-list-table{ width:100%; min-width:0; border-collapse:collapse; font-size:.86rem; }
-  .pay-list-table td:last-child, .pay-list-table td:nth-child(2){ white-space:nowrap; }
-  .pay-list-table th{ text-align:left; font-size:.74rem; color:var(--ink-soft); border-bottom:1px solid var(--border); padding:6px 4px; position:sticky; top:-18px; background:var(--paper-raised); }
-  .pay-list-table th, .pay-list-table td{ white-space:normal; }
-  .pay-list-table td{ border-bottom:1px solid var(--border); padding:6px 4px; vertical-align:top; }
+  /* v166 — 電腦版：視窗放大到幾乎整個畫面、表格不出現左右捲軸（姓名、品項自動換行）；
+     手機版：每筆變成一張小卡，不用左右拉。 */
+  #payListCard{ max-width:min(1280px, 96vw); }
+  .pay-list-table{ width:100%; min-width:0; border-collapse:collapse; font-size:.9rem; table-layout:auto; }
+  .pay-list-table th{ text-align:left; font-size:.76rem; color:var(--ink-soft); border-bottom:1px solid var(--border); padding:6px 8px; position:sticky; top:-18px; background:var(--paper-raised); z-index:1; white-space:nowrap; }
+  .pay-list-table td{ border-bottom:1px solid var(--border); padding:7px 8px; vertical-align:top; white-space:normal; word-break:break-word; }
+  .pay-list-table td.pl-no{ color:var(--ink-soft); width:2.5em; }
+  .pay-list-table td.pl-name{ width:32%; }
+  .pay-list-table td.pl-name .link-btn{ text-align:left; white-space:normal; line-height:1.5; }
   .pay-list-table td.num{ text-align:right; white-space:nowrap; }
-  .pay-list-table .pl-item{ font-size:.78rem; color:var(--ink-soft); }
+  .pay-list-table td.pl-pay{ white-space:nowrap; width:1%; }
+  .pay-list-table .pl-item{ font-size:.8rem; color:var(--ink-soft); }
+  @media (min-width:761px){
+    #payListOverlay{ padding:2vh 2vw; }
+    #payListCard{ max-height:94vh; }
+    html.fs-m #payListCard{ max-height:calc(94vh / 1.15); max-width:calc(96vw / 1.15); }
+    html.fs-l #payListCard{ max-height:calc(94vh / 1.3); max-width:calc(96vw / 1.3); }
+  }
+  @media (max-width:760px){
+    .pay-list-table thead{ display:none; }
+    .pay-list-table, .pay-list-table tbody{ display:block; }
+    .pay-list-table tr{ display:grid; grid-template-columns:2em 1fr auto; column-gap:6px; row-gap:2px; padding:9px 0; border-bottom:1px solid var(--border); }
+    .pay-list-table td{ display:block; border:0; padding:0; width:auto !important; }
+    .pay-list-table td.pl-no{ grid-row:1 / span 3; }
+    .pay-list-table td.pl-name{ grid-column:2; }
+    .pay-list-table td.pl-pay{ grid-column:3; grid-row:1; }
+    .pay-list-table td.pl-label{ grid-column:2 / span 2; }
+    .pay-list-table td.num{ grid-column:2 / span 2; text-align:left; font-weight:700; color:var(--cinnabar-ink); }
+  }
   .reg-stats .stat:last-child{ grid-column:auto; }
   @media (max-width:640px){ .reg-stats{ grid-template-columns:1fr 1fr; } }
 
@@ -1100,7 +1122,7 @@
 <div id="toast"></div>
 
 <div class="modal-overlay" id="payListOverlay" style="display:none;">
-  <div class="modal-card" style="max-width:640px;">
+  <div class="modal-card" id="payListCard">
     <div class="modal-head">
       <h3 id="payListTitle">已收款名單</h3>
       <button class="modal-close" id="payListCloseBtn" type="button" aria-label="關閉">×</button>
@@ -1461,7 +1483,7 @@
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v165";
+  var APP_VERSION = "v166";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1472,6 +1494,10 @@
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v166", date: "2026-11-03", changes: [
+      "已收款／未收款名單分電腦版和手機版：電腦上視窗放大到幾乎整個畫面，姓名、品項自動換行，不會再出現左右捲軸或一格很高的情形",
+      "手機上每筆變成一張小卡（姓名、收款狀態、品項、金額），不用左右拉；補運的名稱與地址也一起列出"
+    ]},
     { version: "v165", date: "2026-11-03", changes: [
       "登記清單下方的「已收款」「未收款」卡片可以點，點了直接列出該狀態的完整名單（不分頁），顯示筆數、人數與合計金額",
       "名單可以找姓名／品項／金額、一鍵切換已收款／未收款、複製名單；點姓名看報名資料，點收款狀態可直接改，名單即時更新"
@@ -8396,11 +8422,11 @@
     }
     var html = '<table class="pay-list-table"><thead><tr><th>#</th><th>姓名</th><th>品項</th><th style="text-align:right">金額</th><th>收款狀態</th></tr></thead><tbody>';
     regs.forEach(function(r, i){
-      html += '<tr><td>' + (i + 1) + '</td>' +
-        '<td><button type="button" class="link-btn" data-act="preview" data-id="' + r.id + '">' + escHtml(r.name || "—") + '</button>' + (r.phone ? '<div class="pl-item">' + escHtml(r.phone) + '</div>' : '') + '</td>' +
-        '<td>' + escHtml(r.label + (r.dedicateTo ? "－" + r.dedicateTo : "")) + '<div class="pl-item">' + regQtyText(r, findCatalog(r.catId), "") + '</div></td>' +
+      html += '<tr><td class="pl-no">' + (i + 1) + '</td>' +
+        '<td class="pl-name"><button type="button" class="link-btn" data-act="preview" data-id="' + r.id + '">' + escHtml(r.name || "—") + '</button>' + (r.phone ? '<div class="pl-item">' + escHtml(r.phone) + '</div>' : '') + '</td>' +
+        '<td class="pl-label">' + escHtml(r.label + (r.dedicateTo ? "－" + r.dedicateTo : "")) + '<div class="pl-item">' + regQtyText(r, findCatalog(r.catId), "") + (buyunParts(r).length ? "　補運 " + escHtml(buyunParts(r).join("　")) : "") + '</div></td>' +
         '<td class="num">' + fmt(r.amount) + '</td>' +
-        '<td><button type="button" class="paid-pill ' + (r.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + r.id + '">' + (r.paid ? "已收款" : "待收款") + '</button></td></tr>';
+        '<td class="pl-pay"><button type="button" class="paid-pill ' + (r.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + r.id + '">' + (r.paid ? "已收款" : "待收款") + '</button></td></tr>';
     });
     html += '</tbody></table>';
     body.innerHTML = html;
