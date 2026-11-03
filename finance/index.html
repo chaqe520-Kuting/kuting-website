@@ -329,6 +329,7 @@
   .recon-flag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:4px;padding:0 5px;margin-left:4px;}
   .recon-flag.dup{background:#F2C94C;color:#5a4300;}
   .recon-flag.bal{background:var(--temple-red);color:#fff;}
+  .recon-flag.link{background:#e3f4e6;color:#1e6b34;font-weight:600;}
   @media (max-width:760px){ .recon-cards{grid-template-columns:1fr;} }
   #loginMsg, #entryMsg{font-size:13px;color:var(--jade);font-weight:700;}
   #liveEntryBody .row-edit{color:var(--gold);cursor:pointer;background:none;border:none;font-size:12.5px;margin-right:8px;text-decoration:underline;font-family:inherit;}
@@ -699,6 +700,7 @@
           </div>
           <div class="recon-cards" id="reconCards"></div>
           <div id="reconInfo" class="muted" style="margin:0 0 6px;font-size:13.5px;"></div>
+          <div id="finLinkStatus" class="muted" style="margin:0 0 6px;font-size:13px;"></div>
           <div class="detail-table-wrap" style="max-height:460px;">
             <table id="reconTable">
               <thead><tr><th>日期</th><th>帳別</th><th style="text-align:left;">姓名／項目</th><th style="text-align:right;">收入</th><th style="text-align:right;">支出</th><th style="text-align:right;">登記後餘額</th><th>登記人</th></tr></thead>
@@ -1002,9 +1004,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.14.0';
+const APP_VERSION = 'v1.15.0';
 const APP_DATE = '2026-11-03';
 const CHANGELOG = [
+  { version:'v1.15.0', date:'2026-11-03', items:[
+    '「本月收支對帳」和「最近登記」會標出 🔗 已對應供品／法會：某某人（供品贊助、法會報名用「💵 對照財務收入」確認過的登記），一看就知道哪些紅包已經處理過',
+    '登入財務時會自動用同一組姓名密碼連上供品贊助、法會報名（只讀報名資料，不會改）；密碼不同的話，在本月收支對帳的「🔗 供品／法會對應」那一行輸入一次即可',
+  ]},
   { version:'v1.14.0', date:'2026-11-03', items:[
     '「新增登記」旁新增「📋 本月收支對帳」：選月份（預設本月），可點選只看現金／銀行、收入／支出，或輸入姓名、項目、紅包袋、金額篩選，逐筆列出每筆登記的金額',
     '現金、銀行各自顯示期初餘額、本月收入、本月支出與目前（月底）餘額；點收入或支出那一行就只列那些登記',
@@ -2033,6 +2039,8 @@ async function handleLogin(){
       }catch(e2){ console.error('補上顯示名稱失敗', e2); }
     }
     msg.textContent = '';
+    // v1.15.0：用同一組姓名＋密碼連上供品贊助、法會報名（只讀報名，標出哪些登記已對應）
+    FinLinkStatus.autoLogin(username, password);
     // 畫面切換與資料載入由 onAuthStateChanged 處理
   }catch(e){
     if(e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials') msg.textContent = '姓名或密碼錯誤；如果是新人員，請洽管理者建立帳號';
@@ -2044,7 +2052,7 @@ async function handleLogin(){
 
 function handleLogout(){
   // 登出後直接重新整理頁面，確保畫面與記憶體中的資料全部清除
-  fbAuth.signOut().finally(()=>{ location.reload(); });
+  Promise.resolve(FinLinkStatus.logout()).finally(()=>{ fbAuth.signOut().finally(()=>{ location.reload(); }); });
 }
 
 /* ---- 管理工具：產生帳號 Email／匯入歷史資料 ---- */
@@ -2443,7 +2451,7 @@ function renderLiveEntryTable(){
       <td>${e.date}</td>
       <td>${e.account==='cash'?'現金':'銀行'}</td>
       <td>${e.direction==='in'?'收入':'支出'}</td>
-      <td>${nameOrCat}</td>
+      <td>${nameOrCat}${FinLinkStatus.tagHtml(e.id)}</td>
       <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}${e.envelopeNo ? `<br><span style="color:var(--temple-red-deep);">紅包袋 ${escapeHtmlText(e.envelopeNo)}</span>` : ''}${e.counterAcct ? `<br><span style="color:var(--temple-red-deep);">帳號後5碼 ${escapeHtmlText(e.counterAcct)}</span>` : ''}</td>
       <td>${moneyPlain(e.amount)}</td>
       <td class="muted">${e.enteredBy||''}</td>
@@ -2621,14 +2629,118 @@ function renderRecon(){
     return `<tr class="${c.dup?'dup':''}" onclick="startEditEntry('${e.id}')" title="點一下帶到上方表單修改">
       <td style="white-space:nowrap;">${escapeHtmlText(String(e.date||'').slice(5))}${e.bankTime?`<br><span class="muted" style="font-size:12px;">${escapeHtmlText(e.bankTime)}</span>`:''}</td>
       <td style="white-space:nowrap;">${c.a==='cash'?'現金':'銀行'}</td>
-      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}</td>
+      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${FinLinkStatus.tagHtml(e.id)}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}</td>
       <td class="num recon-in">${e.direction==='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num recon-out">${e.direction!=='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num">${c.bal===null ? '—' : moneyPlain(c.bal)}<br><span class="muted" style="font-size:11.5px;">${c.a==='cash'?'現金':'銀行'}</span></td>
       <td class="muted" style="white-space:nowrap;">${escapeHtmlText(e.enteredBy||'')}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="7" class="muted">這個月份沒有符合的網頁登記</td></tr>`;
+  const ls = document.getElementById('finLinkStatus');
+  if(ls){ ls.innerHTML = FinLinkStatus.statusHtml(); FinLinkStatus.ensure(); }
 }
+
+/* ================= v1.15.0 供品／法會對應狀態 =================
+   供品贊助、法會報名的「💵 對照財務收入」確認後，會在報名上記下對應的財務登記 id
+   （finEntryIds／finEntryId）。這裡用第二、第三個 Firebase app，以同一組姓名＋密碼登入
+   供品贊助（kuting1027）與法會報名（kuting-9d240）的志工帳號，只讀報名資料，找出哪些
+   財務登記已經對應到哪一位，在「本月收支對帳」和「最近登記」標出 🔗。不寫任何資料。 */
+const FinLinkStatus = (function(){
+  const PLATS = [
+    { key:'gp', label:'供品', app:'gpLink', domain:'@kuting-gongpin-accounts.local',
+      cfg:{ apiKey:"AIzaSyAtCbwm5KdaB-JGylrrhVjZluCvT2-MhQk", authDomain:"kuting1027.firebaseapp.com", projectId:"kuting1027",
+            storageBucket:"kuting1027.firebasestorage.app", messagingSenderId:"437567114703", appId:"1:437567114703:web:92de0a9bfba4dddda996ba" } },
+    { key:'fh', label:'法會', app:'fhLink', domain:'@kuting-fahui-accounts.local',
+      cfg:{ apiKey:"AIzaSyBhHRRu6WNq6bcDAPyfQtFgt1YLnFJJKoM", authDomain:"kuting-9d240.firebaseapp.com", projectId:"kuting-9d240",
+            storageBucket:"kuting-9d240.firebasestorage.app", messagingSenderId:"929588060992", appId:"1:929588060992:web:0fcaa8c3bafba279d1d0a5" } }
+  ];
+  const st = {}; // key → {auth, db, ok, err}
+  let map = {};  // 財務 entry id → [{plat, event, name}]
+  let loaded = false, loading = false, onChange = ()=>{};
+  function init(){
+    if(typeof firebase === 'undefined') return false;
+    PLATS.forEach(p=>{
+      if(st[p.key]) return;
+      const app = firebase.apps.find(a=>a.name===p.app) || firebase.initializeApp(p.cfg, p.app);
+      const auth = app.auth();
+      try{ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
+      st[p.key] = { auth, db: app.firestore(), err:'' };
+      auth.onAuthStateChanged(()=>{ loaded = false; onChange(); });
+    });
+    return true;
+  }
+  async function signIn(name, pw){
+    if(!init() || !name || !pw) return;
+    const h = await sha256Hex(String(name).trim().toLowerCase());
+    await Promise.all(PLATS.map(async p=>{
+      const s = st[p.key];
+      if(s.auth.currentUser) return;
+      try{ await s.auth.signInWithEmailAndPassword(h + p.domain, pw); s.err = ''; }
+      catch(e){ s.err = (e && /wrong-password|user-not-found|invalid/.test(e.code||'')) ? '帳號或密碼不同' : '連不上'; }
+    }));
+    loaded = false; onChange();
+  }
+  function ids(r){ return (r && r.finEntryIds && r.finEntryIds.length) ? r.finEntryIds : (r && r.finEntryId ? [r.finEntryId] : []); }
+  async function load(){
+    if(!init() || loading) return;
+    loading = true; onChange();
+    const next = {};
+    const add = (id, v)=>{ (next[id] = next[id] || []).push(v); };
+    await Promise.all(PLATS.map(async p=>{
+      const s = st[p.key];
+      if(!s.auth.currentUser) return;
+      try{
+        if(p.key==='gp'){
+          const occs = await s.db.collection('occasions').get();
+          await Promise.all(occs.docs.map(async od=>{
+            const label = (od.data()||{}).label || '';
+            const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
+            regs.forEach(d=>{ const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' })); });
+          }));
+        } else {
+          let names = {};
+          try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; }); }catch(e){}
+          const regs = await s.db.collection('regs').get();
+          regs.forEach(d=>{ const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' })); });
+        }
+        s.err = '';
+      }catch(e){ s.err = (e && e.code==='permission-denied') ? '帳號未啟用' : '讀取失敗'; }
+    }));
+    map = next; loaded = true; loading = false; onChange();
+  }
+  function tagHtml(entryId){
+    const l = map[entryId];
+    if(!l || !l.length) return '';
+    return l.map(v=>`<span class="recon-flag link" title="${escapeHtmlText(v.event)}">🔗 已對應${escapeHtmlText(v.plat)}：${escapeHtmlText(v.name)}</span>`).join('');
+  }
+  function statusHtml(){
+    if(!init()) return '';
+    const parts = PLATS.map(p=>{
+      const s = st[p.key];
+      return s.auth.currentUser ? `${p.label} ✓` : `${p.label} 未連結${s.err ? '（' + s.err + '）' : ''}`;
+    });
+    const any = PLATS.some(p=>st[p.key].auth.currentUser);
+    const n = Object.keys(map).length;
+    return `<span>🔗 供品／法會對應：${parts.join('　')}${any ? (loading ? '　讀取中…' : (loaded ? `　已對應 ${n} 筆登記` : '')) : ''}</span>`
+      + (PLATS.every(p=>st[p.key].auth.currentUser) ? ` <button type="button" class="btn secondary" style="padding:2px 10px;font-size:12.5px;" onclick="FinLinkStatus.load()">重新讀取</button>`
+        : ` <input type="password" id="finLinkPw" placeholder="供品／法會的密碼" style="width:150px;padding:3px 6px;font-size:13px;"> <button type="button" class="btn secondary" style="padding:2px 10px;font-size:12.5px;" onclick="FinLinkStatus.connect()">連結</button>`);
+  }
+  return {
+    init, load, tagHtml, statusHtml,
+    autoLogin(name, pw){ signIn(name, pw).catch(()=>{}); },
+    async connect(){
+      const pw = (document.getElementById('finLinkPw')||{}).value || '';
+      const name = (currentUser && currentUser.name) || '';
+      if(!pw){ alert('請輸入您在供品贊助／法會報名後台的密碼'); return; }
+      await signIn(name, pw);
+      load();
+    },
+    logout(){ if(!init()) return Promise.resolve(); return Promise.all(PLATS.map(p=>st[p.key].auth.signOut().catch(()=>{}))); },
+    ensure(){ if(!init()) return; if(!loaded && !loading && PLATS.some(p=>st[p.key].auth.currentUser)) load(); },
+    set onChange(fn){ onChange = fn; }
+  };
+})();
+FinLinkStatus.onChange = ()=>{ try{ const b = document.getElementById('reconBox'); if(b && b.style.display!=='none') renderRecon(); renderLiveEntryTable(); }catch(e){} };
 
 /* ================= 銀行截圖快速登記（v1.12.0）=================
    截圖在瀏覽器縮小後送給報名小幫手（Apps Script，action: bankshot），小幫手驗證財務記帳的登入憑證，
