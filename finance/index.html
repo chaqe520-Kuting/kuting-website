@@ -328,6 +328,7 @@
   #reconBody tr.dup td{background:#FFF4C2;}
   .recon-flag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:4px;padding:0 5px;margin-left:4px;}
   .recon-flag.dup{background:#F2C94C;color:#5a4300;}
+  .recon-dupwith{font-size:12.5px;color:#8a5a00;font-weight:600;}
   .recon-flag.bal{background:var(--temple-red);color:#fff;}
   .recon-flag.link{background:#e3f4e6;color:#1e6b34;font-weight:600;}
   @media (max-width:760px){ .recon-cards{grid-template-columns:1fr;} }
@@ -1004,9 +1005,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.15.0';
+const APP_VERSION = 'v1.15.1';
 const APP_DATE = '2026-11-03';
 const CHANGELOG = [
+  { version:'v1.15.1', date:'2026-11-03', items:[
+    '「疑似重複」會直接寫出和哪一筆一樣（日期、紅包袋編號、項目、登記人）；紅包袋編號不同的標「紅包袋不同」，多半是不同的兩筆',
+    '點「疑似重複 N 筆」只看重複的，同一組排在一起並標第幾組，再點一次看全部',
+  ] },
   { version:'v1.15.0', date:'2026-11-03', items:[
     '「本月收支對帳」和「最近登記」會標出 🔗 已對應供品／法會：某某人（供品贊助、法會報名用「💵 對照財務收入」確認過的登記），一看就知道哪些紅包已經處理過',
     '登入財務時會自動用同一組姓名密碼連上供品贊助、法會報名（只讀報名資料，不會改）；密碼不同的話，在本月收支對帳的「🔗 供品／法會對應」那一行輸入一次即可',
@@ -2468,7 +2473,9 @@ function renderLiveEntryTable(){
    在「新增登記」旁按「📋 本月收支對帳」展開：選月份、篩選現金／銀行、收入／支出，
    逐筆列出網頁登記金額，並從該月期初依日期逐筆算出登記後餘額，和月份明細的期初／月底餘額對照。
    只讀不寫。 */
-const reconState = { month:'', acct:'all', dir:'all', actualCash:'', actualBank:'' };
+const reconState = { month:'', acct:'all', dir:'all', actualCash:'', actualBank:'', dupOnly:false };
+// v1.15.1 點「疑似重複 N 筆」只看重複的（同一組排在一起），再點一次看全部
+function toggleReconDupOnly(){ reconState.dupOnly = !reconState.dupOnly; renderRecon(); }
 function reconMonthKey(y,m){ return `${y}-${m}`; }
 function reconCurrentKey(){
   const d = new Date();
@@ -2563,9 +2570,11 @@ function renderRecon(){
   // 逐筆餘額＋疑似重複
   const run = { cash: open.cash, bank: open.bank };
   const sums = { cash:{in:0,out:0,n:0}, bank:{in:0,out:0,n:0} };
-  const dupCount = {};
+  const dupCount = {}, dupGroup = {};
   const dupKey = e=> [e.date, e.account, e.direction, Math.round(e.amount), (e.name||'').trim()].join('|');
-  monthEntries.forEach(e=>{ const k = dupKey(e); dupCount[k] = (dupCount[k]||0) + 1; });
+  monthEntries.forEach(e=>{ const k = dupKey(e); dupCount[k] = (dupCount[k]||0) + 1; (dupGroup[k] = dupGroup[k] || []).push(e); });
+  const dupOrder = {}; let dupSeq = 0;
+  Object.keys(dupGroup).forEach(k=>{ if(dupGroup[k].length > 1) dupOrder[k] = ++dupSeq; });
   const calc = monthEntries.map(e=>{
     const a = e.account === 'cash' ? 'cash' : 'bank';
     const amt = Number(e.amount)||0;
@@ -2574,7 +2583,12 @@ function renderRecon(){
     if(run[a] !== null){ run[a] += e.direction==='in' ? amt : -amt; if(!(seedPart[a].in || seedPart[a].out)) bal = run[a]; }
     const shotBad = a==='bank' && e.bankBalance!=null && e.bankBalance!=='' && bal!==null
       && !(seedPart.bank.in || seedPart.bank.out) && Math.round(Number(e.bankBalance)) !== Math.round(bal);
-    return { e, a, amt, bal, dup: dupCount[dupKey(e)] > 1, shotBad };
+    const dk = dupKey(e), dup = dupCount[dk] > 1;
+    const others = dup ? dupGroup[dk].filter(x=>x !== e) : [];
+    // 紅包袋編號都不一樣（各自有寫）＝很可能是不同的兩筆，只是同名同額
+    const envs = dup ? dupGroup[dk].map(x=>String(x.envelopeNo||'').trim().replace(/^0+/,'')) : [];
+    const diffEnv = dup && envs.every(v=>v) && new Set(envs).size === envs.length;
+    return { e, a, amt, bal, dup, dk, others, diffEnv, shotBad };
   });
 
   // 對照卡片
@@ -2606,6 +2620,7 @@ function renderRecon(){
   const q = (document.getElementById('reconSearch').value||'').trim().toLowerCase();
   const qd = q.replace(/[,，\s]/g,'');
   const shown = calc.filter(c=>{
+    if(reconState.dupOnly && !c.dup) return false;
     if(reconState.acct!=='all' && c.a!==reconState.acct) return false;
     if(reconState.dir!=='all' && (c.e.direction==='in' ? 'in' : 'out')!==reconState.dir) return false;
     if(!q) return true;
@@ -2613,23 +2628,28 @@ function renderRecon(){
     if(/^\d+$/.test(qd) && (Math.round(c.amt)===Number(qd) || String(e.envelopeNo||'').replace(/^0+/,'')===qd.replace(/^0+/,''))) return true;
     return `${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.counterAcct||''} ${e.date||''} ${e.enteredBy||''}`.toLowerCase().includes(q);
   });
+  if(reconState.dupOnly) shown.sort((x,y)=> (dupOrder[x.dk]||0) - (dupOrder[y.dk]||0));
   const fin = shown.filter(c=>c.e.direction==='in').reduce((t,c)=>t+c.amt,0);
   const fout = shown.filter(c=>c.e.direction!=='in').reduce((t,c)=>t+c.amt,0);
   const dups = shown.filter(c=>c.dup).length, bads = shown.filter(c=>c.shotBad).length;
   document.getElementById('reconInfo').innerHTML =
     `顯示 ${shown.length} 筆　收入合計 <b class="recon-in">${moneyPlain(fin)}</b>　支出合計 <b class="recon-out">${moneyPlain(fout)}</b>　差額 <b>${moneyPlain(fin-fout)}</b>`
-    + (dups ? `　<span class="recon-flag dup">疑似重複 ${dups} 筆</span>` : '')
+    + (dups || reconState.dupOnly ? `　<span class="recon-flag dup" style="cursor:pointer;" onclick="toggleReconDupOnly()" title="點一下${reconState.dupOnly?'看全部':'只看疑似重複'}">${reconState.dupOnly ? `只看疑似重複 ${dups} 筆（${new Set(shown.map(c=>c.dk)).size} 組）・點此看全部` : `疑似重複 ${dups} 筆・點此只看重複的`}</span>` : '')
     + (bads ? `　<span class="recon-flag bal">截圖餘額不符 ${bads} 筆</span>` : '');
   document.getElementById('reconBody').innerHTML = shown.map(c=>{
     const e = c.e;
     const catLabel = (e.direction==='out' && e.account==='cash') ? (CAT_LABELS[e.category]||'') : '';
     const sub = [joinLabel(e.activity, e.item), catLabel && `（${catLabel}）`, e.envelopeNo && `紅包袋 ${e.envelopeNo}`, e.counterAcct && `帳號後5碼 ${e.counterAcct}`, e.note].filter(Boolean).map(escapeHtmlText).join('　');
-    const flags = (c.dup ? '<span class="recon-flag dup">疑似重複</span>' : '')
+    const dupWith = c.dup ? c.others.map(o=>{
+      const bits = [String(o.date||'').slice(5), o.envelopeNo && `紅包袋 ${o.envelopeNo}`, joinLabel(o.activity, o.item), o.note, o.enteredBy && `${o.enteredBy}登記`].filter(Boolean).join('　');
+      return escapeHtmlText(bits);
+    }).join('；') : '';
+    const flags = (c.dup ? `<span class="recon-flag dup" title="同日、同帳別、同金額、同姓名">疑似重複${reconState.dupOnly ? ' 第' + dupOrder[c.dk] + '組' : ''}${c.diffEnv ? '（紅包袋不同）' : ''}</span>` : '')
       + (c.shotBad ? `<span class="recon-flag bal" title="截圖讀到的餘額">截圖餘額 ${moneyPlain(Number(e.bankBalance))}</span>` : '');
     return `<tr class="${c.dup?'dup':''}" onclick="startEditEntry('${e.id}')" title="點一下帶到上方表單修改">
       <td style="white-space:nowrap;">${escapeHtmlText(String(e.date||'').slice(5))}${e.bankTime?`<br><span class="muted" style="font-size:12px;">${escapeHtmlText(e.bankTime)}</span>`:''}</td>
       <td style="white-space:nowrap;">${c.a==='cash'?'現金':'銀行'}</td>
-      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${FinLinkStatus.tagHtml(e.id)}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}</td>
+      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${FinLinkStatus.tagHtml(e.id)}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}${dupWith?`<br><span class="recon-dupwith">⚠ 和這${c.others.length > 1 ? ' ' + c.others.length + ' ' : ''}筆一樣：${dupWith}${c.diffEnv ? '（紅包袋編號不同，可能是不同的兩筆）' : ''}</span>`:''}</td>
       <td class="num recon-in">${e.direction==='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num recon-out">${e.direction!=='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num">${c.bal===null ? '—' : moneyPlain(c.bal)}<br><span class="muted" style="font-size:11.5px;">${c.a==='cash'?'現金':'銀行'}</span></td>
