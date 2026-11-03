@@ -1657,8 +1657,10 @@ window.KutingFinMatch = function(opts){
       hint(); return;
     }
     var optsHtml = ps.map(function(p){ return { key: p.key, text: p.key + "（" + p.regs.length + " 筆 " + fmt(sumOf(p.regs)) + "）" }; });
-    var html = '<table class="kfm-table"><thead><tr><th></th><th>財務收入</th><th style="text-align:right">收入金額</th><th>對到的未收款報名</th><th style="text-align:right">報名金額</th><th>狀態</th></tr></thead><tbody>';
+    var showNone = $("ShowNone").checked, hidden = 0;
+    var html = '<table class="kfm-table"><colgroup><col style="width:34px"><col style="width:32%"><col style="width:96px"><col><col style="width:110px"><col style="width:132px"></colgroup><thead><tr><th></th><th>財務收入</th><th style="text-align:right">收入金額</th><th>對到的未收款報名</th><th style="text-align:right">報名金額</th><th>狀態</th></tr></thead><tbody>';
     rows.forEach(function(row, idx){
+      if(row.level === "none" && !showNone){ hidden++; return; }
       var e = row.entry, regs = regsOf(row), rs = sumOf(regs);
       var tag = { full: '<span class="kfm-tag full">金額相符</span>', part: '<span class="kfm-tag part">相符（部分品項）</span>',
         name: '<span class="kfm-tag name">姓名相符、金額不同</span>', amt: '<span class="kfm-tag name">只有金額相符</span>',
@@ -1676,7 +1678,7 @@ window.KutingFinMatch = function(opts){
         '<td>' + fin + '</td><td class="kfm-num" data-l="收入">' + fmt(e.amount) + '</td><td>' + regCell + '</td>' +
         '<td class="kfm-num" data-l="報名">' + (regs.length ? fmt(rs) : "—") + diff + '</td><td>' + tag + '</td></tr>';
     });
-    body.innerHTML = html + '</tbody></table>';
+    body.innerHTML = html + '</tbody></table>' + (hidden ? '<p class="kfm-muted" style="margin:8px 0;">另有 ' + hidden + ' 筆收入對不到未收款（例如點燈、其他捐款），已先收起來；要手動選是誰的，請勾上方「也列出沒對到的收入」。</p>' : '');
     hint();
   }
   function hint(){
@@ -1708,7 +1710,7 @@ window.KutingFinMatch = function(opts){
     var list = logRows(), body = $("LogBody");
     $("LogSum").textContent = "本場次共 " + list.length + " 筆對照紀錄（確認對應、改回未收款都會留下，不會被刪掉）";
     if(!list.length){ body.innerHTML = '<p class="kfm-muted">還沒有對照紀錄。</p>'; return; }
-    var html = '<table class="kfm-table"><thead><tr><th>時間</th><th>動作</th><th>報名姓名</th><th>報名內容</th><th style="text-align:right">報名金額</th><th>財務收入</th><th>平台確認人</th><th>財務帳號</th></tr></thead><tbody>';
+    var html = '<table class="kfm-table kfm-log"><thead><tr><th>時間</th><th>動作</th><th>報名姓名</th><th>報名內容</th><th style="text-align:right">報名金額</th><th>財務收入</th><th>平台確認人</th><th>財務帳號</th></tr></thead><tbody>';
     list.forEach(function(x){
       var g = x.g, un = g.act === "unmatch";
       html += '<tr' + (un ? ' class="kfm-warn"' : '') + '><td class="kfm-sub" style="white-space:nowrap">' + esc(timeText(g.at)) + '</td>' +
@@ -1767,10 +1769,11 @@ window.KutingFinMatch = function(opts){
       "#kfmAcctPills{display:inline-flex;gap:4px;}#kfmTabs button.on,#kfmAcctPills button.on{background:var(--cinnabar,var(--vermilion,#9b2c1f));color:#fff;border-color:transparent;}" +
       ".kfm-link{border:0;background:none;padding:0;color:var(--cinnabar-ink,var(--vermilion,#9b2c1f));text-decoration:underline;font-weight:700;cursor:pointer;font-size:inherit;}" +
       ".kfm-muted{color:var(--ink-soft,var(--muted,#7a6a58));font-size:.86rem;}" +
-      ".kfm-table{width:100%;border-collapse:collapse;font-size:.88rem;}" +
+      ".kfm-table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed;}" +
       ".kfm-table th{text-align:left;font-size:.76rem;color:var(--ink-soft,var(--muted,#7a6a58));border-bottom:1px solid var(--border,var(--line,#e2d6c2));padding:6px;white-space:nowrap;}" +
       ".kfm-table td{border-bottom:1px solid var(--border,var(--line,#e2d6c2));padding:7px 6px;vertical-align:top;word-break:break-word;}" +
-      ".kfm-table select{max-width:100%;padding:5px;border-radius:6px;}" +
+      ".kfm-table.kfm-log{table-layout:auto;}" +
+      ".kfm-table select{width:100%;max-width:100%;padding:5px;border-radius:6px;}" +
       ".kfm-num{text-align:right;white-space:nowrap;}.kfm-sub{font-size:.78rem;color:var(--ink-soft,var(--muted,#7a6a58));}.kfm-diff{color:#b3261e;}" +
       "tr.kfm-warn{background:rgba(255,214,102,.14);}" +
       ".kfm-tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:.74rem;font-weight:700;white-space:nowrap;}" +
@@ -1799,7 +1802,7 @@ window.KutingFinMatch = function(opts){
       '<span id="kfmAcctPills"><button type="button" class="kfm-btn" data-acct="all">全部</button><button type="button" class="kfm-btn" data-acct="cash">現金</button><button type="button" class="kfm-btn" data-acct="bank">銀行</button></span>' +
       '<label>日期 <input type="date" id="kfmFrom" value="' + dstr(d) + '"></label><label>到 <input type="date" id="kfmTo" value="' + dstr(new Date()) + '"></label>' +
       '<button type="button" class="kfm-btn" id="kfmReload">🔄 重新讀取</button></div>' +
-      '<div class="kfm-row"><label>只看活動／項目含 <input type="search" id="kfmKw" placeholder="例如：供品 梁皇（空白＝全部）" style="min-width:240px;"></label><span class="kfm-muted">多個字用空白或頓號分開，符合任一個就列出</span></div>' +
+      '<div class="kfm-row"><label>只看活動／項目含 <input type="search" id="kfmKw" placeholder="例如：供品 梁皇（空白＝全部）" style="min-width:240px;"></label><span class="kfm-muted">多個字用空白或頓號分開，符合任一個就列出</span><label style="margin-left:auto"><input type="checkbox" id="kfmShowNone"> 也列出沒對到的收入（可手動選是誰的）</label></div>' +
       '<div class="kfm-muted" id="kfmSum" style="margin-bottom:8px;"></div><div id="kfmBody"></div>' +
       '<div class="kfm-foot"><button type="button" class="kfm-btn main" id="kfmApply">✅ 勾選的標為已收款</button><span class="kfm-muted" id="kfmHint"></span></div>' +
       '</div></div>';
@@ -1832,6 +1835,7 @@ window.KutingFinMatch = function(opts){
       if(mode === "match" && auth && auth.currentUser && !entries && !loading) load(); else render();
     });
     $("LogKw").addEventListener("input", renderLog);
+    $("ShowNone").addEventListener("change", render);
     $("LogCopy").addEventListener("click", copyLog);
     $("Reload").addEventListener("click", function(){ rows = []; load(); });
     $("Apply").addEventListener("click", apply);
@@ -1931,7 +1935,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v170";
+  var APP_VERSION = "v172";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1942,6 +1946,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v172", date: "2026-11-03", changes: [
+      "對照財務收入視窗在電腦上整個表格放得下，不用左右拉（欄寬固定，姓名、說明自動換行）",
+      "對不到未收款的收入（例如點燈、其他捐款）先收起來，只列出對得到的；要手動選時勾「也列出沒對到的收入」"
+    ]},
     { version: "v170", date: "2026-11-03", changes: [
       "對照財務收入的登入框會自動帶入後台登入的姓名，只要輸入財務密碼（新版上線前就登入後台的，請登出後台再登入一次就會自動連上財務）"
     ]},
