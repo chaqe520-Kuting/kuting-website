@@ -1469,7 +1469,15 @@ window.KutingFinMatch = function(opts){
     messagingSenderId: "321837318018",
     appId: "1:321837318018:web:a4d254cf16e47c53c2599b"
   };
-  var auth = null, db = null, entries = null, loading = false, loadErr = "", rows = [], acctView = "all", built = false;
+  var auth = null, db = null, entries = null, loading = false, loadErr = "", rows = [], acctView = "all", built = false, mode = "match";
+  var USER_KEY = "kuting_finmatch_user";
+  function finUser(){ try { return localStorage.getItem(USER_KEY) || ""; } catch(e){ return ""; } }
+  function setFinUser(n){ try { if(n) localStorage.setItem(USER_KEY, n); else localStorage.removeItem(USER_KEY); } catch(e){} }
+  function staffName(){ try { return (opts.staffName && opts.staffName()) || ""; } catch(e){ return ""; } }
+  function timeText(iso){
+    var d = new Date(iso); if(isNaN(d)) return String(iso || "");
+    return (d.getFullYear() - 1911) + "/" + pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
   function $(id){ return document.getElementById("kfm" + id); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]; }); }
   function fmt(n){ return "NT$" + Math.round(Number(n) || 0).toLocaleString("zh-TW"); }
@@ -1485,7 +1493,8 @@ window.KutingFinMatch = function(opts){
   function matchText(m){
     if(!m) return "";
     return "財務" + (m.acct === "bank" ? "銀行" : "現金") + " " + shortDate(m.date) + " " + (m.name || "") + " " + fmt(m.amount) +
-      (m.env ? "（紅包袋 " + m.env + "）" : "") + (m.acct5 ? "（帳號末5碼 " + m.acct5 + "）" : "");
+      (m.env ? "（紅包袋 " + m.env + "）" : "") + (m.acct5 ? "（帳號末5碼 " + m.acct5 + "）" : "") +
+      (m.by || m.finUser ? "｜確認：" + (m.by || m.finUser) + (m.at ? " " + timeText(m.at) : "") : "");
   }
   function tokens(s){
     s = String(s || "").replace(/[（(][^）)]*[）)]/g, " ").replace(/師兄|師姐|師姊|居士|闔家|合家|全家|先生|小姐|女士/g, " ");
@@ -1620,9 +1629,13 @@ window.KutingFinMatch = function(opts){
     if(!built || $("Overlay").style.display === "none") return;
     var user = auth && auth.currentUser;
     $("Title").textContent = "對照財務收入（" + (opts.title() || "") + "）";
+    Array.prototype.forEach.call(document.querySelectorAll("#kfmTabs button"), function(b){ b.classList.toggle("on", b.getAttribute("data-mode") === mode); });
+    $("Log").style.display = mode === "log" ? "" : "none";
+    if(mode === "log"){ $("LoginBox").style.display = "none"; $("Main").style.display = "none"; renderLog(); return; }
     $("LoginBox").style.display = user ? "none" : "";
     $("Main").style.display = user ? "" : "none";
     if(!user) return;
+    $("Who").textContent = "已連結財務記帳" + (finUser() ? "（" + finUser() + "）" : "") + (staffName() ? "　確認人：" + staffName() : "");
     Array.prototype.forEach.call(document.querySelectorAll("#kfmAcctPills button"), function(b){ b.classList.toggle("on", b.getAttribute("data-acct") === acctView); });
     var body = $("Body"), sum = $("Sum");
     if(loading){ sum.textContent = "讀取財務收入中…"; body.innerHTML = ""; hint(); return; }
@@ -1674,6 +1687,49 @@ window.KutingFinMatch = function(opts){
     btn.textContent = n ? "✅ 勾選的 " + n + " 筆報名標為已收款" : "✅ 勾選的標為已收款";
     $("Hint").textContent = n ? "對應 " + k + " 筆財務收入，報名合計 " + fmt(a) : "綠色「金額相符」已先幫您勾好；黃色請確認後再勾。";
   }
+  // 對照紀錄：每筆報名的 finLog（確認對應／改回未收款），依時間新到舊
+  function logRows(){
+    var out = [];
+    opts.regs().forEach(function(r){
+      (r.finLog || []).forEach(function(g){ out.push({ reg: r, g: g }); });
+    });
+    out.sort(function(a, b){ return String(b.g.at || "") < String(a.g.at || "") ? -1 : 1; });
+    var kw = built ? String($("LogKw").value || "").trim().toLowerCase() : "";
+    if(kw) out = out.filter(function(x){
+      return [opts.name(x.reg), opts.label(x.reg), x.g.by, x.g.finUser, x.g.fin ? x.g.fin.name : "", x.g.fin ? x.g.fin.env : "", x.g.fin ? String(x.g.fin.amount) : ""].join(" ").toLowerCase().indexOf(kw) >= 0;
+    });
+    return out;
+  }
+  function finBrief(f){
+    if(!f) return "";
+    return (f.acct === "bank" ? "銀行" : "現金") + " " + shortDate(f.date) + " " + (f.name || "（沒寫姓名）") + " " + fmt(f.amount) + (f.env ? " 紅包袋" + f.env : "") + (f.acct5 ? " 帳號末5碼" + f.acct5 : "");
+  }
+  function renderLog(){
+    var list = logRows(), body = $("LogBody");
+    $("LogSum").textContent = "本場次共 " + list.length + " 筆對照紀錄（確認對應、改回未收款都會留下，不會被刪掉）";
+    if(!list.length){ body.innerHTML = '<p class="kfm-muted">還沒有對照紀錄。</p>'; return; }
+    var html = '<table class="kfm-table"><thead><tr><th>時間</th><th>動作</th><th>報名姓名</th><th>報名內容</th><th style="text-align:right">報名金額</th><th>財務收入</th><th>平台確認人</th><th>財務帳號</th></tr></thead><tbody>';
+    list.forEach(function(x){
+      var g = x.g, un = g.act === "unmatch";
+      html += '<tr' + (un ? ' class="kfm-warn"' : '') + '><td class="kfm-sub" style="white-space:nowrap">' + esc(timeText(g.at)) + '</td>' +
+        '<td>' + (un ? '<span class="kfm-tag name">改回未收款</span>' : '<span class="kfm-tag full">確認已收款</span>') + '</td>' +
+        '<td><b>' + esc(opts.name(x.reg)) + '</b></td><td class="kfm-sub">' + esc(opts.label(x.reg)) + '</td>' +
+        '<td class="kfm-num">' + fmt(amt(x.reg)) + '</td><td>' + esc(finBrief(g.fin)) + '</td>' +
+        '<td>' + esc(g.by || "—") + '</td><td>' + esc(g.finUser || "—") + '</td></tr>';
+    });
+    body.innerHTML = html + '</tbody></table>';
+  }
+  function copyLog(){
+    var list = logRows();
+    var lines = [["時間","動作","報名姓名","報名內容","報名金額","財務收入","平台確認人","財務帳號"].join("\t")].concat(list.map(function(x){
+      var g = x.g;
+      return [timeText(g.at), g.act === "unmatch" ? "改回未收款" : "確認已收款", opts.name(x.reg), opts.label(x.reg), amt(x.reg), finBrief(g.fin), g.by || "", g.finUser || ""].join("\t");
+    }));
+    var text = lines.join("\n");
+    var done = function(){ toast("已複製 " + list.length + " 筆紀錄，可直接貼到 Excel"); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function(){ window.prompt("請手動複製：", text); });
+    else window.prompt("請手動複製：", text);
+  }
   function apply(){
     if(opts.canEdit && !opts.canEdit()){ toast("需要用啟用中的志工帳號登入，才能改收款狀態"); return; }
     var picked = rows.filter(function(row){ return row.checked && regsOf(row).length; });
@@ -1684,7 +1740,8 @@ window.KutingFinMatch = function(opts){
     var list = [];
     picked.forEach(function(row){
       var e = row.entry;
-      var m = { id: e.id, acct: e.acct, date: e.date, name: e.name, amount: e.amount, env: e.env, acct5: e.acct5 };
+      var m = { id: e.id, acct: e.acct, date: e.date, name: e.name, amount: e.amount, env: e.env, acct5: e.acct5,
+        by: staffName(), finUser: finUser(), at: new Date().toISOString() };
       regsOf(row).forEach(function(reg){ list.push({ reg: reg, match: m }); });
     });
     $("Apply").disabled = true;
@@ -1707,7 +1764,7 @@ window.KutingFinMatch = function(opts){
       ".kfm-btn{border:1px solid var(--border,var(--line,#d8c8b0));background:var(--paper-2,#f6eedf);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.9rem;color:inherit;}" +
       ".kfm-btn.main{background:var(--cinnabar,var(--vermilion,#9b2c1f));color:#fff;border-color:transparent;font-weight:700;}" +
       ".kfm-btn:disabled{opacity:.5;cursor:default;}" +
-      "#kfmAcctPills{display:inline-flex;gap:4px;}#kfmAcctPills button.on{background:var(--cinnabar,var(--vermilion,#9b2c1f));color:#fff;border-color:transparent;}" +
+      "#kfmAcctPills{display:inline-flex;gap:4px;}#kfmTabs button.on,#kfmAcctPills button.on{background:var(--cinnabar,var(--vermilion,#9b2c1f));color:#fff;border-color:transparent;}" +
       ".kfm-link{border:0;background:none;padding:0;color:var(--cinnabar-ink,var(--vermilion,#9b2c1f));text-decoration:underline;font-weight:700;cursor:pointer;font-size:inherit;}" +
       ".kfm-muted{color:var(--ink-soft,var(--muted,#7a6a58));font-size:.86rem;}" +
       ".kfm-table{width:100%;border-collapse:collapse;font-size:.88rem;}" +
@@ -1731,11 +1788,14 @@ window.KutingFinMatch = function(opts){
     ov.innerHTML =
       '<div id="kfmCard" role="dialog" aria-modal="true">' +
       '<div class="kfm-head"><h3 id="kfmTitle">對照財務收入</h3><button type="button" class="kfm-x" id="kfmClose" aria-label="關閉">×</button></div>' +
-      '<div class="kfm-box" id="kfmLoginBox"><b>先登入財務記帳帳號</b><p class="kfm-muted">用財務記帳平台的姓名和密碼登入，這裡只會「讀」財務的現金和銀行收入，不會改到財務資料；關掉這個分頁就自動登出。</p>' +
+      '<div class="kfm-row" id="kfmTabs"><button type="button" class="kfm-btn" data-mode="match">💵 對照收入</button><button type="button" class="kfm-btn" data-mode="log">📜 對照紀錄（誰確認的）</button></div>' +
+      '<div id="kfmLog" style="display:none;"><div class="kfm-row"><input type="search" id="kfmLogKw" placeholder="找姓名、確認人、紅包袋或金額" style="flex:1;min-width:160px;"><button type="button" class="kfm-btn" id="kfmLogCopy">📋 複製紀錄（可貼到 Excel）</button></div>' +
+      '<div class="kfm-muted" id="kfmLogSum" style="margin-bottom:8px;"></div><div id="kfmLogBody" style="padding-bottom:14px;"></div></div>' +
+      '<div class="kfm-box" id="kfmLoginBox"><b>連上財務記帳</b><p class="kfm-muted">平台登入時會自動用同一組姓名和密碼連上財務記帳；如果您的財務密碼不一樣，或這台是之前就登入的，才需要在這裡登入一次（這台會記住，登出平台時一起登出）。這裡只會「讀」財務的現金和銀行收入，不會改到財務資料。</p>' +
       '<div class="kfm-row kfm-login"><input type="text" id="kfmName" placeholder="財務記帳的姓名" autocomplete="off"><input type="password" id="kfmPw" placeholder="財務記帳的密碼" autocomplete="off"><button type="button" class="kfm-btn main" id="kfmLogin">登入財務記帳</button></div>' +
       '<div class="kfm-muted" id="kfmMsg"></div></div>' +
       '<div id="kfmMain" style="display:none;">' +
-      '<div class="kfm-row"><span class="kfm-muted">已連結財務記帳</span><button type="button" class="kfm-link" id="kfmLogout" style="font-weight:400">登出財務</button><span style="flex:1"></span>' +
+      '<div class="kfm-row"><span class="kfm-muted" id="kfmWho">已連結財務記帳</span><button type="button" class="kfm-link" id="kfmLogout" style="font-weight:400">登出財務</button><span style="flex:1"></span>' +
       '<span id="kfmAcctPills"><button type="button" class="kfm-btn" data-acct="all">全部</button><button type="button" class="kfm-btn" data-acct="cash">現金</button><button type="button" class="kfm-btn" data-acct="bank">銀行</button></span>' +
       '<label>日期 <input type="date" id="kfmFrom" value="' + dstr(d) + '"></label><label>到 <input type="date" id="kfmTo" value="' + dstr(new Date()) + '"></label>' +
       '<button type="button" class="kfm-btn" id="kfmReload">🔄 重新讀取</button></div>' +
@@ -1757,7 +1817,7 @@ window.KutingFinMatch = function(opts){
       if(!name || !pw){ msg.textContent = "請輸入財務記帳的姓名和密碼"; return; }
       msg.textContent = "登入中…";
       sha256Hex(name.toLowerCase()).then(function(h){ return auth.signInWithEmailAndPassword(h + "@gutingyuan-accounts.local", pw); })
-        .then(function(){ msg.textContent = ""; $("Pw").value = ""; })
+        .then(function(){ setFinUser(name); msg.textContent = ""; $("Pw").value = ""; })
         .catch(function(err){
           var c = err && err.code || "";
           msg.textContent = (/wrong-password|user-not-found|invalid/.test(c)) ? "姓名或密碼不對（請用財務記帳平台的帳號）" : ("登入失敗：" + (err && err.message || err));
@@ -1765,7 +1825,14 @@ window.KutingFinMatch = function(opts){
     }
     $("Login").addEventListener("click", doLogin);
     $("Pw").addEventListener("keydown", function(e){ if(e.key === "Enter") doLogin(); });
-    $("Logout").addEventListener("click", function(){ if(auth) auth.signOut(); });
+    $("Logout").addEventListener("click", function(){ setFinUser(""); if(auth) auth.signOut(); });
+    $("Tabs").addEventListener("click", function(e){
+      var b = e.target.closest("button[data-mode]"); if(!b) return;
+      mode = b.getAttribute("data-mode");
+      if(mode === "match" && auth && auth.currentUser && !entries && !loading) load(); else render();
+    });
+    $("LogKw").addEventListener("input", renderLog);
+    $("LogCopy").addEventListener("click", copyLog);
     $("Reload").addEventListener("click", function(){ rows = []; load(); });
     $("Apply").addEventListener("click", apply);
     var kwKey = "kuting_finmatch_kw_" + (opts.id || "x");
@@ -1796,19 +1863,34 @@ window.KutingFinMatch = function(opts){
     if(typeof firebase === "undefined") return false;
     var app = (firebase.apps || []).filter(function(a){ return a.name === "financeLink"; })[0] || firebase.initializeApp(CONFIG, "financeLink");
     auth = app.auth(); db = app.firestore();
-    try { auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); } catch(e){}
-    auth.onAuthStateChanged(function(u){ entries = null; rows = []; if(u) load(); else render(); });
+    try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){}
+    auth.onAuthStateChanged(function(u){ entries = null; rows = []; if(u && built && $("Overlay").style.display !== "none" && mode === "match") load(); else render(); });
     return true;
   }
   return {
     open: function(){
       ensureDom();
       if(!initAuth()){ toast("無法連到財務記帳，請重新整理頁面"); return; }
+      mode = "match";
       $("Msg").textContent = "";
       $("Overlay").style.display = "flex";
       if(auth.currentUser && !entries && !loading) load(); else render();
     },
     refresh: render,
+    // 平台登入成功時呼叫：用同一組姓名＋密碼悄悄連上財務記帳（密碼不保存；連不上也不影響平台）
+    autoLogin: function(name, pw){
+      if(!name || !pw || !initAuth()) return;
+      if(auth.currentUser){ if(!finUser()) setFinUser(name); return; }
+      sha256Hex(String(name).trim().toLowerCase()).then(function(h){ return auth.signInWithEmailAndPassword(h + "@gutingyuan-accounts.local", pw); })
+        .then(function(){ setFinUser(String(name).trim()); }, function(){});
+    },
+    // 平台登出時呼叫：一起登出財務記帳
+    logout: function(){ setFinUser(""); try { if(initAuth()) auth.signOut(); } catch(e){} },
+    // 報名上要記的紀錄（確認對應或改回未收款），平台把它加到 reg.finLog
+    logEntry: function(act, fin){
+      var f = fin ? { acct: fin.acct, date: fin.date, name: fin.name, amount: fin.amount, env: fin.env || "", acct5: fin.acct5 || "" } : null;
+      return { act: act, at: new Date().toISOString(), by: staffName(), finUser: finUser(), fin: f };
+    },
     matchText: matchText,
     isOpen: function(){ return built && $("Overlay").style.display !== "none"; },
     _test: { setEntries: function(es){ entries = es; rows = []; }, fakeLogin: function(){ auth = { currentUser: { uid: "t" } }; } }
@@ -1847,7 +1929,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v168";
+  var APP_VERSION = "v169";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -1858,6 +1940,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v169", date: "2026-11-03", changes: [
+      "對照財務收入不用再另外登入：登入供品後台時，自動用同一組姓名密碼連上財務記帳（財務密碼不同時才需要在對照視窗登入一次，這台會記住；登出後台時一起登出）",
+      "確認已收款時記下是誰確認的（後台登入的志工＋財務帳號）、時間和對應的財務收入；改回待收款也會留紀錄，紀錄不會被刪",
+      "對照視窗新增「📜 對照紀錄」分頁：列出本場次所有確認／取消紀錄，可搜尋姓名、確認人、紅包袋或金額，也可複製貼到 Excel"
+    ]},
     { version: "v168", date: "2026-11-03", changes: [
       "「💵 對照財務收入」（原「對照財務現金」）也列出財務的銀行收入，可切換全部／現金／銀行；銀行顯示匯款帳號末5碼",
       "姓名沒對上、但金額剛好只等於一位未收款的，標黃色「只有金額相符」讓志工確認（銀行轉帳常沒有姓名）",
@@ -3527,7 +3614,7 @@ window.KutingFinMatch = function(opts){
     if(!n || !p){ staffLoginMsg("請輸入姓名與密碼"); return; }
     staffLoginMsg("登入中…");
     nameToEmail(n).then(function(email){ return fsAuth.signInWithEmailAndPassword(email, p); })
-      .then(function(){ return afterStaffSignIn(n); })
+      .then(function(){ try { finMatcher.autoLogin(n, p); } catch(e){} return afterStaffSignIn(n); })
       .catch(function(e){ console.error(e); staffLoginMsg(e && e.code === "auth/too-many-requests" ? "嘗試次數過多，請稍後再試" : "姓名或密碼錯誤"); });
   }
   function staffRegister(){
@@ -3673,6 +3760,7 @@ window.KutingFinMatch = function(opts){
 
   document.getElementById("settingsLogoutBtn").addEventListener("click", function(){
     if(!fsAuth){ return; }
+    try { finMatcher.logout(); } catch(e){}
     fsAuth.signOut().then(function(){
       staff = null;
       setTab("public");
@@ -8696,7 +8784,10 @@ window.KutingFinMatch = function(opts){
     if(!reg) return null;
     reg.paid = !reg.paid;
     // v167：改回待收款時，一併拿掉和財務現金的對應，那筆現金可以再配給別人
-    if(!reg.paid){ delete reg.finEntryId; delete reg.finMatch; }
+    if(!reg.paid && reg.finEntryId){
+      reg.finLog = (reg.finLog || []).concat([finMatcher.logEntry("unmatch", reg.finMatch)]);
+      delete reg.finEntryId; delete reg.finMatch;
+    }
     fsPushRegistration(occ.id, reg);
     renderAll();
     if(reg.paid) offerPaidNotice([reg]);
@@ -8867,17 +8958,20 @@ window.KutingFinMatch = function(opts){
     isPaid: function(r){ return !!r.paid; },
     linkedId: function(r){ return r.finEntryId; },
     canEdit: function(){ return fsCanEdit(); },
+    staffName: function(){ return (staff && staff.name) || ""; },
     toast: showToast,
     preview: function(r){ openRegPreview(r.id); },
     isOtherModalOpen: function(){ return document.getElementById("regPreviewOverlay").style.display !== "none"; },
     apply: function(list){
-      var occ = current(), by = (staff && staff.name) || "", changed = [];
+      var occ = current(), changed = [];
       list.forEach(function(x){
         var reg = x.reg;
         reg.paid = true;
         reg.finEntryId = x.match.id;
-        reg.finMatch = Object.assign({}, x.match, { by: by, at: nowTimeStr() });
+        reg.finMatch = Object.assign({}, x.match);
         delete reg.finMatch.id;
+        // v169：留下誰確認的紀錄（不會被刪），對照視窗「📜 對照紀錄」可查
+        reg.finLog = (reg.finLog || []).concat([finMatcher.logEntry("match", x.match)]);
         fsPushRegistration(occ.id, reg);
         changed.push(reg);
       });
