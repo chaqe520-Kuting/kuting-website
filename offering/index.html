@@ -1950,6 +1950,9 @@ window.KutingFinMatch = function(opts){
       "對照財務收入視窗在電腦上整個表格放得下，不用左右拉（欄寬固定，姓名、說明自動換行）",
       "對不到未收款的收入（例如點燈、其他捐款）先收起來，只列出對得到的；要手動選時勾「也列出沒對到的收入」"
     ]},
+    { version: "v171", date: "2026-11-03", changes: [
+      "匯出 Excel 的登記清單最前面加「編號」欄（1、2、3…），和法會報名的匯出一致"
+    ]},
     { version: "v170", date: "2026-11-03", changes: [
       "對照財務收入的登入框會自動帶入後台登入的姓名，只要輸入財務密碼（新版上線前就登入後台的，請登出後台再登入一次就會自動連上財務）"
     ]},
@@ -6252,7 +6255,7 @@ window.KutingFinMatch = function(opts){
   // the two paths can never drift out of sync with each other.
   function buildOccasionExportRows(occ){
     var hasConfirm = !!occ.confirmFieldName;
-    var header = ["姓名", "電話", "品項", "數量", "金額", "收款狀態"];
+    var header = ["編號", "姓名", "電話", "品項", "數量", "金額", "收款狀態"]; // v171 比照法會報名，最前面加編號
     // v149 — 法船等補運品項的「補運」「補運地址」原本沒匯出（小朱）
     var hasBuyun = (occ.items || []).some(function(it){ return it.needsBuyun; }) ||
       occ.registrations.some(function(r){ return r.buyunName || r.buyunAddr || r.buyun; });
@@ -6260,13 +6263,13 @@ window.KutingFinMatch = function(opts){
     if(hasConfirm) header.push(occ.confirmFieldName);
     header.push("登記時間");
     var rows = [header];
-    occ.registrations.forEach(function(r){
+    occ.registrations.forEach(function(r, i){
       var cat = findCatalog(r.catId, occ);
       var qtyDisplay = r.type !== "donation" && itemQtyAsAmount(cat) ? Math.round(regCashAmount(r)).toLocaleString("zh-TW") + "元" : regQtyText(r, cat, "");
       // 「敬致仙佛／師尊」（目前只有「各師尊大壽金」這個品項會用到）直接併
       // 進「品項」這一欄裡顯示，不用另外加一欄。
       var label = r.label + (r.dedicateTo ? "－" + r.dedicateTo : "");
-      var row = [r.name, r.phone || "", label, qtyDisplay, r.amount, r.paid ? "已收款" : "待收款"];
+      var row = [i + 1, r.name, r.phone || "", label, qtyDisplay, r.amount, r.paid ? "已收款" : "待收款"];
       if(hasBuyun) row.push(r.buyunName || "", r.buyunAddr || r.buyun || "");
       if(hasConfirm) row.push(r.confirmed ? "已完成" : "未完成");
       row.push(formatRegTime(r.time));
