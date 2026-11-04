@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.1';
+const APP_VERSION = 'v1.16.2';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.2', date:'2026-11-04', items:[
+    '「🔗 配對報名」只出現在活動／項目對得上供品贊助、法會報名場次的收入（例如寫了農曆九月十九），點燈等一般收款不再顯示，登記後也不會跳出配對',
+  ] },
   { version:'v1.16.1', date:'2026-11-04', items:[
     '「這筆收入對應哪一筆報名？」只列供品贊助／法會報名還沒收款的報名；已收款的（多半之前已登記過）不再列出',
   ] },
@@ -2959,6 +2962,7 @@ const FinPair = (function(){
   async function offer(e){
     if(!canPair(e) || !FinLinkStatus.connected() || !e.name) return;
     await waitLoaded();
+    if(!relevant(e)) return;
     const r = suggest(e);
     if(!r.hits.length) return;
     open(e);
@@ -3030,8 +3034,17 @@ const FinPair = (function(){
     FinLinkStatus.load();
   }
   // 「最近登記」「本月收支對帳」每筆收入旁的按鈕：已連上報名平台、這筆收入還沒對應時才顯示
+  // v1.16.2 只有活動／項目對得上供品贊助、法會報名某個場次的收入才配對（點燈等一般收款不用）
+  let evCacheSrc = null, evCache = [];
+  function eventTitles(){
+    const regs = FinLinkStatus.regs();
+    if(regs !== evCacheSrc){ evCacheSrc = regs; evCache = [...new Set(regs.map(r=>r.event).filter(Boolean))]; }
+    return evCache;
+  }
+  function relevant(e){ return eventTitles().some(t=>eventHit(t, e)); }
   function btnHtml(e){
     if(!canPair(e) || !FinLinkStatus.connected() || !FinLinkStatus.isLoaded() || FinLinkStatus.linked(e.id)) return '';
+    if(!relevant(e)) return '';
     return `<button type="button" class="fp-btn" onclick="event.stopPropagation();FinPair.open('${e.id}')" title="對應到供品贊助／法會報名的報名">🔗 配對報名</button>`;
   }
   return { open, offer, btnHtml, _t: { eventHit, tokens, meet, findSubset } };
