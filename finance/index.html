@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.5';
+const APP_VERSION = 'v1.19.0';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.19.0', date:'2026-11-04', items:[
+    '後 5 碼對照表新增「📥 從 Excel 帳本匯入」：讀舊帳本有「姓名」和「摘要(帳號)」欄的工作表（例如 銀行存款-115），前面少了 0 的自動補成 5 碼，存進平台後所有人輸入後 5 碼都會自動帶出姓名',
+  ] },
   { version:'v1.18.5', date:'2026-11-04', items:[
     '後 5 碼前面是 0 的帳號（例如 00400）以前存成 400，現在比對時自動補 0，輸入 00400 也會帶出姓名（例如郭虹汶）',
   ] },
@@ -2273,6 +2276,7 @@ async function loadCustomSuggestions(){
       if(customSuggestions.hasOwnProperty(doc.id)){
         customSuggestions[doc.id] = doc.data().list || [];
       }
+      if(doc.id === 'acctMap') setAcctImport(doc.data());
     });
     renderSuggestPills();
     populateAutocompleteLists();
@@ -3405,6 +3409,20 @@ function acctOf(e){
   if(d) return d.length < 5 ? d.padStart(5,'0') : d.slice(-5);
   return acctFromMemo(e);
 }
+// v1.19.0 從舊 Excel 帳本（銀行存款工作表「摘要(帳號)」欄）匯入的後 5 碼 ↔ 姓名，存在 suggestions/acctMap
+//   sheets: { 工作表名稱: ["00503|林榮端|2026-01-22", ...] }；同一個工作表再匯入會整張蓋過
+let acctImportDoc = { sheets:{} };
+let acctImport = new Map();   // acct -> [{name, date}]
+function setAcctImport(d){
+  acctImportDoc = { sheets: (d && d.sheets) || {}, updatedBy: d && d.updatedBy || '', updatedAt: d && d.updatedAt || '' };
+  acctImport = new Map();
+  Object.values(acctImportDoc.sheets).forEach(list=> (list||[]).forEach(line=>{
+    const [a, n, dt] = String(line).split('|');
+    if(!a || !n) return;
+    if(!acctImport.has(a)) acctImport.set(a, []);
+    acctImport.get(a).push({ name:n, date:dt||'' });
+  }));
+}
 function counterAcctNames(acct){
   if(!acct) return [];
   const m = new Map();
@@ -3414,6 +3432,11 @@ function counterAcctNames(acct){
     const x = m.get(n) || { name:n, count:0, last:'' };
     x.count++; if((e.date||'') > x.last) x.last = e.date||'';
     m.set(n, x);
+  });
+  (acctImport.get(acct) || []).forEach(r=>{
+    const x = m.get(r.name) || { name:r.name, count:0, last:'' };
+    x.count++; if((r.date||'') > x.last) x.last = r.date||'';
+    m.set(r.name, x);
   });
   return [...m.values()].sort((a,b)=> b.count-a.count || (b.last > a.last ? 1 : b.last < a.last ? -1 : 0));
 }
@@ -3438,8 +3461,13 @@ const AcctTable = (function(){
     ov.id = 'acctOverlay';
     ov.innerHTML = `<div id="acctBox">
       <h3>🔢 匯款帳號後 5 碼對照表</h3>
-      <p class="muted" style="margin:0 0 8px;font-size:13.5px;">從平台上所有登記過「帳號後 5 碼」的收支整理出來，備註或項目摘要裡寫的後 5 碼也算進來。登記銀行收入時輸入後 5 碼，就會自動帶出最常用的姓名；要改姓名，請到明細修改那幾筆登記。</p>
-      <input type="text" id="acctKw" placeholder="搜尋後 5 碼或姓名" autocomplete="off" style="width:100%;max-width:320px;">
+      <p class="muted" style="margin:0 0 8px;font-size:13.5px;">從平台上所有登記過「帳號後 5 碼」的收支整理出來，備註或項目摘要裡寫的後 5 碼、從 Excel 帳本匯入的也算進來。登記銀行收入時輸入後 5 碼，就會自動帶出最常用的姓名；要改姓名，請到明細修改那幾筆登記。</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+        <input type="text" id="acctKw" placeholder="搜尋後 5 碼或姓名" autocomplete="off" style="flex:1;min-width:180px;max-width:320px;">
+        <button class="btn secondary" id="acctImportBtn" type="button">📥 從 Excel 帳本匯入</button>
+        <input type="file" id="acctImportFile" accept=".xlsx,.xls" style="display:none;">
+      </div>
+      <div id="acctImportMsg" class="muted" style="font-size:13px;margin-top:4px;"></div>
       <div id="acctList" style="margin-top:8px;"></div>
       <div style="text-align:right;margin-top:12px;"><button class="btn secondary" id="acctCloseBtn">關閉</button></div>
     </div>`;
@@ -3447,6 +3475,72 @@ const AcctTable = (function(){
     ov.addEventListener('click', ev=>{ if(ev.target===ov) close(); });
     document.getElementById('acctCloseBtn').addEventListener('click', close);
     document.getElementById('acctKw').addEventListener('input', render);
+    document.getElementById('acctImportBtn').addEventListener('click', ()=> document.getElementById('acctImportFile').click());
+    document.getElementById('acctImportFile').addEventListener('change', ev=>{ const f = ev.target.files[0]; ev.target.value = ''; if(f) importExcel(f); });
+  }
+  // 民國 1150103 / 115/01/03 / Excel 日期 → 2026-01-03
+  function toIso(v){
+    if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+    const t = String(v==null?'':v).trim();
+    let m = t.match(/^(\d{2,3})(\d{2})(\d{2})(?:\.0+)?$/) || t.match(/^(\d{2,4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/);
+    if(!m) return '';
+    let y = Number(m[1]); if(y < 1911) y += 1911;
+    return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  }
+  function acctCell(v){
+    if(v==null) return '';
+    let t = typeof v === 'number' ? String(Math.round(v)) : String(v).trim();
+    if(!/\d/.test(t)) return '';
+    if(/[^\d\s\-*＊.()（）]/.test(t.replace(/^(帳號|後五碼|後5碼|末五碼|末5碼)[:：]?/,''))) return '';  // 夾雜文字（例如 電費）的不收
+    const d = t.replace(/\.0+$/,'').replace(/\D/g,'');
+    if(d.length < 3) return '';
+    return d.length >= 5 ? d.slice(-5) : d.padStart(5,'0');   // Excel 存成數字時前面的 0 不見，補回 5 碼
+  }
+  async function importExcel(file){
+    const msg = document.getElementById('acctImportMsg');
+    if(!currentUser){ alert('請先登入'); return; }
+    msg.textContent = '讀取中…';
+    try{
+      const wb = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:true });
+      const found = {};
+      wb.SheetNames.forEach(sn=>{
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, raw:true, defval:null });
+        let hr = -1, cAcct = -1, cName = -1, cDate = -1;
+        for(let r = 0; r < Math.min(6, aoa.length) && hr < 0; r++){
+          (aoa[r]||[]).forEach((h, c)=>{
+            const t = String(h==null?'':h).replace(/\s/g,'');
+            if(cAcct < 0 && /帳號|後5碼|後五碼/.test(t)) cAcct = c;
+            if(cName < 0 && /^姓名/.test(t)) cName = c;
+            if(cDate < 0 && /^日期/.test(t)) cDate = c;
+          });
+          if(cAcct >= 0 && cName >= 0) hr = r; else { cAcct = cName = cDate = -1; }
+        }
+        if(hr < 0) return;
+        const lines = [];
+        for(let r = hr + 1; r < aoa.length; r++){
+          const row = aoa[r] || [];
+          const n = String(row[cName]==null?'':row[cName]).trim();
+          const a = acctCell(row[cAcct]);
+          if(!n || !a || n.length > 20) continue;
+          lines.push(`${a}|${n.replace(/\|/g,'')}|${cDate >= 0 ? toIso(row[cDate]) : ''}`);
+        }
+        if(lines.length) found[sn] = lines;
+      });
+      const names = Object.keys(found);
+      if(!names.length){ msg.textContent = '找不到有「姓名」和「摘要(帳號)／帳號」欄的工作表。'; return; }
+      const total = names.reduce((t,k)=>t+found[k].length, 0);
+      const accts = new Set(); names.forEach(k=>found[k].forEach(l=>accts.add(l.split('|')[0])));
+      if(!confirm(`找到 ${names.map(k=>`「${k}」${found[k].length} 筆`).join('、')}，共 ${accts.size} 個帳號。\n\n要匯入後 5 碼對照表嗎？（同名工作表以前匯入過的會整張換成這次的）`)){ msg.textContent = '已取消'; return; }
+      const sheets = Object.assign({}, acctImportDoc.sheets, found);
+      const doc = { sheets, updatedBy: currentUser.name || '', updatedAt: new Date().toISOString() };
+      await fbDb.collection('suggestions').doc('acctMap').set(doc);
+      setAcctImport(doc);
+      msg.textContent = `已匯入 ${total} 筆（${accts.size} 個帳號），以後輸入這些後 5 碼就會自動帶出姓名。`;
+      render();
+    }catch(e){
+      console.error('acct import', e);
+      msg.textContent = '匯入失敗：' + (e && e.message || e);
+    }
   }
   function close(){ const ov = document.getElementById('acctOverlay'); if(ov) ov.style.display = 'none'; }
   function render(){
@@ -3461,6 +3555,12 @@ const AcctTable = (function(){
       if((e.date||'') > a.last) a.last = e.date||'';
       accts.set(ac, a);
     });
+    acctImport.forEach((list, ac)=>{
+      const a = accts.get(ac) || { acct:ac, total:0, noName:0, memo:0, last:'' };
+      a.xls = list.length; a.total += list.length;
+      list.forEach(r=>{ if((r.date||'') > a.last) a.last = r.date||''; });
+      accts.set(ac, a);
+    });
     let rows = [...accts.values()].map(a=>({ ...a, names: counterAcctNames(a.acct) }));
     if(kw) rows = rows.filter(a=> a.acct.includes(kw) || a.names.some(x=>x.name.includes(kw)));
     rows.sort((a,b)=> (b.last > a.last ? 1 : b.last < a.last ? -1 : 0));
@@ -3470,7 +3570,7 @@ const AcctTable = (function(){
     box.innerHTML = `<p class="muted" style="margin:0 0 4px;font-size:13px;">共 ${rows.length} 個帳號${kw?'（搜尋結果）':''}；用過兩個以上姓名的標黃色</p>
       <table><thead><tr><th>後 5 碼</th><th>用過的姓名（次數）</th><th>筆數</th><th>最近日期</th></tr></thead><tbody>`
       + rows.map(a=>`<tr${a.names.length>1?' class="multi"':''}><td><b>${escHtml(a.acct)}</b></td>
-        <td>${a.names.length ? a.names.map((x,i)=>`<span class="acct-name${i===0?' first':''}">${escHtml(x.name)}（${x.count}）</span>`).join('') : ''}${a.noName ? `<span class="muted" style="font-size:12.5px;">未填姓名 ${a.noName} 筆</span>` : ''}${a.memo ? `<span class="muted" style="font-size:12.5px;">（${a.memo} 筆從備註／摘要讀出）</span>` : ''}</td>
+        <td>${a.names.length ? a.names.map((x,i)=>`<span class="acct-name${i===0?' first':''}">${escHtml(x.name)}（${x.count}）</span>`).join('') : ''}${a.noName ? `<span class="muted" style="font-size:12.5px;">未填姓名 ${a.noName} 筆</span>` : ''}${a.memo ? `<span class="muted" style="font-size:12.5px;">（${a.memo} 筆從備註／摘要讀出）</span>` : ''}${a.xls ? `<span class="muted" style="font-size:12.5px;">（${a.xls} 筆 Excel 帳本匯入）</span>` : ''}</td>
         <td class="num">${a.total}</td><td style="white-space:nowrap;">${escHtml(a.last)}</td></tr>`).join('')
       + '</tbody></table>';
   }
