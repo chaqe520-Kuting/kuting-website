@@ -472,6 +472,13 @@
   .audit-diff{ color:var(--ink-soft); font-size:12.5px; }
   .audit-diff b{ color:var(--temple-red-deep); font-weight:600; }
   footer.version-footer{ margin-top:6px; font-size:12px; color:var(--ink-soft); text-align:center; }
+  /* v1.18.0 LINE 轉來的銀行截圖 */
+  #bankPendingBar{margin:8px 0 4px;padding:8px 10px;background:#FFF6DC;border:1px solid var(--gold);border-radius:8px;}
+  #bankPendingBar .bp-title{color:var(--temple-red-deep);font-weight:600;margin-bottom:4px;}
+  #bankPendingBar .bp-item{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px dashed #E5D7B8;font-size:13.5px;}
+  #bankPendingBar .bp-img{width:56px;height:96px;object-fit:cover;border:1px solid #E5D7B8;border-radius:4px;cursor:zoom-in;flex:none;}
+  #bankPendingBar .bp-info{flex:1;min-width:0;line-height:1.6;}
+  #bankPendingBar .bp-btns{display:flex;flex-direction:column;gap:4px;flex:none;}
   /* v1.17.0 後 5 碼對照 */
   .acct-hint{display:block;font-size:12px;color:#6E5A35;margin-top:3px;line-height:1.7;}
   .acct-pick{border:1px solid var(--gold);background:#FFF6DC;color:var(--temple-red-deep);border-radius:9px;padding:0 7px;font-size:12px;cursor:pointer;margin:1px 3px 1px 0;}
@@ -563,6 +570,7 @@
             <span class="muted" style="font-size:12.5px;">京城銀行 App 入帳／出帳截圖、信眾轉帳成功畫面 → AI 讀出 → 核對後存成銀行收支</span>
             <button class="btn secondary small" id="bankshotToggleBtn">展開 ▾</button>
           </div>
+          <div id="bankPendingBar" style="display:none;"></div>
           <div id="bankshotBody" style="display:none;">
             <p class="muted" style="margin:8px 0 0;">可一次選多張，電腦也可以在這個框裡按 Ctrl+V 貼上截圖。AI 由報名小幫手代讀，截圖不會保存；讀出後請逐筆核對，<b>勾選的才會存</b>。重複的交易會標紅色、不預先勾選。</p>
             <div class="bankshot-tools">
@@ -1025,9 +1033,14 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.17.0';
+const APP_VERSION = 'v1.18.0';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.0', date:'2026-11-04', items:[
+    '新增「📥 LINE 轉來的銀行截圖」：出納貼的匯入紀錄截圖，用手機轉傳給報名小幫手（私訊），小幫手 AI 讀好後會出現在「銀行截圖快速登記」上方，按「帶入」就和自己上傳的截圖一樣核對、勾選後存入；不用另外存圖再上傳',
+    '帶入的交易會用帳號後 5 碼自動帶出以前用過的姓名；存入後那張截圖自動標成已處理，不是要登記的可按「略過」',
+    '需小幫手 v1.42、規則 v1.18.0（新增 bankPending，只能讀和標記已處理）',
+  ] },
   { version:'v1.17.0', date:'2026-11-04', items:[
     '新增「🔢 後 5 碼對照表」：把平台上所有登記過的銀行收入，依匯款人帳號後 5 碼整理出用過的姓名、次數與最近日期，可搜尋後 5 碼或姓名',
     '銀行截圖快速登記、手動登記輸入後 5 碼時：同一個帳號用過好幾個姓名，會在姓名下面列出來（次數多的在前），點一下就換成那個姓名',
@@ -1937,6 +1950,7 @@ function showLiveStatus(text){
 
 function subscribeEntries(){
   if(entriesUnsub) return; // 已經訂閱過，不要重複訂閱
+  try{ subscribeBankPending(); }catch(e){ console.warn('bankPending', e); }
   entriesUnsub = fbDb.collection('entries').orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       liveEntries = snap.docs
@@ -3425,6 +3439,7 @@ function addBankshotRows(found){
       balance: raw.balance===null || raw.balance===undefined || raw.balance==='' ? null : Math.round(Number(raw.balance)),
       counterAcct: String(raw.counterAcct||'').replace(/\D/g,'').slice(-5),
       summary: String(raw.summary||'').trim(), memo: String(raw.memo||'').trim(),
+      shotLabel: raw.shotLabel || '', pendingId: raw.pendingId || '',
     };
     r.ref = bankRefOf(r);
     if(seen.has(keyOf(r))) return;   // 兩張截圖重疊的同一筆
@@ -3475,7 +3490,7 @@ function renderBankshotRows(){
       <td>${inp('activity', ' list="activityList"')}</td>
       <td>${inp('item', r.dir==='in' ? ' list="itemInList"' : ' list="itemOutList"')}</td>
       <td>${inp('note')}</td>
-      <td class="muted" style="text-align:right;white-space:nowrap;">${r.balance===null ? '—' : moneyPlain(r.balance)}<br><span style="font-size:11.5px;">第 ${r.shot} 張</span></td>
+      <td class="muted" style="text-align:right;white-space:nowrap;">${r.balance===null ? '—' : moneyPlain(r.balance)}<br><span style="font-size:11.5px;">${r.shotLabel ? escHtml(r.shotLabel) : `第 ${r.shot} 張`}</span></td>
       <td><div class="bankshot-st ${st.level==='dup'?'dup':st.level==='warn'?'warn':'ok'}">${escHtml(st.text)}</div></td>
     </tr>`;
   }).join('');
@@ -3602,6 +3617,65 @@ async function saveBankshotRows(){
   renderBankshotRows();
   const m2 = document.getElementById('bankshotSaveMsg');
   if(m2) m2.textContent = `已存入 ${ok} 筆`;
+  // v1.18.0 LINE 轉來的截圖：有交易存入了就標成已處理
+  const doneIds = [...new Set(pick.filter(r=>r.saved && r.pendingId).map(r=>r.pendingId))];
+  for(const id of doneIds) await markBankPending(id, 'done');
+}
+
+/* ================= v1.18.0 LINE 轉來的銀行截圖（bankPending）=================
+   有開通的人把銀行截圖私訊轉傳給報名小幫手 → 小幫手 AI 讀出交易，寫進 bankPending（status:'new'）。
+   這裡列出還沒處理的，按「帶入」放進銀行截圖快速登記的表格；存入後或按「略過」標成 done／skipped。 */
+let bankPending = [];
+let bankPendingUnsub = null;
+const bankPendingLoaded = new Set();
+function subscribeBankPending(){
+  if(bankPendingUnsub) return;
+  bankPendingUnsub = fbDb.collection('bankPending').where('status','==','new').onSnapshot(snap=>{
+    bankPending = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+      .sort((a,b)=> String(a.lineTime||'').localeCompare(String(b.lineTime||'')));
+    renderBankPending();
+  }, err=>{ console.warn('bankPending', err && err.code); bankPending = []; renderBankPending(); });
+}
+function renderBankPending(){
+  const bar = document.getElementById('bankPendingBar');
+  if(!bar) return;
+  const list = bankPending.filter(p=>!bankPendingLoaded.has(p.id));
+  if(!list.length){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = '';
+  bar.innerHTML = `<div class="bp-title">📥 LINE 轉來的銀行截圖：還有 <b>${list.length}</b> 張沒登記</div>` + list.map(p=>{
+    const rows = Array.isArray(p.rows) ? p.rows : [];
+    const ins = rows.filter(r=>r.dir!=='out');
+    const t = p.lineTime ? new Date(p.lineTime) : null;
+    const when = t && !isNaN(t) ? `${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}` : '';
+    const brief = rows.slice(0, 4).map(r=>`${escHtml(r.date||'')} ${r.dir==='out'?'支出':'收入'} ${moneyPlain(Number(r.amount)||0)}${r.counterAcct?`（後5碼 ${escHtml(r.counterAcct)}${nameForCounterAcct(r.counterAcct)?' '+escHtml(nameForCounterAcct(r.counterAcct)):''}）`:''}`).join('<br>') + (rows.length > 4 ? '<br>…' : '');
+    return `<div class="bp-item">
+      ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
+      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} 轉傳　共 ${rows.length} 筆（收入 ${ins.length} 筆）</div>${brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>'}</div>
+      <div class="bp-btns"><button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button><button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button></div>
+    </div>`;
+  }).join('');
+  bar.querySelectorAll('[data-bp-load]').forEach(b=>b.addEventListener('click', ()=>loadBankPending(b.dataset.bpLoad)));
+  bar.querySelectorAll('[data-bp-skip]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('這張截圖不用登記，標成已處理？（之後不會再出現）')) return;
+    await markBankPending(b.dataset.bpSkip, 'skipped');
+  }));
+  bar.querySelectorAll('[data-big]').forEach(im=>im.addEventListener('click', ()=>{ const w = window.open(); if(w){ w.document.write(`<img src="${im.src}" style="max-width:100%">`); } }));
+}
+function loadBankPending(id){
+  const p = bankPending.find(x=>x.id===id);
+  if(!p) return;
+  const body = document.getElementById('bankshotBody');
+  if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
+  const label = 'LINE ' + (p.from || '轉傳');
+  addBankshotRows((p.rows||[]).map(r=>Object.assign({}, r, { shot:0, shotLabel:label, pendingId:p.id })));
+  bankPendingLoaded.add(id);
+  renderBankPending();
+  document.getElementById('bankshotMsg').textContent = `已帶入 LINE 轉來的 ${(p.rows||[]).length} 筆，請核對後按「存入勾選的交易」`;
+}
+async function markBankPending(id, status){
+  try{
+    await fbDb.collection('bankPending').doc(id).update({ status, doneBy: (currentUser && currentUser.name) || '', doneAt: new Date().toISOString() });
+  }catch(e){ console.error('bankPending update', e); alert('標記已處理失敗：' + (e && e.code === 'permission-denied' ? '規則還沒更新（需要財務規則 v1.18.0）' : (e && e.message || e))); }
 }
 
 /* ================= 語音連續記帳（v1.13.0）=================
