@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.3';
+const APP_VERSION = 'v1.16.4';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.4', date:'2026-11-04', items:[
+    '「🔗 配對報名」改用活動名稱對報名表的場次名稱（含已經全部收款的場次），法會收入沒寫日期也會出現',
+  ] },
   { version:'v1.16.3', date:'2026-11-04', items:[
     '修正 v1.16.2 法會的收入不出現「🔗 配對報名」：活動／項目只要有場次名稱裡的詞（例如渡祖先、梁皇寶懺）也算對上，不一定要寫農曆日期；沒寫活動和項目、但姓名對上未收款報名的也會出現',
   ] },
@@ -2697,7 +2700,8 @@ const FinLinkStatus = (function(){
   const st = {}; // key → {auth, db, ok, err}
   let map = {};  // 財務 entry id → [{plat, event, name}]
   let loaded = false, loading = false, onChange = ()=>{};
-  let regList = [], aliasMaps = {};   // v1.16.0 還沒對應財務的報名、各平台記住的姓名對照
+  let regList = [], aliasMaps = {}, eventNames = [];   // v1.16.4 eventNames：供品／法會所有場次名稱（含已全部收款的）
+  let regList_unused;   // v1.16.0 還沒對應財務的報名、各平台記住的姓名對照
   function init(){
     if(typeof firebase === 'undefined') return false;
     PLATS.forEach(p=>{
@@ -2725,7 +2729,7 @@ const FinLinkStatus = (function(){
   async function load(){
     if(!init() || loading) return;
     loading = true; onChange();
-    const next = {}, list = [], als = {};
+    const next = {}, list = [], als = {}, evAll = new Set();
     const add = (id, v)=>{ (next[id] = next[id] || []).push(v); };
     await Promise.all(PLATS.map(async p=>{
       const s = st[p.key];
@@ -2735,6 +2739,7 @@ const FinLinkStatus = (function(){
           const occs = await s.db.collection('occasions').get();
           await Promise.all(occs.docs.map(async od=>{
             const o = od.data()||{}, label = o.label || '';
+            if(label && !o.deleted) evAll.add(label);
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
             regs.forEach(d=>{
               const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' }));
@@ -2745,7 +2750,7 @@ const FinLinkStatus = (function(){
           }));
         } else {
           let names = {}, evs = {};
-          try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; evs[e.id] = e; }); }catch(e){}
+          try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; evs[e.id] = e; if(e.name) evAll.add(e.name); }); }catch(e){}
           const regs = await s.db.collection('regs').get();
           regs.forEach(d=>{
             const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
@@ -2759,7 +2764,7 @@ const FinLinkStatus = (function(){
         s.err = '';
       }catch(e){ s.err = (e && e.code==='permission-denied') ? '帳號未啟用' : '讀取失敗'; }
     }));
-    map = next; regList = list; aliasMaps = als; loaded = true; loading = false; onChange();
+    map = next; regList = list; aliasMaps = als; eventNames = [...evAll]; loaded = true; loading = false; onChange();
   }
   function tagHtml(entryId){
     const l = map[entryId];
@@ -2784,6 +2789,7 @@ const FinLinkStatus = (function(){
     connected(){ return init() && PLATS.some(p=>st[p.key].auth.currentUser); },
     isLoaded(){ return loaded && !loading; },
     regs(){ return regList; },
+    events(){ return eventNames; },
     aliases(){ return aliasMaps; },
     db(key){ return st[key] && st[key].auth.currentUser ? st[key].db : null; },
     autoLogin(name, pw){ signIn(name, pw).catch(()=>{}); },
@@ -3038,11 +3044,13 @@ const FinPair = (function(){
   }
   // 「最近登記」「本月收支對帳」每筆收入旁的按鈕：已連上報名平台、這筆收入還沒對應時才顯示
   // v1.16.2 只有活動／項目對得上供品贊助、法會報名某個場次的收入才配對（點燈等一般收款不用）
-  let evCacheSrc = null, evCache = [];
-  function eventTitles(){
-    const regs = FinLinkStatus.regs();
-    if(regs !== evCacheSrc){ evCacheSrc = regs; evCache = [...new Set(regs.map(r=>r.event).filter(Boolean))]; }
-    return evCache;
+  // v1.16.4 用供品贊助、法會報名的所有場次名稱（含已經全部收款的場次）
+  function eventTitles(){ return FinLinkStatus.events(); }
+  // 活動名稱（去掉農曆日期、標點）整段出現在報名表場次名稱裡＝同一場（小朱：活動名稱會寫法會名稱，跟報名表一致）
+  const squash = t=>String(t||'').replace(/農曆|國曆/g, '').replace(LUNAR_RE, '').replace(/[\s\-－—…．.、，,（）()／/：:]+/g, '');
+  function nameHit(title, e){
+    const t = squash(title);
+    return [e.activity, e.item].some(a=>{ const x = squash(a); return x.length >= 3 && t.indexOf(x) >= 0; });
   }
   // v1.16.3 場次名稱裡 3 個字以上的詞（例如「渡祖先」「梁皇寶懺」）也算對上，不一定要寫農曆日期
   const REL_GENERIC = /資料|登記表|贊助|報名|嘉義/g;
@@ -3067,7 +3075,7 @@ const FinPair = (function(){
     return itCache;
   }
   function relevant(e){
-    if(eventTitles().some(t=>eventHit(t, e) || wordHit(t, e))) return true;
+    if(eventTitles().some(t=>nameHit(t, e) || eventHit(t, e) || wordHit(t, e))) return true;
     const it = String(e.item||'');
     if(it && itemNames().some(n=>it.indexOf(n) >= 0)) return true;
     // 沒寫活動、項目的收入：姓名對上還沒收款的報名才算
