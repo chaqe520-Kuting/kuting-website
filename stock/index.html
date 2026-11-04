@@ -421,8 +421,9 @@ const CloudAuth = {
 };
 const Auth = CLOUD ? CloudAuth : DemoAuth;
 
-const APP_VERSION='v1.6', APP_DATE='2026-11-04';
+const APP_VERSION='v1.7', APP_DATE='2026-11-04';
 const CHANGELOG=[
+  {v:'v1.7',d:'2026-11-04',items:['匯入盤點表也會讀尺寸表旁邊單獨寫的品項（例如「元寶」下面一格 102000）','找不到的品項，管理者可在匯入畫面按「＋新增為品項」直接加入（填單位與存放地點），數量會一起更新']},
   {v:'v1.6',d:'2026-11-04',items:['庫存畫面標示最近一次盤點（含 Excel 匯入）有更新的品項：紫色底＋「盤點更新」，並寫出原本帳面 → 盤點後數量','上方提示列「盤點更新了幾項」，點一下只看這些；按「不再標示」可隱藏（只影響這台裝置，下次盤點會再出現）']},
   {v:'v1.5',d:'2026-11-04',items:['匯入 Excel 盤點表時，會一起讀表格下方的志工服尺寸表（長袖／短袖／長褲 × S、M、L、XL），更新到對應的「志工服」品項；之前這一塊會被略過','尺寸表空白格＝沒點到，維持帳面數量']},
   {v:'v1.4',d:'2026-10-12',items:['盤點可匯入 Excel 盤點表：選檔後先列出和帳面不同的品項，確認後更新庫存（記成盤點更正，盤點紀錄可下載）','支援本平台「盤點用表格」、庫存總表、盤點清單，以及舊的「倉管物料-盤點登記」表（自動取最右邊有填的盤點日期）','盤點畫面新增「下載盤點用表格」，到現場填實盤數量後再匯入']},
@@ -874,6 +875,14 @@ function impParse(aoa){
       for(const [c,g] of cols) garb.push({row:ds+j+1,no:'',name:`志工服 ${g} ${sz}`,loc:'',m:impVal(sr[c]),s:null,garb:true});
       k=j; }
   }
+  // v1.7：尺寸表旁邊單獨寫的品項（例如「元寶」下面一格 102000）
+  const used=new Set(garb.map(g=>g.row));
+  for(let k=gEnd;k<rows.length;k++){ const r=rows[k]||[];
+    r.forEach((v,c)=>{ if(v==null||typeof v==='number') return; const t=String(v).trim(), n=impNorm(t);
+      if(!n||n.length>12||GARB.test(n)&&n.length<=6||SIZE.test(n)||impVal(v)!=null) return;
+      const below=impVal((rows[k+1]||[])[c]); if(below==null) return;
+      garb.push({row:ds+k+2,no:'',name:t,loc:'',m:below,s:null,extra:true}); });
+  }
   const out=[]; let prev=null;
   rows.slice(0,gEnd).forEach((r,k)=>{ r=r||[];
     let name=r[nameC]!=null?String(r[nameC]).trim():'';
@@ -881,7 +890,7 @@ function impParse(aoa){
     if(!name){ if(prev&&(m!=null||s!=null)&&loc) name=prev; else return; }
     prev=name; out.push({row:ds+k+1,no:noC>=0?r[noC]:'',name,loc,m,s});
   });
-  return {rows:out.concat(garb),label,garb:garb.length};
+  return {rows:out.concat(garb),label,garb:garb.filter(g=>!g.extra).length};
 }
 function impAnalyze(){
   const ws=IMP.wb.Sheets[IMP.wb.SheetNames[IMP.sheet]];
@@ -934,12 +943,22 @@ function impShow(){
     ${names.length>1?`<label class="f">工作表</label><select onchange="IMP.sheet=+this.value;impAnalyze();impShow()">${names.map((n,k)=>`<option value="${k}" ${k===IMP.sheet?'selected':''}>${esc(n)}</option>`).join('')}</select>`:''}
     ${IMP.err?`<div class="tip" style="background:#fde7e7;color:var(--bad)">${esc(IMP.err)}</div>`:`
     <div class="tip">數量取自：<b>${esc(IMP.label)}</b><br>${IMP.garb?`另讀到下方志工服尺寸表 ${IMP.garb} 格（空白格維持帳面）。<br>`:''}對到 ${IMP.matched} 項品項，其中 <b>${c.length} 筆和帳面不同</b>${IMP.blank?`；${IMP.blank} 列沒填數量（維持帳面）`:''}。<br>空白格＝沒點到，維持帳面數量。</div>
-    ${IMP.unmatched.length?`<div class="tip" style="background:#fde7e7"><b>${IMP.unmatched.length} 列找不到品項，不會匯入：</b><br>${IMP.unmatched.map(r=>`第 ${r.row} 列 ${esc(r.name)}`).join('、')}<br><span class="mute">品名要和平台上的一樣，可到「設定 → 品項」新增或改名後再匯入。</span></div>`:''}
+    ${IMP.unmatched.length?`<div class="tip" style="background:#fde7e7"><b>${IMP.unmatched.length} 列找不到品項，不會匯入：</b><br>${IMP.unmatched.map((r,k)=>`第 ${r.row} 列 ${esc(r.name)}${r.m!=null?`（${fmt(r.m)}）`:''}${S.user?.admin?` <button class="btn sm" onclick="impNewItem(${k})">＋新增為品項</button>`:''}`).join('<br>')}<br><span class="mute">品名要和平台上的一樣${S.user?.admin?'，可按「＋新增為品項」直接加入，或到「設定 → 品項」改名後再匯入':'，請管理者到「設定 → 品項」新增或改名後再匯入'}。</span></div>`:''}
     ${IMP.warn.length?`<div class="tip">${IMP.warn.map(esc).join('<br>')}</div>`:''}
     <div class="card" style="padding:4px 14px;margin:8px 0;max-height:46vh;overflow:auto">${c.length?`<div class="list">${c.map(x=>`<div class="it"><div class="grow"><b>${esc(x.it.name)}</b> <span class="mute">${esc(x.loc)}</span>
       <div class="mute">帳面 ${esc(q(x.it,x.bm,x.bs))} → <b style="color:var(--red)">${esc(q(x.it,x.am,x.as))}</b>${x.how?`<br><small>${esc(x.how)}</small>`:''}</div></div></div>`).join('')}</div>`:'<div class="empty">數量都和帳面相同，不需要更新</div>'}</div>
     ${c.length?`<button class="btn pri block" onclick="impApply(true)">更新庫存（${c.length} 筆）</button>
     <button class="btn block" style="margin-top:8px" onclick="impApply(false)">先帶到盤點畫面核對</button>`:''}`}`);
+}
+// v1.7：匯入時直接把找不到的品項新增到平台（管理者），新增後重新比對，數量會列在待更新清單
+async function impNewItem(k){
+  const r=IMP.unmatched[k]; if(!r) return;
+  const unit=prompt(`新增品項「${r.name}」\n請輸入單位（例如：個、張、箱）`, '個'); if(unit==null) return;
+  const locs=S.locations, loc=prompt(`存放地點（${locs.join('、')}）`, locs.includes(r.loc)?r.loc:(locs[1]||locs[0])); if(loc==null) return;
+  if(!locs.includes(loc.trim())) return alert('存放地點要是：'+locs.join('、'));
+  const no=Math.max(0,...Object.values(S.items).map(i=>num(i.no)))+1, id='i'+uid();
+  const it={id,no,name:String(r.name).trim(),cat:'其他',unitMain:unit.trim()||'個',unitSub:'',spec:'',defaultLoc:loc.trim(),safety:null,note:'盤點表匯入時新增',supplier:'',active:true,stock:{},updatedAt:Date.now()};
+  try{ await Store.saveItem(it); S.items[id]=S.items[id]||it; toast(`已新增「${it.name}」`); impAnalyze(); impShow(); }catch(e){ alert('新增失敗：'+e.message); }
 }
 function impApply(now){
   stLoad();
