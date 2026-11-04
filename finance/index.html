@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.1';
+const APP_VERSION = 'v1.18.2';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.2', date:'2026-11-04', items:[
+    '「📥 LINE 轉來的銀行截圖」讀不到時（例如財務規則還沒更新）會在銀行截圖快速登記上方顯示原因，不再整塊不見',
+  ] },
   { version:'v1.18.1', date:'2026-11-04', items:[
     '「📥 LINE 轉來的銀行截圖」也會列出銀行群組裡打字的匯款紀錄（小幫手 v1.44），顯示原本打的文字方便核對',
   ] },
@@ -3638,7 +3641,17 @@ function subscribeBankPending(){
     bankPending = snap.docs.map(d=>({ id:d.id, ...d.data() }))
       .sort((a,b)=> String(a.lineTime||'').localeCompare(String(b.lineTime||'')));
     renderBankPending();
-  }, err=>{ console.warn('bankPending', err && err.code); bankPending = []; renderBankPending(); });
+  }, err=>{
+    console.warn('bankPending', err && err.code);
+    bankPending = []; renderBankPending();
+    const bar = document.getElementById('bankPendingBar');
+    if(bar){
+      bar.style.display = '';
+      bar.innerHTML = `<div class="bp-title">⚠ 讀不到 LINE 轉來的銀行截圖</div><div class="muted" style="font-size:13px;">${err && err.code === 'permission-denied'
+        ? '財務記帳的 Firebase 規則還沒有 bankPending（v1.18.0 規則）。請把這段截圖給 Claude。'
+        : '原因：' + escHtml((err && (err.code || err.message)) || '不明')}</div>`;
+    }
+  });
 }
 function renderBankPending(){
   const bar = document.getElementById('bankPendingBar');
