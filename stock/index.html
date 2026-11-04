@@ -50,6 +50,8 @@ nav button.on{color:var(--red);font-weight:700}
 .mute{color:var(--mute);font-size:13px}
 .tag{display:inline-block;font-size:12px;border-radius:999px;padding:2px 8px;background:var(--gold-l);color:#7a5a12;white-space:nowrap}
 .tag.bad{background:#fde7e7;color:var(--bad)} .tag.ok{background:#e5f3ea;color:var(--ok)} .tag.warn{background:#fff1d6;color:var(--warn)}
+.list .it.stchg{background:#f6effb;box-shadow:inset 4px 0 0 #6a3d9a;margin:0 -14px;padding-left:18px;padding-right:16px}
+.banner.st{background:#efe7f7;color:#4b2a73;border-color:#d7c4ea}
 .tag.in{background:#e5f3ea;color:var(--in)} .tag.out{background:#fde7e7;color:var(--out)} .tag.mv{background:#e6eefb;color:#2856a3} .tag.adj{background:#efe7f7;color:#6a3d9a}
 .list .it{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
 .list .it:last-child{border-bottom:0}
@@ -419,8 +421,9 @@ const CloudAuth = {
 };
 const Auth = CLOUD ? CloudAuth : DemoAuth;
 
-const APP_VERSION='v1.5', APP_DATE='2026-11-04';
+const APP_VERSION='v1.6', APP_DATE='2026-11-04';
 const CHANGELOG=[
+  {v:'v1.6',d:'2026-11-04',items:['庫存畫面標示最近一次盤點（含 Excel 匯入）有更新的品項：紫色底＋「盤點更新」，並寫出原本帳面 → 盤點後數量','上方提示列「盤點更新了幾項」，點一下只看這些；按「不再標示」可隱藏（只影響這台裝置，下次盤點會再出現）']},
   {v:'v1.5',d:'2026-11-04',items:['匯入 Excel 盤點表時，會一起讀表格下方的志工服尺寸表（長袖／短袖／長褲 × S、M、L、XL），更新到對應的「志工服」品項；之前這一塊會被略過','尺寸表空白格＝沒點到，維持帳面數量']},
   {v:'v1.4',d:'2026-10-12',items:['盤點可匯入 Excel 盤點表：選檔後先列出和帳面不同的品項，確認後更新庫存（記成盤點更正，盤點紀錄可下載）','支援本平台「盤點用表格」、庫存總表、盤點清單，以及舊的「倉管物料-盤點登記」表（自動取最右邊有填的盤點日期）','盤點畫面新增「下載盤點用表格」，到現場填實盤數量後再匯入']},
   {v:'v1.3',d:'2026-10-07',items:['Netlify 專案列表縮圖改為顯示「庫房管理」色帶（與其他平台一致），載入中畫面也顯示平台名稱']},
@@ -598,7 +601,7 @@ async function exportRecords(){
 /* =====================================================================
    簡易版畫面：庫存（領出／補進）、盤點、紀錄、設定
    ===================================================================== */
-Object.assign(S,{ view:'stock', q:'', loc:'全部', lowOnly:false, stMode:false, stLoc:null, recTab:'txn', recMonth:null, recRows:null, recQ:'' });
+Object.assign(S,{ view:'stock', q:'', loc:'全部', lowOnly:false, stOnly:false, stMode:false, stLoc:null, recTab:'txn', recMonth:null, recRows:null, recQ:'' });
 
 function refresh(){
   if(!S.ready) return;
@@ -637,12 +640,26 @@ function stockView(){
 }
 async function doSeed(){ if(!confirm('確定要匯入期初庫存嗎？')) return; try{ await Store.seed(); toast('已匯入'); }catch(e){ alert('匯入失敗：'+e.message); } }
 
+// v1.6：最近一次盤點有更新的品項加上標示（管理者一眼看到）；「不再標示」只記在這台裝置
+function lastSt(){ return (S.stocktakes||[]).filter(s=>s.status==='done').sort((a,b)=>num(b.finishedAt)-num(a.finishedAt))[0]||null; }
+function stSeenId(){ try{ return localStorage.getItem('kw_stSeen')||''; }catch(e){ return ''; } }
+function stChanges(){
+  const st=lastSt(), out={}; if(!st||st.id===stSeenId()) return {st:null,map:out};
+  for(const r of Object.values(st.result||{})) if((r.dm||r.ds)&&S.items[r.itemId]) (out[r.itemId]||(out[r.itemId]=[])).push(r);
+  return {st,map:out};
+}
+function stDismiss(){ const st=lastSt(); if(!st) return; try{ localStorage.setItem('kw_stSeen',st.id); }catch(e){} S.stOnly=false; renderList(); renderBanner(); toast('已隱藏這次盤點的標示'); }
 function renderBanner(){
   const el=$('#banner'); if(!el) return;
   const low=activeItems().filter(isLow);
-  el.innerHTML=low.length?`<div class="banner" onclick="S.lowOnly=!S.lowOnly;renderList();renderBanner()">
+  const {st,map}=stChanges(), n=Object.keys(map).length;
+  const stHtml=n?`<div class="banner st" onclick="S.stOnly=!S.stOnly;if(S.stOnly)S.lowOnly=false;renderList();renderBanner()">
+      <span class="grow">📋 <b>${roc(st.finishedAt)} 盤點更新了 ${n} 項</b>${st.source?'（Excel 匯入）':''}　<span style="font-size:13px">${S.stOnly?'（點此顯示全部）':'（點此只看這些）'}</span></span>
+      <button class="btn sm" onclick="event.stopPropagation();stDismiss()">不再標示</button></div>`:'';
+  if(!n) S.stOnly=false;
+  el.innerHTML=stHtml+(low.length?`<div class="banner" onclick="S.lowOnly=!S.lowOnly;if(S.lowOnly)S.stOnly=false;renderList();renderBanner()">
       <span class="grow">🔔 <b>${low.length} 項需要叫貨</b>　<span style="font-size:13px">${S.lowOnly?'（點此顯示全部）':'（點此只看這些）'}</span></span>
-      <button class="btn sm" onclick="event.stopPropagation();openOrderList()">叫貨清單</button></div>`:'';
+      <button class="btn sm" onclick="event.stopPropagation();openOrderList()">叫貨清單</button></div>`:'');
 }
 function locLine(i){
   const e=Object.entries(i.stock||{}).filter(([,v])=>num(v.m)||num(v.s));
@@ -653,12 +670,16 @@ function renderList(){
   const q=S.q.trim().toLowerCase();
   let rows=activeItems();
   if(S.lowOnly) rows=rows.filter(isLow);
+  const SC=stChanges().map;
+  if(S.stOnly) rows=rows.filter(i=>SC[i.id]);
   if(S.loc!=='全部') rows=rows.filter(i=>{const v=(i.stock||{})[S.loc]; return (v&&(num(v.m)||num(v.s)))||i.defaultLoc===S.loc;});
   if(q) rows=rows.filter(i=>i.name.toLowerCase().includes(q));
   el.innerHTML=rows.length?rows.map(i=>{
     const q2=S.loc==='全部'?total(i):((i.stock||{})[S.loc]||{m:0,s:0});
-    return `<div class="it click ${isLow(i)?'low':''}" onclick="openMove('${i.id}')">
-      <div class="grow"><b><span class="no">${esc(i.no)}</span>${esc(i.name)}</b>${isLow(i)?' <span class="tag bad">需叫貨</span>':''}
+    const sc=SC[i.id];
+    return `<div class="it click ${isLow(i)?'low':''} ${sc?'stchg':''}" onclick="openMove('${i.id}')">
+      <div class="grow"><b><span class="no">${esc(i.no)}</span>${esc(i.name)}</b>${sc?' <span class="tag adj">盤點更新</span>':''}${isLow(i)?' <span class="tag bad">需叫貨</span>':''}
+        ${sc?`<div class="mute" style="color:#6a3d9a">${sc.map(r=>`${sc.length>1?esc(r.loc)+' ':''}${esc(qtyText(i,{m:r.bm,s:r.bs}))} → <b>${esc(qtyText(i,{m:r.am,s:r.as}))}</b>`).join('　')}</div>`:''}
         <div class="mute">📍 ${esc(locLine(i))}｜外裝 ${esc(i.unitMain)}${i.spec?'｜內箱 '+esc(i.spec):''}${i.safety!=null&&i.safety!==''?'｜下限 '+fmt(i.safety)+esc(i.unitMain):''}</div>
         ${i.lastInAt||i.lastOutAt?`<div class="mute dt">${i.lastInAt?'最近進貨 '+roc(i.lastInAt):''}${i.lastInAt&&i.lastOutAt?'　':''}${i.lastOutAt?'最近出貨 '+roc(i.lastOutAt):''}</div>`:''}</div>
       <div class="qty">${fmt(q2.m)} <small>${esc(i.unitMain)}</small>${i.unitSub&&num(q2.s)?`<br><small>＋${fmt(q2.s)} ${esc(i.unitSub)}</small>`:''}</div></div>`;}).join('')
