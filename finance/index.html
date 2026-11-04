@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.2';
+const APP_VERSION = 'v1.18.3';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.3', date:'2026-11-04', items:[
+    '「📥 LINE 轉來的銀行截圖」：小幫手 AI 讀取失敗的截圖也會列出（寫明原因），按「重新讀取」就把截圖放進上傳區、用網頁再讀一次（需小幫手 v1.45）',
+  ] },
   { version:'v1.18.2', date:'2026-11-04', items:[
     '「📥 LINE 轉來的銀行截圖」讀不到時（例如財務規則還沒更新）會在銀行截圖快速登記上方顯示原因，不再整塊不見',
   ] },
@@ -3668,16 +3671,36 @@ function renderBankPending(){
     return `<div class="bp-item">
       ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
       ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
-      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}　共 ${rows.length} 筆（收入 ${ins.length} 筆）</div>${brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>'}</div>
-      <div class="bp-btns"><button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button><button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button></div>
+      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆）`}</div>${p.kind==='error'
+        ? `<span style="color:var(--temple-red);font-weight:600;">⚠ 小幫手 AI 讀取失敗</span><br><span class="muted" style="font-size:12px;">${escHtml(p.error||'')}</span>${p.image ? '<br>請按「重新讀取」用網頁再讀一次' : (p.text ? '<br>請照文字手動登記' : '<br>截圖太大沒存到，請從群組存圖後上傳')}`
+        : (brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>')}</div>
+      <div class="bp-btns">${p.kind==='error'
+        ? (p.image ? `<button class="btn small" data-bp-retry="${escHtml(p.id)}">重新讀取</button>` : '')
+        : `<button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button>`}<button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button></div>
     </div>`;
   }).join('');
   bar.querySelectorAll('[data-bp-load]').forEach(b=>b.addEventListener('click', ()=>loadBankPending(b.dataset.bpLoad)));
+  bar.querySelectorAll('[data-bp-retry]').forEach(b=>b.addEventListener('click', ()=>retryBankPending(b.dataset.bpRetry)));
   bar.querySelectorAll('[data-bp-skip]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('這張截圖不用登記，標成已處理？（之後不會再出現）')) return;
     await markBankPending(b.dataset.bpSkip, 'skipped');
   }));
   bar.querySelectorAll('[data-big]').forEach(im=>im.addEventListener('click', ()=>{ const w = window.open(); if(w){ w.document.write(`<img src="${im.src}" style="max-width:100%">`); } }));
+}
+// v1.18.3 小幫手讀不出來的截圖：放進上傳區，用網頁的「讀取截圖」再讀一次
+async function retryBankPending(id){
+  const p = bankPending.find(x=>x.id===id);
+  if(!p || !p.image) return;
+  try{
+    const blob = await (await fetch(p.image)).blob();
+    const body = document.getElementById('bankshotBody');
+    if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
+    await addBankshotFiles([new File([blob], 'LINE 截圖', { type: blob.type || 'image/jpeg' })]);
+    bankPendingLoaded.add(id);
+    renderBankPending();
+    await markBankPending(id, 'done');
+    readBankshots();
+  }catch(e){ console.error('retry', e); alert('放進上傳區失敗：' + (e && e.message || e)); }
 }
 function loadBankPending(id){
   const p = bankPending.find(x=>x.id===id);
