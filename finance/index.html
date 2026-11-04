@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.2';
+const APP_VERSION = 'v1.16.3';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.3', date:'2026-11-04', items:[
+    '修正 v1.16.2 法會的收入不出現「🔗 配對報名」：活動／項目只要有場次名稱裡的詞（例如渡祖先、梁皇寶懺）也算對上，不一定要寫農曆日期；沒寫活動和項目、但姓名對上未收款報名的也會出現',
+  ] },
   { version:'v1.16.2', date:'2026-11-04', items:[
     '「🔗 配對報名」只出現在活動／項目對得上供品贊助、法會報名場次的收入（例如寫了農曆九月十九），點燈等一般收款不再顯示，登記後也不會跳出配對',
   ] },
@@ -3041,7 +3044,39 @@ const FinPair = (function(){
     if(regs !== evCacheSrc){ evCacheSrc = regs; evCache = [...new Set(regs.map(r=>r.event).filter(Boolean))]; }
     return evCache;
   }
-  function relevant(e){ return eventTitles().some(t=>eventHit(t, e)); }
+  // v1.16.3 場次名稱裡 3 個字以上的詞（例如「渡祖先」「梁皇寶懺」）也算對上，不一定要寫農曆日期
+  const REL_GENERIC = /資料|登記表|贊助|報名|嘉義/g;
+  function wordHit(title, e){
+    const hay = [e.activity, e.item, e.note].join(' ');
+    const words = String(title || '').replace(LUNAR_RE, ' ').replace(GENERIC, ' ').replace(REL_GENERIC, ' ')
+      .split(/[\s\-－—…．.、，,（）()／/]+/).filter(w=>w.length >= 3);
+    return words.some(w=>{ for(let i = 0; i + 3 <= w.length; i++) if(hay.indexOf(w.substr(i, 3)) >= 0) return true; return false; });
+  }
+  // 報名品項名稱（例如祖先、倒房、大壽金）出現在財務的項目裡也算
+  let itCacheSrc = null, itCache = [];
+  function itemNames(){
+    const regs = FinLinkStatus.regs();
+    if(regs !== itCacheSrc){
+      itCacheSrc = regs; const set = new Set();
+      regs.forEach(r=>String(r.what||'').split(/[、，,]/).forEach(x=>{
+        const n = x.replace(/×.*$/, '').replace(/^\d+[、.\s]*/, '').replace(/－.*$/, '').trim();
+        if(n.length >= 2 && !/^(隨喜|現金|其他)/.test(n)) set.add(n);
+      }));
+      itCache = [...set];
+    }
+    return itCache;
+  }
+  function relevant(e){
+    if(eventTitles().some(t=>eventHit(t, e) || wordHit(t, e))) return true;
+    const it = String(e.item||'');
+    if(it && itemNames().some(n=>it.indexOf(n) >= 0)) return true;
+    // 沒寫活動、項目的收入：姓名對上還沒收款的報名才算
+    if(!String(e.activity||'').trim() && !String(e.item||'').trim() && e.name){
+      const et = tokens(e.name);
+      return et.length > 0 && FinLinkStatus.regs().some(r=>!r.paid && meet(et, tokens(r.name)));
+    }
+    return false;
+  }
   function btnHtml(e){
     if(!canPair(e) || !FinLinkStatus.connected() || !FinLinkStatus.isLoaded() || FinLinkStatus.linked(e.id)) return '';
     if(!relevant(e)) return '';
