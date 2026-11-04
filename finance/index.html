@@ -477,6 +477,7 @@
   #bankPendingBar .bp-title{color:var(--temple-red-deep);font-weight:600;margin-bottom:4px;}
   #bankPendingBar .bp-item{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px dashed #E5D7B8;font-size:13.5px;}
   #bankPendingBar .bp-img{width:56px;height:96px;object-fit:cover;border:1px solid #E5D7B8;border-radius:4px;cursor:zoom-in;flex:none;}
+  #bankPendingBar .bp-text{width:140px;flex:none;font-size:12.5px;background:#fff;border:1px solid #E5D7B8;border-radius:4px;padding:4px 6px;white-space:pre-wrap;max-height:96px;overflow:auto;}
   #bankPendingBar .bp-info{flex:1;min-width:0;line-height:1.6;}
   #bankPendingBar .bp-btns{display:flex;flex-direction:column;gap:4px;flex:none;}
   /* v1.17.0 後 5 碼對照 */
@@ -1033,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.0';
+const APP_VERSION = 'v1.18.1';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.1', date:'2026-11-04', items:[
+    '「📥 LINE 轉來的銀行截圖」也會列出銀行群組裡打字的匯款紀錄（小幫手 v1.44），顯示原本打的文字方便核對',
+  ] },
   { version:'v1.18.0', date:'2026-11-04', items:[
     '新增「📥 LINE 轉來的銀行截圖」：出納貼的匯入紀錄截圖，用手機轉傳給報名小幫手（私訊），小幫手 AI 讀好後會出現在「銀行截圖快速登記」上方，按「帶入」就和自己上傳的截圖一樣核對、勾選後存入；不用另外存圖再上傳',
     '帶入的交易會用帳號後 5 碼自動帶出以前用過的姓名；存入後那張截圖自動標成已處理，不是要登記的可按「略過」',
@@ -3650,7 +3654,8 @@ function renderBankPending(){
     const brief = rows.slice(0, 4).map(r=>`${escHtml(r.date||'')} ${r.dir==='out'?'支出':'收入'} ${moneyPlain(Number(r.amount)||0)}${r.counterAcct?`（後5碼 ${escHtml(r.counterAcct)}${nameForCounterAcct(r.counterAcct)?' '+escHtml(nameForCounterAcct(r.counterAcct)):''}）`:''}`).join('<br>') + (rows.length > 4 ? '<br>…' : '');
     return `<div class="bp-item">
       ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
-      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} 轉傳　共 ${rows.length} 筆（收入 ${ins.length} 筆）</div>${brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>'}</div>
+      ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
+      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}　共 ${rows.length} 筆（收入 ${ins.length} 筆）</div>${brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>'}</div>
       <div class="bp-btns"><button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button><button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button></div>
     </div>`;
   }).join('');
@@ -3666,7 +3671,7 @@ function loadBankPending(id){
   if(!p) return;
   const body = document.getElementById('bankshotBody');
   if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
-  const label = 'LINE ' + (p.from || '轉傳');
+  const label = (p.text && !p.image ? 'LINE 打字 ' : 'LINE ') + (p.from || '轉傳');
   addBankshotRows((p.rows||[]).map(r=>Object.assign({}, r, { shot:0, shotLabel:label, pendingId:p.id })));
   bankPendingLoaded.add(id);
   renderBankPending();
