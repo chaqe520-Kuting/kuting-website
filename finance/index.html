@@ -1005,9 +1005,15 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.15.2';
-const APP_DATE = '2026-11-03';
+const APP_VERSION = 'v1.16.0';
+const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.0', date:'2026-11-04', items:[
+    '登記收入時直接配對報名：新增一筆現金或銀行收入後，如果供品贊助、法會報名有姓名對上、還沒對應財務的報名，會跳出「這筆收入對應哪一筆報名？」，活動名稱和金額都對上的會先勾好，按確認就把那幾筆報名標成已收款並記下對應',
+    '「最近登記」「本月收支對帳」每筆還沒對應的收入旁有「🔗 配對報名」，晚幾天、報名已結束才登記的紅包袋也能配對；可輸入姓名或場次找別的報名，可勾好幾位（合付）',
+    '現場已按過已收款、但還沒對應財務的報名也會列出，確認後只補上對應；姓名不同時會記住這組對照，報名平台的「💵 對照財務收入」也會用到',
+    '報名平台的「💵 對照財務收入」照樣可以用，兩邊確認的結果一樣',
+  ] },
   { version:'v1.15.2', date:'2026-11-03', items:[
     '紅包袋編號不同（兩筆都有寫）就不算疑似重複；有一筆沒寫紅包袋或編號一樣才標',
   ] },
@@ -2346,7 +2352,8 @@ async function handleSubmitEntry(){
     } else {
       entry.createdAt = entry.updatedAt;
       entry.deleted = false;
-      await saveEntryWithLog(null, null, entry, 'create');
+      const newId = await saveEntryWithLog(null, null, entry, 'create');
+      FinPair.offer(Object.assign({ id: newId }, entry)).catch(()=>{});   // v1.16.0 收入：有姓名對上的報名就跳出配對
     }
     msg.textContent = '已儲存';
     clearEntryForm();
@@ -2459,7 +2466,7 @@ function renderLiveEntryTable(){
       <td>${e.date}</td>
       <td>${e.account==='cash'?'現金':'銀行'}</td>
       <td>${e.direction==='in'?'收入':'支出'}</td>
-      <td>${nameOrCat}${FinLinkStatus.tagHtml(e.id)}</td>
+      <td>${nameOrCat}${FinLinkStatus.tagHtml(e.id)}${FinPair.btnHtml(e)}</td>
       <td class="muted" style="text-align:left;">${joinLabel(e.activity, e.item)}${e.envelopeNo ? `<br><span style="color:var(--temple-red-deep);">紅包袋 ${escapeHtmlText(e.envelopeNo)}</span>` : ''}${e.counterAcct ? `<br><span style="color:var(--temple-red-deep);">帳號後5碼 ${escapeHtmlText(e.counterAcct)}</span>` : ''}</td>
       <td>${moneyPlain(e.amount)}</td>
       <td class="muted">${e.enteredBy||''}</td>
@@ -2653,7 +2660,7 @@ function renderRecon(){
     return `<tr class="${c.dup?'dup':''}" onclick="startEditEntry('${e.id}')" title="點一下帶到上方表單修改">
       <td style="white-space:nowrap;">${escapeHtmlText(String(e.date||'').slice(5))}${e.bankTime?`<br><span class="muted" style="font-size:12px;">${escapeHtmlText(e.bankTime)}</span>`:''}</td>
       <td style="white-space:nowrap;">${c.a==='cash'?'現金':'銀行'}</td>
-      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${FinLinkStatus.tagHtml(e.id)}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}${dupWith?`<br><span class="recon-dupwith">⚠ 和這${c.others.length > 1 ? ' ' + c.others.length + ' ' : ''}筆一樣：${dupWith}${c.diffEnv ? '（紅包袋編號不同，可能是不同的兩筆）' : ''}</span>`:''}</td>
+      <td style="text-align:left;">${escapeHtmlText(e.name||'（未填）')}${flags}${FinLinkStatus.tagHtml(e.id)}${FinPair.btnHtml(e)}${sub?`<br><span class="muted" style="font-size:12.5px;">${sub}</span>`:''}${dupWith?`<br><span class="recon-dupwith">⚠ 和這${c.others.length > 1 ? ' ' + c.others.length + ' ' : ''}筆一樣：${dupWith}${c.diffEnv ? '（紅包袋編號不同，可能是不同的兩筆）' : ''}</span>`:''}</td>
       <td class="num recon-in">${e.direction==='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num recon-out">${e.direction!=='in' ? moneyPlain(c.amt) : ''}</td>
       <td class="num">${c.bal===null ? '—' : moneyPlain(c.bal)}<br><span class="muted" style="font-size:11.5px;">${c.a==='cash'?'現金':'銀行'}</span></td>
@@ -2681,6 +2688,7 @@ const FinLinkStatus = (function(){
   const st = {}; // key → {auth, db, ok, err}
   let map = {};  // 財務 entry id → [{plat, event, name}]
   let loaded = false, loading = false, onChange = ()=>{};
+  let regList = [], aliasMaps = {};   // v1.16.0 還沒對應財務的報名、各平台記住的姓名對照
   function init(){
     if(typeof firebase === 'undefined') return false;
     PLATS.forEach(p=>{
@@ -2708,7 +2716,7 @@ const FinLinkStatus = (function(){
   async function load(){
     if(!init() || loading) return;
     loading = true; onChange();
-    const next = {};
+    const next = {}, list = [], als = {};
     const add = (id, v)=>{ (next[id] = next[id] || []).push(v); };
     await Promise.all(PLATS.map(async p=>{
       const s = st[p.key];
@@ -2717,20 +2725,32 @@ const FinLinkStatus = (function(){
         if(p.key==='gp'){
           const occs = await s.db.collection('occasions').get();
           await Promise.all(occs.docs.map(async od=>{
-            const label = (od.data()||{}).label || '';
+            const o = od.data()||{}, label = o.label || '';
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
-            regs.forEach(d=>{ const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' })); });
+            regs.forEach(d=>{
+              const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' }));
+              // v1.16.0 配對報名用：還沒對應財務的報名
+              if(!o.deleted && !ids(r).length) list.push({ plat:'gp', platLabel:p.label, ref:d.ref, event:label, closed:o.status==='closed',
+                name:String(r.name||'').trim(), amount:Number(r.amount)||0, paid:!!r.paid, what:(r.label||'') + (r.dedicateTo ? '－' + r.dedicateTo : '') });
+            });
           }));
         } else {
-          let names = {};
-          try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; }); }catch(e){}
+          let names = {}, evs = {};
+          try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; evs[e.id] = e; }); }catch(e){}
           const regs = await s.db.collection('regs').get();
-          regs.forEach(d=>{ const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' })); });
+          regs.forEach(d=>{
+            const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
+            const ev = evs[x.eventId];
+            if(ev && !ids(r).length) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false,
+              name:String((r.f||{}).reporter||'').trim(), amount:Number(r.total)||0, paid:!!r.paid,
+              what:(r.items||[]).map(it=>`${it.itemName||''}×${it.qty||''}`).join('、') });
+          });
         }
+        try{ const am = await s.db.collection('finAliases').doc('map').get(); als[p.key] = (am.exists && am.data().pairs) || {}; }catch(e){ als[p.key] = {}; }
         s.err = '';
       }catch(e){ s.err = (e && e.code==='permission-denied') ? '帳號未啟用' : '讀取失敗'; }
     }));
-    map = next; loaded = true; loading = false; onChange();
+    map = next; regList = list; aliasMaps = als; loaded = true; loading = false; onChange();
   }
   function tagHtml(entryId){
     const l = map[entryId];
@@ -2751,6 +2771,12 @@ const FinLinkStatus = (function(){
   }
   return {
     init, load, tagHtml, statusHtml,
+    linked(entryId){ return !!(map[entryId] && map[entryId].length); },
+    connected(){ return init() && PLATS.some(p=>st[p.key].auth.currentUser); },
+    isLoaded(){ return loaded && !loading; },
+    regs(){ return regList; },
+    aliases(){ return aliasMaps; },
+    db(key){ return st[key] && st[key].auth.currentUser ? st[key].db : null; },
     autoLogin(name, pw){ signIn(name, pw).catch(()=>{}); },
     async connect(){
       const pw = (document.getElementById('finLinkPw')||{}).value || '';
@@ -2765,6 +2791,247 @@ const FinLinkStatus = (function(){
   };
 })();
 FinLinkStatus.onChange = ()=>{ try{ const b = document.getElementById('reconBox'); if(b && b.style.display!=='none') renderRecon(); renderLiveEntryTable(); }catch(e){} };
+
+/* ================= v1.16.0 登記收入時直接配對報名 =================
+   財務登記一筆紅包袋／匯款收入後，列出供品贊助、法會報名裡「還沒對應財務」的報名（含已結束場次），
+   依姓名（含記住的姓名對照）、活動名稱、金額排出建議；勾選確認後，用 FinLinkStatus 已登入的志工帳號
+   把那幾筆報名標成已收款，並記下對應的財務登記（欄位和報名平台「💵 對照財務收入」完全一樣：
+   paid、finEntryIds、finMatches、finLog）。現場已先按已收款、但還沒對應財務的報名，只會補上對應。 */
+const FinPair = (function(){
+  let cur = null, cands = [], picked = new Set(), kw = '', busy = false;
+  const LUNAR_RE = /([正一二三四五六七八九十冬臘]{1,2})月(初[一二三四五六七八九十]|廿[一二三四五六七八九]?|三十|[二]?十[一二三四五六七八九]?|[一二三四五六七八九])/g;
+  const CN = { '一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10 };
+  const GENERIC = /古亭院|昇龍|觀世音|菩薩|農曆|國曆|丙午|乙巳|丁未|[0-9０-９]+|年|月|日|法會|供品|贊助|報名|線上|聖誕|千秋|祝壽|活動/g;
+  function cnNum(t){
+    t = t.replace(/^初/, '').replace(/^廿/, '二十');
+    if(t === '正') return 1; if(t === '冬') return 11; if(t === '臘') return 12;
+    if(t.length === 1) return CN[t] || 0;
+    if(t[0] === '十') return 10 + (CN[t[1]] || 0);
+    if(t[1] === '十') return CN[t[0]] * 10 + (CN[t[2]] || 0);
+    return 0;
+  }
+  function lunarKeys(str){
+    const out = []; let m; LUNAR_RE.lastIndex = 0;
+    while((m = LUNAR_RE.exec(String(str || '')))){ const k = cnNum(m[1]) + '/' + cnNum(m[2]); if(out.indexOf(k) < 0) out.push(k); }
+    return out;
+  }
+  // 和報名平台的「只列活動名稱對應本場次的收入」同一套比法：農曆月日一樣，或場次名稱有 3 個字以上的詞出現在活動／項目／備註
+  function eventHit(title, e){
+    const hay = [e.activity, e.item, e.note].join(' ');
+    const lk = lunarKeys(title);
+    if(lk.length) return lunarKeys(hay).some(k=>lk.indexOf(k) >= 0);
+    const words = String(title || '').replace(LUNAR_RE, ' ').replace(GENERIC, ' ').split(/[\s\-－—…．.、，,（）()／/]+/).filter(w=>w.length >= 2);
+    return words.some(w=>{
+      if(w.length <= 3) return hay.indexOf(w) >= 0;
+      for(let i = 0; i + 3 <= w.length; i++) if(hay.indexOf(w.substr(i, 3)) >= 0) return true;
+      return false;
+    });
+  }
+  function normName(s){ return String(s || '').replace(/\s+/g, '').replace(/[，,]/g, '、'); }
+  function tokens(s){
+    s = String(s || '').replace(/[（(][^）)]*[）)]/g, ' ').replace(/師兄|師姐|師姊|居士|闔家|合家|全家|先生|小姐|女士/g, ' ');
+    return s.split(/[、,，\/\s＆&+＋;；．·]+/).map(t=>t.trim()).filter(t=>t.length >= 2);
+  }
+  function meet(a, b){
+    for(const x of a) for(const y of b){
+      if(x === y) return true;
+      const sh = x.length <= y.length ? x : y, lo = sh === x ? y : x;
+      if(sh.length >= 2 && lo.indexOf(sh) === 0 && lo.length - sh.length <= 1) return true;
+    }
+    return false;
+  }
+  function findSubset(regs, amount){
+    const n = Math.min(regs.length, 14); let best = null;
+    for(let m = 1; m < (1 << n); m++){
+      let s = 0; const pick = [];
+      for(let i = 0; i < n; i++) if(m & (1 << i)){ s += regs[i].amount; pick.push(regs[i]); }
+      if(Math.round(s) === Math.round(amount) && (!best || pick.length < best.length)) best = pick;
+    }
+    return best;
+  }
+  function esc(t){ return escapeHtmlText(t == null ? '' : String(t)); }
+  function canPair(e){ return !!(e && e.direction === 'in' && (e.account === 'cash' || e.account === 'bank')); }
+
+  function ensureUi(){
+    if(document.getElementById('fpOverlay')) return;
+    const st = document.createElement('style');
+    st.textContent = `
+      #fpOverlay{position:fixed;inset:0;background:rgba(42,33,24,.45);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;}
+      #fpBox{background:#FFFBF2;border:2px solid var(--gold);border-radius:10px;max-width:860px;width:100%;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+      #fpBox h3{margin:0 0 6px;color:var(--temple-red-deep);font-size:18px;}
+      #fpBox .fp-entry{background:#F6EFDF;border-radius:6px;padding:8px 10px;margin:6px 0 10px;font-size:14.5px;}
+      #fpBox table{width:100%;border-collapse:collapse;font-size:14px;}
+      #fpBox th,#fpBox td{border-bottom:1px solid #E5D7B8;padding:6px 5px;text-align:left;vertical-align:top;}
+      #fpBox th{color:var(--temple-red-deep);font-weight:600;white-space:nowrap;}
+      #fpBox td.num{text-align:right;white-space:nowrap;}
+      #fpBox tr.hit td{background:#FFF6DC;}
+      #fpBox .fp-tag{display:inline-block;font-size:12px;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;background:#EFE4CC;color:#6E5A35;}
+      #fpBox .fp-tag.ev{background:#E3F0DA;color:#2F5A1E;}
+      #fpBox .fp-tag.paid{background:#E6EEF8;color:#24476E;}
+      #fpBox .fp-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;}
+      #fpBox .fp-sum b{color:var(--temple-red-deep);}
+      #fpBox .fp-ok{color:#2F7A2F;font-weight:600;}
+      #fpBox .fp-diff{color:#B23B2E;font-weight:600;}
+      .fp-btn{border:1px solid var(--gold);background:#FFF6DC;color:var(--temple-red-deep);border-radius:6px;padding:1px 8px;font-size:12.5px;cursor:pointer;margin-left:4px;white-space:nowrap;}
+      .fp-btn:hover{background:var(--gold-light);}
+    `;
+    document.head.appendChild(st);
+    const ov = document.createElement('div');
+    ov.id = 'fpOverlay';
+    ov.innerHTML = `<div id="fpBox">
+      <h3>🔗 這筆收入對應哪一筆報名？</h3>
+      <div id="fpEntry" class="fp-entry"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+        <input type="text" id="fpKw" placeholder="找其他姓名或場次（例如 王小明、九月十九）" style="flex:1;min-width:220px;padding:5px 8px;">
+        <span id="fpNote" class="muted" style="font-size:12.5px;"></span>
+      </div>
+      <div id="fpList"></div>
+      <div class="fp-foot">
+        <span id="fpSum" class="fp-sum"></span>
+        <span>
+          <button type="button" class="btn secondary" id="fpSkip">先不配對</button>
+          <button type="button" class="btn" id="fpApply">確認對應（標為已收款）</button>
+        </span>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin:10px 0 0;">確認後會在供品贊助／法會報名把勾選的報名標成「已收款」，並記下對應這筆財務收入與確認人（和報名平台「💵 對照財務收入」一樣，報名平台的「📜 對照紀錄」查得到）。已經在現場按過已收款的，只會補上對應。姓名不同時會記住這組對照，下次自動帶入。</p>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', ev=>{ if(ev.target === ov) close(); });
+    document.getElementById('fpSkip').addEventListener('click', close);
+    document.getElementById('fpApply').addEventListener('click', apply);
+    document.getElementById('fpKw').addEventListener('input', ev=>{ kw = ev.target.value.trim(); render(); });
+    document.getElementById('fpList').addEventListener('change', ev=>{
+      const cb = ev.target.closest('input[data-i]'); if(!cb) return;
+      const r = cands[+cb.getAttribute('data-i')];
+      if(cb.checked) picked.add(r); else picked.delete(r);
+      renderSum();
+    });
+  }
+  function close(){ const ov = document.getElementById('fpOverlay'); if(ov) ov.style.display = 'none'; cur = null; }
+
+  async function waitLoaded(){
+    if(!FinLinkStatus.isLoaded()) await FinLinkStatus.load();
+    for(let i = 0; i < 60 && !FinLinkStatus.isLoaded(); i++) await new Promise(r=>setTimeout(r, 300));
+  }
+  function aliasNames(e){
+    const k = normName(e.name), out = [], A = FinLinkStatus.aliases();
+    Object.keys(A).forEach(p=>(A[p][k] || []).forEach(n=>{ if(out.indexOf(n) < 0) out.push(n); }));
+    return out;
+  }
+  // 算出建議：姓名對上（或記住的對照）的未對應報名；活動名稱對上、金額剛好的排前面並預先勾選
+  function suggest(e){
+    const et = tokens(e.name), al = aliasNames(e);
+    const all = FinLinkStatus.regs().filter(r=>r.amount > 0);
+    all.forEach(r=>{
+      r._name = !!((et.length && meet(et, tokens(r.name))) || al.indexOf(r.name) >= 0);
+      r._ev = eventHit(r.event, e);
+    });
+    const hits = all.filter(r=>r._name);
+    const rank = r=>(r._ev ? 0 : 2) + (r.paid ? 1 : 0);
+    hits.sort((a, b)=>rank(a) - rank(b) || (a.closed === b.closed ? 0 : a.closed ? 1 : -1));
+    picked = new Set();
+    const pool = hits.filter(r=>r._ev).length ? hits.filter(r=>r._ev) : hits;
+    const sub = findSubset(pool, e.amount);
+    if(sub) sub.forEach(r=>picked.add(r));
+    return { all, hits };
+  }
+  let ALL = [], HITS = [];
+  async function open(entryOrId){
+    const e = typeof entryOrId === 'string' ? liveEntries.find(x=>x.id === entryOrId) : entryOrId;
+    if(!canPair(e)) return;
+    if(!FinLinkStatus.connected()){ alert('還沒連上供品贊助／法會報名。請在「本月收支對帳」的「🔗 供品／法會對應」那一行輸入密碼連結。'); return; }
+    ensureUi();
+    cur = e; kw = ''; document.getElementById('fpKw').value = '';
+    document.getElementById('fpEntry').innerHTML = `${esc(e.date)}　${e.account==='cash'?'現金':'銀行'}收入　<b>${esc(e.name || '（未填姓名）')}</b>　<b>${moneyPlain(e.amount)}</b>　${esc(joinLabel(e.activity, e.item))}${e.envelopeNo ? '　紅包袋 ' + esc(e.envelopeNo) : ''}${e.counterAcct ? '　帳號後5碼 ' + esc(e.counterAcct) : ''}`;
+    document.getElementById('fpList').innerHTML = '<p class="muted">讀取供品贊助、法會報名的報名資料中…</p>';
+    document.getElementById('fpSum').textContent = '';
+    document.getElementById('fpOverlay').style.display = 'flex';
+    await waitLoaded();
+    if(cur !== e) return;
+    const r = suggest(e); ALL = r.all; HITS = r.hits;
+    render();
+  }
+  // 登記完一筆收入後：有姓名對上的未對應報名才自動跳出，沒有就不打擾
+  async function offer(e){
+    if(!canPair(e) || !FinLinkStatus.connected() || !e.name) return;
+    await waitLoaded();
+    const r = suggest(e);
+    if(!r.hits.length) return;
+    open(e);
+  }
+  function render(){
+    if(!cur) return;
+    const q = kw.toLowerCase();
+    cands = q ? ALL.filter(r=>(r.name + ' ' + r.event + ' ' + r.what).toLowerCase().indexOf(q) >= 0).slice(0, 60) : HITS.slice(0, 60);
+    picked.forEach(r=>{ if(cands.indexOf(r) < 0) cands.unshift(r); });
+    document.getElementById('fpNote').textContent = q ? `找到 ${cands.length} 筆` : (HITS.length ? `姓名對上 ${HITS.length} 筆` : '沒有姓名對上的報名，可以在左邊輸入姓名或場次找');
+    document.getElementById('fpList').innerHTML = cands.length ? `<table><thead><tr><th></th><th>平台／場次</th><th>報名姓名</th><th>內容</th><th style="text-align:right;">金額</th></tr></thead><tbody>${
+      cands.map((r, i)=>`<tr class="${r._name && r._ev ? 'hit' : ''}"><td><input type="checkbox" data-i="${i}" ${picked.has(r) ? 'checked' : ''}></td>
+        <td>${esc(r.platLabel)}｜${esc(r.event)}${r.closed ? ' <span class="fp-tag">已結束</span>' : ''}${r._ev ? ' <span class="fp-tag ev">活動對上</span>' : ''}</td>
+        <td>${esc(r.name || '（未填）')}${r.paid ? ' <span class="fp-tag paid">已收款・還沒對應財務</span>' : ''}</td>
+        <td class="muted">${esc(r.what)}</td><td class="num">${moneyPlain(r.amount)}</td></tr>`).join('')
+    }</tbody></table>` : '<p class="muted">沒有可對應的報名（已對應過財務的報名不會列出）。</p>';
+    renderSum();
+  }
+  function renderSum(){
+    const sum = [...picked].reduce((s, r)=>s + r.amount, 0);
+    const diff = Math.round(sum - (cur ? cur.amount : 0));
+    document.getElementById('fpSum').innerHTML = picked.size
+      ? `已勾 ${picked.size} 筆，合計 <b>${moneyPlain(sum)}</b>　${diff === 0 ? '<span class="fp-ok">✓ 和這筆收入相同</span>' : `<span class="fp-diff">差 ${moneyPlain(Math.abs(diff))}（${diff > 0 ? '報名比收入多' : '收入比報名多'}）</span>`}`
+      : '還沒勾選';
+    document.getElementById('fpApply').disabled = !picked.size || busy;
+  }
+  async function apply(){
+    if(!cur || !picked.size || busy) return;
+    const e = cur, list = [...picked];
+    const sum = list.reduce((s, r)=>s + r.amount, 0);
+    if(Math.round(sum) !== Math.round(e.amount) &&
+       !confirm(`勾選的報名合計 ${moneyPlain(sum)}，和這筆收入 ${moneyPlain(e.amount)} 不同。\n確定仍要對應並標為已收款嗎？`)) return;
+    busy = true; renderSum();
+    const now = new Date().toISOString(), me = (currentUser && currentUser.name) || '';
+    const fin = { acct: e.account, date: e.date, name: e.name || '', amount: e.amount, env: e.envelopeNo || '', acct5: e.counterAcct || '' };
+    const match = Object.assign({}, fin, { by: me, finUser: me, at: now, entryId: e.id });
+    const log = { act: 'match', at: now, by: me, finUser: me, via: '財務記帳', fin: [fin] };
+    let ok = 0; const skip = [], fail = [];
+    for(const r of list){
+      try{
+        const snap = await r.ref.get();
+        const d = snap.data() || {}, cur0 = r.plat === 'fh' ? (d.payload || {}) : d;
+        if((cur0.finEntryIds && cur0.finEntryIds.length) || cur0.finEntryId){ skip.push(r.name); continue; }
+        const pre = r.plat === 'fh' ? 'payload.' : '';
+        const upd = {};
+        upd[pre + 'paid'] = true;
+        upd[pre + 'finEntryIds'] = [e.id];
+        upd[pre + 'finEntryId'] = e.id;
+        upd[pre + 'finMatches'] = [match];
+        upd[pre + 'finMatch'] = match;
+        upd[pre + 'finLog'] = firebase.firestore.FieldValue.arrayUnion(log);
+        await r.ref.update(upd);
+        ok++;
+      }catch(err){ console.error('配對報名失敗', err); fail.push(r.name + (err && err.code === 'permission-denied' ? '（帳號沒有權限）' : '')); }
+    }
+    // 姓名不一樣時，記住「紅包袋姓名 → 這組報名姓名」，存在各平台的 finAliases/map（報名平台的對照也會用到）
+    const k = normName(e.name);
+    if(k && ok){
+      ['gp', 'fh'].forEach(p=>{
+        const names = list.filter(r=>r.plat === p).map(r=>r.name).filter((n, i, a)=>n && a.indexOf(n) === i);
+        if(!names.length || (names.length === 1 && normName(names[0]) === k)) return;
+        const db = FinLinkStatus.db(p); if(!db) return;
+        db.collection('finAliases').doc('map').set({ pairs: { [k]: names } }, { merge: true }).catch(err=>console.warn('記住姓名對照失敗', err));
+      });
+    }
+    busy = false;
+    close();
+    alert(`已對應 ${ok} 筆報名並標為已收款。` + (skip.length ? `\n${skip.length} 筆剛好已被別人對應過，沒有改：${skip.join('、')}` : '') + (fail.length ? `\n${fail.length} 筆失敗：${fail.join('、')}，請檢查網路後再試一次` : ''));
+    FinLinkStatus.load();
+  }
+  // 「最近登記」「本月收支對帳」每筆收入旁的按鈕：已連上報名平台、這筆收入還沒對應時才顯示
+  function btnHtml(e){
+    if(!canPair(e) || !FinLinkStatus.connected() || !FinLinkStatus.isLoaded() || FinLinkStatus.linked(e.id)) return '';
+    return `<button type="button" class="fp-btn" onclick="event.stopPropagation();FinPair.open('${e.id}')" title="對應到供品贊助／法會報名的報名">🔗 配對報名</button>`;
+  }
+  return { open, offer, btnHtml, _t: { eventHit, tokens, meet, findSubset } };
+})();
 
 /* ================= 銀行截圖快速登記（v1.12.0）=================
    截圖在瀏覽器縮小後送給報名小幫手（Apps Script，action: bankshot），小幫手驗證財務記帳的登入憑證，
@@ -3860,6 +4127,7 @@ async function saveEntryWithLog(entryId, before, after, action){
   batch.set(log.ref, log.data);
   batch.set(entryRef, after);
   await batch.commit();
+  return entryRef.id;
 }
 
 /* ---- 管理者 ---- */

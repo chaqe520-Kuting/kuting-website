@@ -268,6 +268,7 @@
 
       <div class="tool-block">
         <h3>二、更新法會報名平台的線上報名資料</h3>
+        <p class="msg-ok"><b>v2.9 起每天凌晨 3 點會自動更新</b>（法會報名、供品贊助兩個平台都會），平常不用再按。想馬上看到剛報名的資料時，才需要用下面的方式手動更新。</p>
         <p><b>方式 A（建議）：直接從法會報名平台抓取最新資料。</b>輸入您在<b>法會報名平台</b>的姓名與密碼（帳號需為啟用中的工作人員），按「從法會報名平台更新」。密碼只用這一次，不會儲存，抓完會自動登出法會報名平台。</p>
         <input type="text" id="fahuiName" placeholder="法會報名平台的姓名" autocomplete="off">
         <input type="password" id="fahuiPw" placeholder="法會報名平台的密碼" autocomplete="off">
@@ -402,8 +403,9 @@ async function loadAll(){
   const gp = collect('gp', meta.gpVer);
   ALL = hist.concat(live, gp);
   const fmtT = t => t ? new Date(t).toLocaleString('zh-TW', {hour12:false}) : '尚未匯入';
+  const how = by => by ? '，' + by : '';   // v2.9：每日自動同步會寫 liveBy／gpBy；手動更新會清掉
   document.getElementById('dataNote').textContent =
-    `目前資料：歷史資料 ${hist.length} 筆（匯入時間：${fmtT(meta.histAt)}）；線上報名資料 ${live.length} 筆（匯入時間：${fmtT(meta.liveAt)}）；供品贊助資料 ${gp.length} 筆（匯入時間：${fmtT(meta.gpAt)}）`;
+    `目前資料：歷史資料 ${hist.length} 筆（匯入時間：${fmtT(meta.histAt)}）；線上報名資料 ${live.length} 筆（更新時間：${fmtT(meta.liveAt)}${how(meta.liveBy)}）；供品贊助資料 ${gp.length} 筆（更新時間：${fmtT(meta.gpAt)}${how(meta.gpBy)}）。法會報名、供品贊助每天凌晨 3 點自動更新。`;
   // 法會類別下拉選單
   const keep = assemblySelect.value;
   assemblySelect.innerHTML = '<option value="">全部法會</option>';
@@ -761,7 +763,7 @@ async function replaceDataset(prefix, records){
     const part = records.slice(i, i + CH);
     await db.collection('data').doc(`${prefix}_${ver}_${pad(k)}`).set({ json: JSON.stringify(part), n: part.length, at: Date.now() });
   }
-  await db.collection('meta').doc('info').set({ [prefix + 'Ver']: ver, [prefix + 'At']: Date.now(), [prefix + 'Count']: records.length }, { merge: true });
+  await db.collection('meta').doc('info').set({ [prefix + 'Ver']: ver, [prefix + 'At']: Date.now(), [prefix + 'Count']: records.length, [prefix + 'By']: '手動更新' }, { merge: true });
   // 清掉這個資料集的舊版本
   const snap = await db.collection('data').get();
   const olds = snap.docs.filter(d => d.id.indexOf(prefix + '_') === 0 && d.id.indexOf(prefix + '_' + ver + '_') !== 0);
@@ -1276,8 +1278,13 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.8';
+const APP_VERSION = 'v2.9';
 const CHANGELOG = [
+  { version:'v2.9', date:'2026-11-04', items:[
+    '法會報名、供品贊助的報名資料每天凌晨 3 點自動更新到查詢平台（由「古亭院自動備份」執行），不用再手動按更新、也不用再輸入那兩個平台的帳密',
+    '上方「目前資料」會寫更新時間，以及是每日自動同步還是手動更新',
+    '手動更新按鈕保留，想馬上看到剛報名的資料時照樣可以按',
+  ]},
   { version:'v2.8', date:'2026-10-22', items:[
     '「四、檢查目前資料是否重複」改成只看查詢平台自己存的資料裡被匯入兩筆以上的完全相同紀錄（拿掉跨來源同姓名的比對）',
     '歷史資料、法會報名、供品贊助三類在查詢平台的重複都可以勾選刪除多餘的；只刪查詢平台的資料，法會報名平台、供品贊助平台本身的資料不會動到',
