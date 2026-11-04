@@ -419,8 +419,9 @@ const CloudAuth = {
 };
 const Auth = CLOUD ? CloudAuth : DemoAuth;
 
-const APP_VERSION='v1.4', APP_DATE='2026-10-12';
+const APP_VERSION='v1.5', APP_DATE='2026-11-04';
 const CHANGELOG=[
+  {v:'v1.5',d:'2026-11-04',items:['匯入 Excel 盤點表時，會一起讀表格下方的志工服尺寸表（長袖／短袖／長褲 × S、M、L、XL），更新到對應的「志工服」品項；之前這一塊會被略過','尺寸表空白格＝沒點到，維持帳面數量']},
   {v:'v1.4',d:'2026-10-12',items:['盤點可匯入 Excel 盤點表：選檔後先列出和帳面不同的品項，確認後更新庫存（記成盤點更正，盤點紀錄可下載）','支援本平台「盤點用表格」、庫存總表、盤點清單，以及舊的「倉管物料-盤點登記」表（自動取最右邊有填的盤點日期）','盤點畫面新增「下載盤點用表格」，到現場填實盤數量後再匯入']},
   {v:'v1.3',d:'2026-10-07',items:['Netlify 專案列表縮圖改為顯示「庫房管理」色帶（與其他平台一致），載入中畫面也顯示平台名稱']},
   {v:'v1.2',d:'2026-10-07',items:['頁面標題與首頁加上平台名稱，Netlify 專案列表的縮圖也看得出是哪個平台','密碼規則：新建帳號、修改密碼一律至少 8 碼（舊的短密碼仍可登入，下次修改時需改成 8 碼以上）']},
@@ -840,21 +841,33 @@ function impParse(aoa){
   }
   if(mC<0){ mC=find(h=>/數量|實際|盤點/.test(h)&&!h.includes('單位')&&!h.includes('內箱')); if(mC>=0){ sC=H.findIndex((h,c)=>c>mC&&h.includes('散')&&!h.includes('單位')); label=`「${aoa[hr][mC]??'數量'}」欄`; } }
   if(mC<0) throw new Error('找不到數量欄（需要「實盤」、「庫存(外裝)」或「盤點日期」欄）');
+  // v1.5：表格下方的志工服尺寸表（例如一列「長褲／長袖／短袖」，下面每列開頭是 S、M、L、XL）
+  const GARB=/長袖|短袖|長褲|短褲|背心|外套|衣|褲/, SIZE=/^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-6]xl|f|free)$/;
+  const sizeOf=r=>{ for(const v of (r||[])){ if(v==null||String(v).trim()==='') continue; const t=impNorm(v); return SIZE.test(t)?t.toUpperCase():null; } return null; };
+  let gEnd=rows.length; const garb=[];
+  for(let k=0;k<rows.length;k++){ const r=rows[k]||[];
+    const cols=[]; r.forEach((v,c)=>{ const t=impNorm(v); if(t&&typeof v!=='number'&&GARB.test(t)&&t.length<=6) cols.push([c,t]); });
+    if(!cols.length||!sizeOf(rows[k+1])) continue;
+    gEnd=Math.min(gEnd,k);
+    for(let j=k+1;j<rows.length&&sizeOf(rows[j]);j++){ const sr=rows[j]||[], sz=sizeOf(sr);
+      for(const [c,g] of cols) garb.push({row:ds+j+1,no:'',name:`志工服 ${g} ${sz}`,loc:'',m:impVal(sr[c]),s:null,garb:true});
+      k=j; }
+  }
   const out=[]; let prev=null;
-  rows.forEach((r,k)=>{ r=r||[];
+  rows.slice(0,gEnd).forEach((r,k)=>{ r=r||[];
     let name=r[nameC]!=null?String(r[nameC]).trim():'';
     const m=impVal(r[mC]), s=sC>=0?impVal(r[sC]):null, loc=locC>=0&&r[locC]!=null?String(r[locC]).trim():'';
     if(!name){ if(prev&&(m!=null||s!=null)&&loc) name=prev; else return; }
     prev=name; out.push({row:ds+k+1,no:noC>=0?r[noC]:'',name,loc,m,s});
   });
-  return {rows:out,label};
+  return {rows:out.concat(garb),label,garb:garb.length};
 }
 function impAnalyze(){
   const ws=IMP.wb.Sheets[IMP.wb.SheetNames[IMP.sheet]];
   IMP.err=null; IMP.changes=[]; IMP.unmatched=[]; IMP.blank=0; IMP.warn=[]; IMP.matched=0;
   let p; try{ p=impParse(XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true})); }catch(e){ IMP.err=e.message; return; }
-  IMP.label=p.label;
-  const byName={}; Object.values(S.items).forEach(i=>{ if(i.active!==false) byName[impNorm(i.name)]=i; });
+  IMP.label=p.label; IMP.garb=p.garb||0;
+  const byName={}; Object.values(S.items).forEach(i=>{ if(i.active!==false){ const k=impNorm(i.name); byName[k]=i; if(i.cat==='志工服'||k.startsWith('志工服')){ const b=k.replace(/^志工服/,''); if(!byName[b]) byName[b]=i; if(!byName['志工服'+b]) byName['志工服'+b]=i; } } });
   const locBy={}; S.locations.forEach(l=>locBy[impNorm(l)]=l);
   const per={};   // itemId -> {exact:{loc:{m,s}}, tot:{m,s}}
   const add=(a,v)=>v==null?a:(a==null?v:a+v);
@@ -899,7 +912,7 @@ function impShow(){
     <p class="mute" style="margin:0 0 6px">📄 ${esc(IMP.file)}</p>
     ${names.length>1?`<label class="f">工作表</label><select onchange="IMP.sheet=+this.value;impAnalyze();impShow()">${names.map((n,k)=>`<option value="${k}" ${k===IMP.sheet?'selected':''}>${esc(n)}</option>`).join('')}</select>`:''}
     ${IMP.err?`<div class="tip" style="background:#fde7e7;color:var(--bad)">${esc(IMP.err)}</div>`:`
-    <div class="tip">數量取自：<b>${esc(IMP.label)}</b><br>對到 ${IMP.matched} 項品項，其中 <b>${c.length} 筆和帳面不同</b>${IMP.blank?`；${IMP.blank} 列沒填數量（維持帳面）`:''}。<br>空白格＝沒點到，維持帳面數量。</div>
+    <div class="tip">數量取自：<b>${esc(IMP.label)}</b><br>${IMP.garb?`另讀到下方志工服尺寸表 ${IMP.garb} 格（空白格維持帳面）。<br>`:''}對到 ${IMP.matched} 項品項，其中 <b>${c.length} 筆和帳面不同</b>${IMP.blank?`；${IMP.blank} 列沒填數量（維持帳面）`:''}。<br>空白格＝沒點到，維持帳面數量。</div>
     ${IMP.unmatched.length?`<div class="tip" style="background:#fde7e7"><b>${IMP.unmatched.length} 列找不到品項，不會匯入：</b><br>${IMP.unmatched.map(r=>`第 ${r.row} 列 ${esc(r.name)}`).join('、')}<br><span class="mute">品名要和平台上的一樣，可到「設定 → 品項」新增或改名後再匯入。</span></div>`:''}
     ${IMP.warn.length?`<div class="tip">${IMP.warn.map(esc).join('<br>')}</div>`:''}
     <div class="card" style="padding:4px 14px;margin:8px 0;max-height:46vh;overflow:auto">${c.length?`<div class="list">${c.map(x=>`<div class="it"><div class="grow"><b>${esc(x.it.name)}</b> <span class="mute">${esc(x.loc)}</span>
