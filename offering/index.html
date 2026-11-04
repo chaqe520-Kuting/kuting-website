@@ -1460,6 +1460,67 @@
    - 其他可手動選是哪一位
    志工勾選確認後才標已收款，報名記 finEntryId／finMatch，同一筆收入不會配第二次。
    不寫財務資料，兩邊規則都不用改。 */
+/* 老信眾聯絡資料（法會報名 v4.48／供品贊助 v178 共用，兩份必須相同）：
+   自動備份每天從信徒查詢整理「姓名 → 最近一次的電話、地址、陽上人」放在本平台 contacts（只有啟用中的志工能讀）。
+   後台代報名打姓名時，姓名完全相同就在欄位下方提示，按「帶入」只填空白的欄位。 */
+window.KutingContacts = function(getDb){
+  var map = null, loading = null;
+  function norm(s){ return String(s || "").replace(/\s+/g, ""); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]; }); }
+  function load(){
+    if(map) return Promise.resolve(map);
+    if(loading) return loading;
+    var db = getDb();
+    if(!db) return Promise.resolve(null);
+    loading = db.collection("contacts").doc("info").get().then(function(d){
+      if(!d.exists) return [];
+      var info = d.data(), ps = [];
+      for(var k = 0; k < (info.chunks || 0); k++) ps.push(db.collection("contacts").doc(info.ver + "_" + ("00" + k).slice(-3)).get());
+      return Promise.all(ps).then(function(docs){
+        return docs.reduce(function(a, x){ return a.concat(x.exists ? JSON.parse(x.data().json || "[]") : []); }, []);
+      });
+    }).then(function(list){
+      var m = {};
+      list.forEach(function(a){ m[norm(a[0])] = { name: a[0], phone: a[1] || "", addr: a[2] || "", yang: a[3] || "", last: a[4] || "" }; });
+      map = m; loading = null; return map;
+    }).catch(function(e){ console.warn("老信眾聯絡資料讀取失敗", e); loading = null; return null; });
+    return loading;
+  }
+  function find(name){
+    var k = norm(name);
+    if(k.length < 2) return Promise.resolve(null);
+    return load().then(function(m){ return (m && m[k]) || null; });
+  }
+  // input：姓名欄；after：提示放在這個元素後面；fill(c)：把 c 帶入空白欄位，回傳實際帶入了哪些（文字陣列）
+  function attach(input, after, fill){
+    if(!input || input._kcBound) return;
+    input._kcBound = true;
+    var hint = document.createElement("div");
+    hint.className = "kc-hint";
+    hint.style.cssText = "display:none;margin-top:6px;padding:7px 10px;border:1px dashed #B8862E;border-radius:8px;background:#FFF8E6;font-size:13.5px;line-height:1.6;color:#4A3A22;";
+    (after || input).insertAdjacentElement("afterend", hint);
+    var timer = null, cur = null;
+    function show(c){
+      cur = c;
+      if(!c){ hint.style.display = "none"; hint.innerHTML = ""; return; }
+      var bits = [c.phone && "電話 " + esc(c.phone), c.yang && "陽上人 " + esc(c.yang), c.addr && "地址 " + esc(c.addr)].filter(Boolean).join("　");
+      hint.innerHTML = "📇 老信眾 <b>" + esc(c.name) + "</b>：" + bits + (c.last ? "<span style=\"color:#8A7A5C;\">（最近：" + esc(c.last) + "）</span>" : "") +
+        " <button type=\"button\" class=\"kc-fill\" style=\"margin-left:6px;padding:2px 10px;border:1px solid #B8862E;border-radius:6px;background:#FFF;color:#6E1F1C;cursor:pointer;font-size:13px;\">帶入</button>";
+      hint.style.display = "";
+    }
+    input.addEventListener("input", function(){
+      clearTimeout(timer);
+      var v = input.value;
+      timer = setTimeout(function(){ find(v).then(function(c){ if(input.value === v) show(c); }); }, 250);
+    });
+    hint.addEventListener("click", function(e){
+      if(!e.target.closest(".kc-fill") || !cur) return;
+      var done = fill(cur) || [];
+      hint.innerHTML = done.length ? "📇 已帶入：" + esc(done.join("、")) + "（請再核對一次）" : "📇 欄位都已經有填，沒有帶入";
+    });
+  }
+  return { load: load, find: find, attach: attach };
+};
 window.KutingFinMatch = function(opts){
   var CONFIG = {
     apiKey: "AIzaSyDMbN8QCgIgeUigPgeDUC_8vSeIbneFAMk",
@@ -2254,7 +2315,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v177";
+  var APP_VERSION = "v178";
   var APP_UPDATED = "2026-11-03";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2265,6 +2326,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v178", date: "2026-11-04", changes: [
+      "快速登記打姓名時，如果是老信眾（信徒查詢裡有紀錄），姓名下方出現「📇 老信眾」列出上次的電話、地址，按「帶入」只填空白的電話（選了補運品項時也帶補運地址）",
+      "資料由自動備份每天凌晨從信徒查詢整理，只有啟用中的志工讀得到"
+    ] },
     { version: "v177", date: "2026-11-03", changes: [
       "對照財務收入預設「只列紅包袋活動名稱對應本場次的收入」：依場次名稱的農曆月日（例如九月十九）比對財務的活動／項目，其他場次（例如九月初一渡祖先）和沒寫活動的收入不列；取消勾選可看全部"
     ] },
@@ -7427,6 +7492,14 @@ window.KutingFinMatch = function(opts){
   });
   qaQty.addEventListener("input", updateQaPreview);
   qaName.addEventListener("input", updateQaPreview);
+  // v178：打姓名帶出老信眾的電話、地址（自動備份每天從信徒查詢整理；只有啟用中的志工讀得到）
+  var gpContacts = window.KutingContacts(function(){ return fsCanEdit() ? fsDb : null; });
+  gpContacts.attach(qaName, qaName, function(c){
+    var done = [];
+    if(c.phone && !qaPhone.value.trim()){ qaPhone.value = c.phone; done.push("電話"); }
+    if(c.addr && qaBuyunRow.style.display !== "none" && !qaBuyunAddr.value.trim()){ qaBuyunAddr.value = c.addr; done.push("補運地址"); }
+    return done;
+  });
 
   qaAddBtn.addEventListener("click", function(){
     if(!qaSelected) return;
