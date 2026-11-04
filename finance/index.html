@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.3';
+const APP_VERSION = 'v1.18.4';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.4', date:'2026-11-04', items:[
+    '後 5 碼對照表與自動帶姓名：以前只寫在備註或項目摘要裡的後 5 碼（例如「後五碼 02949」，或銀行收入備註裡單獨的 5 位數字）也讀出來，不用一筆筆補填欄位',
+  ] },
   { version:'v1.18.3', date:'2026-11-04', items:[
     '「📥 LINE 轉來的銀行截圖」：小幫手 AI 讀取失敗的截圖也會列出（寫明原因），按「重新讀取」就把截圖放進上傳區、用網頁再讀一次（需小幫手 v1.45）',
   ] },
@@ -3367,12 +3370,39 @@ function bankRefOf(r){
   return [r.date, (r.time||'').slice(0,5), r.dir, Math.round(r.amount), r.balance===null ? '' : Math.round(r.balance)].join('|');
 }
 // v1.17.0 帳號後 5 碼 → 用過的姓名（次數多的在前，次數一樣用最近的）
+// v1.18.4 以前只寫在備註／項目摘要裡的後 5 碼也讀出來（不改原本的登記）
+//  1. 有「後五碼／末五碼／後5碼／帳號／尾號…」字樣，後面的數字取最後 5 碼
+//  2. 銀行帳別：備註／摘要裡單獨一組 5 位數字（不是金額、後面不是「元」）
+const ACCT_KW_RE = /(?:後\s*[五5]\s*碼|末\s*[五5]\s*碼|尾\s*[五5]\s*碼|尾\s*[號碼數]|末\s*碼|後\s*碼|帳\s*[號戶]|戶\s*號|account|acct)[^0-9\n]{0,8}([0-9][0-9\-\s*＊xX]{2,24}[0-9]|[0-9]{3,})/i;
+const acctMemoCache = new WeakMap();
+function acctFromMemo(e){
+  if(acctMemoCache.has(e)) return acctMemoCache.get(e);
+  let out = '';
+  const texts = [e.note, e.item, e.activity].map(t=>String(t||''));
+  for(const t of texts){
+    const m = t.match(ACCT_KW_RE);
+    if(m){ const d = m[1].replace(/\D/g,''); if(d.length >= 4){ out = d.slice(-5); break; } }
+  }
+  if(!out && e.account === 'bank'){
+    const amt = String(Math.round(Number(e.amount)||0));
+    for(const t of [e.note, e.item].map(x=>String(x||''))){
+      const re = /(^|[^0-9.,$＄])([0-9]{5})(?![0-9.,])(?!\s*(?:元|塊|圓|NT|整))/g;
+      let m, found = [];
+      while((m = re.exec(t))){ if(m[2] !== amt) found.push(m[2]); }
+      if(found.length === 1){ out = found[0]; break; }
+    }
+  }
+  acctMemoCache.set(e, out);
+  return out;
+}
+// 這筆登記的匯款帳號後 5 碼：有填欄位用欄位，沒填就從備註／摘要讀
+function acctOf(e){ return (e.counterAcct||'').trim() || acctFromMemo(e); }
 function counterAcctNames(acct){
   if(!acct) return [];
   const m = new Map();
   liveEntries.forEach(e=>{
     const n = (e.name||'').trim();
-    if(e.counterAcct!==acct || !n) return;
+    if(acctOf(e)!==acct || !n) return;
     const x = m.get(n) || { name:n, count:0, last:'' };
     x.count++; if((e.date||'') > x.last) x.last = e.date||'';
     m.set(n, x);
@@ -3400,7 +3430,7 @@ const AcctTable = (function(){
     ov.id = 'acctOverlay';
     ov.innerHTML = `<div id="acctBox">
       <h3>🔢 匯款帳號後 5 碼對照表</h3>
-      <p class="muted" style="margin:0 0 8px;font-size:13.5px;">從平台上所有登記過「帳號後 5 碼」的收支整理出來。登記銀行收入時輸入後 5 碼，就會自動帶出最常用的姓名；要改姓名，請到明細修改那幾筆登記。</p>
+      <p class="muted" style="margin:0 0 8px;font-size:13.5px;">從平台上所有登記過「帳號後 5 碼」的收支整理出來，備註或項目摘要裡寫的後 5 碼也算進來。登記銀行收入時輸入後 5 碼，就會自動帶出最常用的姓名；要改姓名，請到明細修改那幾筆登記。</p>
       <input type="text" id="acctKw" placeholder="搜尋後 5 碼或姓名" autocomplete="off" style="width:100%;max-width:320px;">
       <div id="acctList" style="margin-top:8px;"></div>
       <div style="text-align:right;margin-top:12px;"><button class="btn secondary" id="acctCloseBtn">關閉</button></div>
@@ -3415,11 +3445,13 @@ const AcctTable = (function(){
     const kw = document.getElementById('acctKw').value.trim();
     const accts = new Map();
     liveEntries.forEach(e=>{
-      if(!e.counterAcct) return;
-      const a = accts.get(e.counterAcct) || { acct:e.counterAcct, total:0, noName:0, last:'' };
+      const ac = acctOf(e);
+      if(!ac) return;
+      const a = accts.get(ac) || { acct:ac, total:0, noName:0, memo:0, last:'' };
       a.total++; if(!(e.name||'').trim()) a.noName++;
+      if(!(e.counterAcct||'').trim()) a.memo++;
       if((e.date||'') > a.last) a.last = e.date||'';
-      accts.set(e.counterAcct, a);
+      accts.set(ac, a);
     });
     let rows = [...accts.values()].map(a=>({ ...a, names: counterAcctNames(a.acct) }));
     if(kw) rows = rows.filter(a=> a.acct.includes(kw) || a.names.some(x=>x.name.includes(kw)));
@@ -3430,7 +3462,7 @@ const AcctTable = (function(){
     box.innerHTML = `<p class="muted" style="margin:0 0 4px;font-size:13px;">共 ${rows.length} 個帳號${kw?'（搜尋結果）':''}；用過兩個以上姓名的標黃色</p>
       <table><thead><tr><th>後 5 碼</th><th>用過的姓名（次數）</th><th>筆數</th><th>最近日期</th></tr></thead><tbody>`
       + rows.map(a=>`<tr${a.names.length>1?' class="multi"':''}><td><b>${escHtml(a.acct)}</b></td>
-        <td>${a.names.length ? a.names.map((x,i)=>`<span class="acct-name${i===0?' first':''}">${escHtml(x.name)}（${x.count}）</span>`).join('') : ''}${a.noName ? `<span class="muted" style="font-size:12.5px;">未填姓名 ${a.noName} 筆</span>` : ''}</td>
+        <td>${a.names.length ? a.names.map((x,i)=>`<span class="acct-name${i===0?' first':''}">${escHtml(x.name)}（${x.count}）</span>`).join('') : ''}${a.noName ? `<span class="muted" style="font-size:12.5px;">未填姓名 ${a.noName} 筆</span>` : ''}${a.memo ? `<span class="muted" style="font-size:12.5px;">（${a.memo} 筆從備註／摘要讀出）</span>` : ''}</td>
         <td class="num">${a.total}</td><td style="white-space:nowrap;">${escHtml(a.last)}</td></tr>`).join('')
       + '</tbody></table>';
   }
