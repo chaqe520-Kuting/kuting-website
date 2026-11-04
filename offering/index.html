@@ -312,6 +312,35 @@
   .icon-btn{ border:1px solid var(--border); background:var(--paper-sunken); color:var(--ink); border-radius:8px; padding:5px 10px; font-size:.75rem; cursor:pointer; }
   .icon-btn:hover{ border-color:var(--gold); }
   .type-tag{ font-size:.68rem; color:var(--ink-soft); }
+  /* v179 登記清單：電腦版姓名、品項自動換行，一般螢幕不用左右捲；手機版每筆一張卡片 */
+  .reg-table{ min-width:0; }
+  .reg-table th, .reg-table td{ padding:9px 8px; }
+  .reg-table td.rt-name{ white-space:normal; min-width:8em; }
+  .reg-table td.rt-name .link-btn{ text-align:left; white-space:normal; line-height:1.55; }
+  .reg-table td.rt-item{ white-space:normal; min-width:7em; line-height:1.45; }
+  .reg-table td.rt-time{ white-space:normal; width:4.5em; font-size:.76rem; color:var(--ink-soft); }
+  .reg-table td.rt-phone{ font-size:.78rem; }
+  .reg-table td.rt-act{ display:table-cell; white-space:nowrap; }
+  .reg-table td.rt-act .icon-btn + .icon-btn{ margin-left:4px; }
+  @media (max-width:760px){
+    .reg-table thead{ display:none; }
+    .reg-table, .reg-table tbody{ display:block; }
+    .reg-table tbody tr:not(.empty-row){ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:11px 12px; border-bottom:1px solid var(--border); }
+    .reg-table tbody tr:not(.empty-row) > td{ display:block; border:0; padding:0; white-space:normal; width:auto; min-width:0; }
+    .reg-table td.rt-chk{ order:0; }
+    .reg-table td.rt-name{ order:1; flex:1 1 0; font-size:.95rem; }
+    .reg-table td.rt-pay{ order:2; }
+    .reg-table td.rt-item{ order:3; flex:1 1 100%; padding-left:28px !important; }
+    .reg-table td.rt-qty, .reg-table td.rt-amt, .reg-table td.rt-phone, .reg-table td.rt-photo, .reg-table td.rt-conf, .reg-table td.rt-time{ order:4; font-size:.8rem; }
+    .reg-table td.rt-qty, .reg-table td.rt-phone{ padding-left:28px !important; }
+    .reg-table td.rt-phone:not(.rt-empty) ~ td.rt-qty{ padding-left:0 !important; }
+    .reg-table td.rt-amt{ font-weight:800; color:var(--cinnabar-ink); }
+    .reg-table td[data-label]::before{ content:attr(data-label) "　"; color:var(--ink-soft); font-weight:400; font-size:.74rem; }
+    .reg-table td.rt-phone.rt-empty, .reg-table td.rt-photo.rt-empty{ display:none !important; }
+    .reg-table td.rt-act{ order:5; margin-left:auto; }
+    .reg-table tr.edit-row > td{ flex:1 1 100%; padding-left:0 !important; }
+    .reg-table tr.edit-row > td:empty{ display:none; }
+  }
   .copy-panel{ display:flex; flex-direction:column; gap:8px; }
   .copy-panel textarea{ min-height:76px; }
   .empty-row td{ text-align:center; color:var(--ink-soft); font-style:italic; padding:18px; }
@@ -1070,8 +1099,8 @@
           <button class="icon-btn" id="regNextPageBtn" type="button">下一頁 ›</button>
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap reg-table-wrap">
+        <table class="reg-table">
           <thead>
             <tr id="regTableHeadRow"><th><input type="checkbox" id="regSelectAllChk"></th><th>姓名</th><th>電話</th><th>品項</th><th>數量</th><th>金額</th><th>收款狀態</th><th>照片</th><th>登記時間</th><th>操作</th></tr>
           </thead>
@@ -2315,8 +2344,8 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v178";
-  var APP_UPDATED = "2026-11-03";
+  var APP_VERSION = "v179";
+  var APP_UPDATED = "2026-11-04";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -2326,6 +2355,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v179", date: "2026-11-04", changes: [
+      "登記清單分電腦版、手機版顯示：電腦版姓名、品項太長會自動換行，一般螢幕不用左右捲就看得到全部欄位；手機版每筆一張卡片（姓名、收款狀態在上，品項、數量、金額在下）"
+    ] },
     { version: "v178", date: "2026-11-04", changes: [
       "快速登記打姓名時，如果是老信眾（信徒查詢裡有紀錄），姓名下方出現「📇 老信眾」列出上次的電話、地址，按「帶入」只填空白的電話（選了補運品項時也帶補運地址）",
       "資料由自動備份每天凌晨從信徒查詢整理，只有啟用中的志工讀得到"
@@ -9504,17 +9536,17 @@ window.KutingFinMatch = function(opts){
       var cat = findCatalog(reg.catId, occ);
       var qtyDisplay = regQtyText(reg, cat, "—");
       tr.innerHTML =
-        '<td><input type="checkbox" class="reg-select-chk" data-id="' + reg.id + '"' + (selectedRegIds[reg.id] ? " checked" : "") + '></td>' +
-        '<td><button type="button" class="link-btn" data-act="preview" data-id="' + reg.id + '">' + escHtml(reg.name) + '</button></td>' +
-        '<td>' + escHtml(reg.phone || "—") + '</td>' +
-        '<td>' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (buyunParts(reg).length ? '<div class="type-tag">補運　' + escHtml(buyunParts(reg).join("　")) + '</div>' : '') + '</td>' +
-        '<td class="num">' + qtyDisplay + '</td>' +
-        '<td class="num">' + fmt(reg.amount) + '</td>' +
-        '<td><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
-        '<td>' + regPhotoCell(reg) + '</td>' +
-        (occ.confirmFieldName ? '<td><button class="paid-pill ' + (reg.confirmed ? "paid" : "unpaid") + '" data-act="confirm" data-id="' + reg.id + '">' + (reg.confirmed ? "已完成" : "未完成") + '</button></td>' : '') +
-        '<td>' + formatRegTime(reg.time) + '</td>' +
-        '<td class="row-actions"><button class="icon-btn" data-act="edit" data-id="' + reg.id + '">編輯</button><button class="icon-btn" data-act="del" data-id="' + reg.id + '">刪除</button></td>';
+        '<td class="rt-chk"><input type="checkbox" class="reg-select-chk" data-id="' + reg.id + '"' + (selectedRegIds[reg.id] ? " checked" : "") + '></td>' +
+        '<td class="rt-name"><button type="button" class="link-btn" data-act="preview" data-id="' + reg.id + '">' + escHtml(reg.name) + '</button></td>' +
+        '<td class="rt-phone' + (reg.phone ? '' : ' rt-empty') + '" data-label="電話">' + escHtml(reg.phone || "—") + '</td>' +
+        '<td class="rt-item">' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (buyunParts(reg).length ? '<div class="type-tag">補運　' + escHtml(buyunParts(reg).join("　")) + '</div>' : '') + '</td>' +
+        '<td class="num rt-qty" data-label="數量">' + qtyDisplay + '</td>' +
+        '<td class="num rt-amt">' + fmt(reg.amount) + '</td>' +
+        '<td class="rt-pay"><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
+        (function(ph){ return '<td class="rt-photo' + (ph.indexOf("data-act") < 0 ? ' rt-empty' : '') + '">' + ph + '</td>'; })(regPhotoCell(reg)) +
+        (occ.confirmFieldName ? '<td class="rt-conf" data-label="' + escAttr(occ.confirmFieldName) + '"><button class="paid-pill ' + (reg.confirmed ? "paid" : "unpaid") + '" data-act="confirm" data-id="' + reg.id + '">' + (reg.confirmed ? "已完成" : "未完成") + '</button></td>' : '') +
+        '<td class="rt-time">' + formatRegTime(reg.time) + '</td>' +
+        '<td class="row-actions rt-act"><button class="icon-btn" data-act="edit" data-id="' + reg.id + '">編輯</button><button class="icon-btn" data-act="del" data-id="' + reg.id + '">刪除</button></td>';
       regTableBody.appendChild(tr);
     });
     updateRegSelectionUI();
