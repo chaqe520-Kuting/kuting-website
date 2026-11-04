@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.4';
+const APP_VERSION = 'v1.16.5';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.5', date:'2026-11-04', items:[
+    '「這筆收入對應哪一筆報名？」和供品／法會的收款狀態連動：每筆報名標「待收款」（紅）或「✔ 已收款」（綠，含已對應財務的），已收款的變淡、不能勾，上方顯示待收款／已收款各幾筆，看得出收款進度、不會誤勾',
+  ] },
   { version:'v1.16.4', date:'2026-11-04', items:[
     '「🔗 配對報名」改用活動名稱對報名表的場次名稱（含已經全部收款的場次），法會收入沒寫日期也會出現',
   ] },
@@ -2743,8 +2746,8 @@ const FinLinkStatus = (function(){
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
             regs.forEach(d=>{
               const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' }));
-              // v1.16.0 配對報名用：還沒對應財務的報名
-              if(!o.deleted && !ids(r).length) list.push({ plat:'gp', platLabel:p.label, ref:d.ref, event:label, closed:o.status==='closed',
+              // v1.16.0 配對報名用（v1.16.5 已對應財務的也帶著，配對視窗顯示收款進度用，不能勾）
+              if(!o.deleted) list.push({ plat:'gp', platLabel:p.label, ref:d.ref, event:label, closed:o.status==='closed', linked:ids(r).length > 0,
                 name:String(r.name||'').trim(), amount:Number(r.amount)||0, paid:!!r.paid, what:(r.label||'') + (r.dedicateTo ? '－' + r.dedicateTo : '') });
             });
           }));
@@ -2755,7 +2758,7 @@ const FinLinkStatus = (function(){
           regs.forEach(d=>{
             const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
             const ev = evs[x.eventId];
-            if(ev && !ids(r).length) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false,
+            if(ev) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
               name:String((r.f||{}).reporter||'').trim(), amount:Number(r.total)||0, paid:!!r.paid,
               what:(r.items||[]).map(it=>`${it.itemName||''}×${it.qty||''}`).join('、') });
           });
@@ -2883,6 +2886,9 @@ const FinPair = (function(){
       #fpBox .fp-tag{display:inline-block;font-size:12px;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;background:#EFE4CC;color:#6E5A35;}
       #fpBox .fp-tag.ev{background:#E3F0DA;color:#2F5A1E;}
       #fpBox .fp-tag.paid{background:#E6EEF8;color:#24476E;}
+      #fpBox .fp-tag.done{background:#2e7d32;color:#fff;font-weight:700;}
+      #fpBox .fp-tag.due{background:#c0281f;color:#fff;font-weight:700;}
+      #fpBox tr.done td{opacity:.62;}#fpBox tr.done td:nth-child(3){opacity:1;}
       #fpBox .fp-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;}
       #fpBox .fp-sum b{color:var(--temple-red-deep);}
       #fpBox .fp-ok{color:#2F7A2F;font-weight:600;}
@@ -2936,17 +2942,18 @@ const FinPair = (function(){
   // 算出建議：姓名對上（或記住的對照）的未對應報名；活動名稱對上、金額剛好的排前面並預先勾選
   function suggest(e){
     const et = tokens(e.name), al = aliasNames(e);
-    // v1.16.1 已收款的報名不列（小朱：多半之前已登記過），只列報名／贊助平台還沒收款的
-    const all = FinLinkStatus.regs().filter(r=>r.amount > 0 && !r.paid);
+    // v1.16.5 已收款的也列出來、標「✔ 已收款」不能勾，看得到這位的收款進度（小朱）；只有待收款的能勾
+    const all = FinLinkStatus.regs().filter(r=>r.amount > 0);
     all.forEach(r=>{
       r._name = !!((et.length && meet(et, tokens(r.name))) || al.indexOf(r.name) >= 0);
       r._ev = eventHit(r.event, e);
     });
     const hits = all.filter(r=>r._name);
-    const rank = r=>(r._ev ? 0 : 2) + (r.paid ? 1 : 0);
+    const rank = r=>(r.paid || r.linked ? 4 : 0) + (r._ev ? 0 : 2);
     hits.sort((a, b)=>rank(a) - rank(b) || (a.closed === b.closed ? 0 : a.closed ? 1 : -1));
     picked = new Set();
-    const pool = hits.filter(r=>r._ev).length ? hits.filter(r=>r._ev) : hits;
+    const open = hits.filter(r=>!r.paid && !r.linked);
+    const pool = open.filter(r=>r._ev).length ? open.filter(r=>r._ev) : open;
     const sub = findSubset(pool, e.amount);
     if(sub) sub.forEach(r=>picked.add(r));
     return { all, hits };
@@ -2973,7 +2980,7 @@ const FinPair = (function(){
     await waitLoaded();
     if(!relevant(e)) return;
     const r = suggest(e);
-    if(!r.hits.length) return;
+    if(!r.hits.some(x=>!x.paid && !x.linked)) return;
     open(e);
   }
   function render(){
@@ -2981,13 +2988,15 @@ const FinPair = (function(){
     const q = kw.toLowerCase();
     cands = q ? ALL.filter(r=>(r.name + ' ' + r.event + ' ' + r.what).toLowerCase().indexOf(q) >= 0).slice(0, 60) : HITS.slice(0, 60);
     picked.forEach(r=>{ if(cands.indexOf(r) < 0) cands.unshift(r); });
-    document.getElementById('fpNote').textContent = q ? `找到 ${cands.length} 筆` : (HITS.length ? `姓名對上 ${HITS.length} 筆` : '沒有姓名對上的報名，可以在左邊輸入姓名或場次找');
+    const nDone = cands.filter(r=>r.paid || r.linked).length;
+    document.getElementById('fpNote').textContent = (q ? `找到 ${cands.length} 筆` : (HITS.length ? `姓名對上 ${HITS.length} 筆` : '沒有姓名對上的報名，可以在左邊輸入姓名或場次找'))
+      + (cands.length ? `（待收款 ${cands.length - nDone}、已收款 ${nDone}）` : '');
     document.getElementById('fpList').innerHTML = cands.length ? `<table><thead><tr><th></th><th>平台／場次</th><th>報名姓名</th><th>內容</th><th style="text-align:right;">金額</th></tr></thead><tbody>${
-      cands.map((r, i)=>`<tr class="${r._name && r._ev ? 'hit' : ''}"><td><input type="checkbox" data-i="${i}" ${picked.has(r) ? 'checked' : ''}></td>
+      cands.map((r, i)=>`<tr class="${r.paid || r.linked ? 'done' : (r._name && r._ev ? 'hit' : '')}"><td><input type="checkbox" data-i="${i}" ${picked.has(r) ? 'checked' : ''}${r.paid || r.linked ? ' disabled title="已收款，不用再配對"' : ''}></td>
         <td>${esc(r.platLabel)}｜${esc(r.event)}${r.closed ? ' <span class="fp-tag">已結束</span>' : ''}${r._ev ? ' <span class="fp-tag ev">活動對上</span>' : ''}</td>
-        <td>${esc(r.name || '（未填）')}${r.paid ? ' <span class="fp-tag paid">已收款・還沒對應財務</span>' : ''}</td>
+        <td>${esc(r.name || '（未填）')}${r.linked ? ' <span class="fp-tag done">✔ 已收款・已對應財務</span>' : r.paid ? ' <span class="fp-tag done">✔ 已收款</span>' : ' <span class="fp-tag due">待收款</span>'}</td>
         <td class="muted">${esc(r.what)}</td><td class="num">${moneyPlain(r.amount)}</td></tr>`).join('')
-    }</tbody></table>` : '<p class="muted">沒有可對應的報名（已收款或已對應過財務的報名不會列出）。</p>';
+    }</tbody></table>` : '<p class="muted">沒有姓名對上的報名，可以在上面輸入姓名或場次找。</p>';
     renderSum();
   }
   function renderSum(){
@@ -3081,7 +3090,7 @@ const FinPair = (function(){
     // 沒寫活動、項目的收入：姓名對上還沒收款的報名才算
     if(!String(e.activity||'').trim() && !String(e.item||'').trim() && e.name){
       const et = tokens(e.name);
-      return et.length > 0 && FinLinkStatus.regs().some(r=>!r.paid && meet(et, tokens(r.name)));
+      return et.length > 0 && FinLinkStatus.regs().some(r=>!r.paid && !r.linked && meet(et, tokens(r.name)));
     }
     return false;
   }
