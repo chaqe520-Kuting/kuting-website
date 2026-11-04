@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.6';
+const APP_VERSION = 'v1.16.7';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.7', date:'2026-11-04', items:[
+    '配對報名：有活動對得上這筆收入的場次時，只列那幾個場次的報名；同姓名但別場（例如渡祖先法會）的報名不再列出',
+  ] },
   { version:'v1.16.6', date:'2026-11-04', items:[
     '修正配對報名同一筆報名出現兩次：供品贊助從 Excel 匯入的「歷史場次」（只是去年名單參考）不再列入，只列平台上真正的場次',
   ] },
@@ -2953,7 +2956,9 @@ const FinPair = (function(){
       r._name = !!((et.length && meet(et, tokens(r.name))) || al.indexOf(r.name) >= 0);
       r._ev = eventHit(r.event, e);
     });
-    const hits = all.filter(r=>r._name);
+    // v1.16.7 有活動對得上本筆收入的報名時，只列那些場次（別場已收款的不再列出，小朱：程順隆渡祖先法會）
+    const nameHits = all.filter(r=>r._name), evHits = nameHits.filter(r=>r._ev);
+    const hits = evHits.length ? evHits : nameHits;
     const rank = r=>(r.paid || r.linked ? 4 : 0) + (r._ev ? 0 : 2);
     hits.sort((a, b)=>rank(a) - rank(b) || (a.closed === b.closed ? 0 : a.closed ? 1 : -1));
     picked = new Set();
