@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.47 ・ 2026-11-03（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.48 ・ 2026-11-04（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.48（2026-11-04）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>志工登入後代報名：打報名者姓名時，如果是老信眾（信徒查詢裡有紀錄），欄位下方出現「📇 老信眾」列出上次的電話、陽上人、地址，按「帶入」只填空白的欄位</li>
+        <li>資料由自動備份每天凌晨從信徒查詢整理，只有啟用中的志工讀得到；信眾自己報名時看不到</li>
+      </ul>
       <b>v4.47（2026-11-03）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>對照財務收入預設只列紅包袋活動名稱對應本場法會的收入（依農曆月日或法會名稱比對），取消勾選可看全部</li>
@@ -1421,6 +1426,92 @@ const fahuiFinMatcher = window.KutingFinMatch({
   }
 });
 function staffIsAdmin(){ return !!(staff && staff.active && staff.admin); }
+
+/* 老信眾聯絡資料（法會報名 v4.48／供品贊助 v178 共用，兩份必須相同）：
+   自動備份每天從信徒查詢整理「姓名 → 最近一次的電話、地址、陽上人」放在本平台 contacts（只有啟用中的志工能讀）。
+   後台代報名打姓名時，姓名完全相同就在欄位下方提示，按「帶入」只填空白的欄位。 */
+window.KutingContacts = function(getDb){
+  var map = null, loading = null;
+  function norm(s){ return String(s || "").replace(/\s+/g, ""); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]; }); }
+  function load(){
+    if(map) return Promise.resolve(map);
+    if(loading) return loading;
+    var db = getDb();
+    if(!db) return Promise.resolve(null);
+    loading = db.collection("contacts").doc("info").get().then(function(d){
+      if(!d.exists) return [];
+      var info = d.data(), ps = [];
+      for(var k = 0; k < (info.chunks || 0); k++) ps.push(db.collection("contacts").doc(info.ver + "_" + ("00" + k).slice(-3)).get());
+      return Promise.all(ps).then(function(docs){
+        return docs.reduce(function(a, x){ return a.concat(x.exists ? JSON.parse(x.data().json || "[]") : []); }, []);
+      });
+    }).then(function(list){
+      var m = {};
+      list.forEach(function(a){ m[norm(a[0])] = { name: a[0], phone: a[1] || "", addr: a[2] || "", yang: a[3] || "", last: a[4] || "" }; });
+      map = m; loading = null; return map;
+    }).catch(function(e){ console.warn("老信眾聯絡資料讀取失敗", e); loading = null; return null; });
+    return loading;
+  }
+  function find(name){
+    var k = norm(name);
+    if(k.length < 2) return Promise.resolve(null);
+    return load().then(function(m){ return (m && m[k]) || null; });
+  }
+  // input：姓名欄；after：提示放在這個元素後面；fill(c)：把 c 帶入空白欄位，回傳實際帶入了哪些（文字陣列）
+  function attach(input, after, fill){
+    if(!input || input._kcBound) return;
+    input._kcBound = true;
+    var hint = document.createElement("div");
+    hint.className = "kc-hint";
+    hint.style.cssText = "display:none;margin-top:6px;padding:7px 10px;border:1px dashed #B8862E;border-radius:8px;background:#FFF8E6;font-size:13.5px;line-height:1.6;color:#4A3A22;";
+    (after || input).insertAdjacentElement("afterend", hint);
+    var timer = null, cur = null;
+    function show(c){
+      cur = c;
+      if(!c){ hint.style.display = "none"; hint.innerHTML = ""; return; }
+      var bits = [c.phone && "電話 " + esc(c.phone), c.yang && "陽上人 " + esc(c.yang), c.addr && "地址 " + esc(c.addr)].filter(Boolean).join("　");
+      hint.innerHTML = "📇 老信眾 <b>" + esc(c.name) + "</b>：" + bits + (c.last ? "<span style=\"color:#8A7A5C;\">（最近：" + esc(c.last) + "）</span>" : "") +
+        " <button type=\"button\" class=\"kc-fill\" style=\"margin-left:6px;padding:2px 10px;border:1px solid #B8862E;border-radius:6px;background:#FFF;color:#6E1F1C;cursor:pointer;font-size:13px;\">帶入</button>";
+      hint.style.display = "";
+    }
+    input.addEventListener("input", function(){
+      clearTimeout(timer);
+      var v = input.value;
+      timer = setTimeout(function(){ find(v).then(function(c){ if(input.value === v) show(c); }); }, 250);
+    });
+    hint.addEventListener("click", function(e){
+      if(!e.target.closest(".kc-fill") || !cur) return;
+      var done = fill(cur) || [];
+      hint.innerHTML = done.length ? "📇 已帶入：" + esc(done.join("、")) + "（請再核對一次）" : "📇 欄位都已經有填，沒有帶入";
+    });
+  }
+  return { load: load, find: find, attach: attach };
+};
+// v4.48：報名表打報名者姓名時帶出老信眾的電話、陽上人、地址（只有登入中的啟用志工看得到）
+const fahuiContacts = window.KutingContacts(()=>staffActive() ? db : null);
+function bindContactHint(pf){
+  if(!staffActive()) return;
+  const ev = events.find(e=>e.id===publicSelectedEvent);
+  const rep = pf.querySelector('[name="reporter"]');
+  if(!ev || !rep) return;
+  fahuiContacts.attach(rep, null, c=>{
+    const done = [];
+    let addrDone = false;
+    (ev.fields||[]).forEach(f=>{
+      const el = pf.querySelector(`[name="${f.k}"]`) || pf.querySelector(`[name="pf_0_${f.k}"]`);
+      if(!el || String(el.value||'').trim()) return;
+      let v = '';
+      if(isPhoneField(f)) v = c.phone;
+      else if(/陽上人|戶長/.test(f.label||'')) v = c.yang;
+      else if(isAddrField(f) && !addrDone){ v = c.addr; addrDone = !!v; }
+      if(!v) return;
+      el.value = v; el.dispatchEvent(new Event('input', {bubbles:true}));
+      done.push(f.label);
+    });
+    return done;
+  });
+}
 
 /* v4：認養品項的「已認養數量」另存在 tally/{場次ID}（只有數量，不含個資），
    報名頁讀這份統計顯示剩餘數量；後台開啟該場次時會依實際報名資料重新計算校正。 */
@@ -4849,6 +4940,7 @@ function bindEvents(){
 
   const pf = document.getElementById('publicForm');
   if(pf){
+    bindContactHint(pf);   // v4.48
     pf.querySelectorAll('[data-feeinput], [data-itemqty]').forEach(inp=>{
       inp.addEventListener('input', updatePublicTotal);
     });
