@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.0';
+const APP_VERSION = 'v1.16.1';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.1', date:'2026-11-04', items:[
+    '「這筆收入對應哪一筆報名？」只列供品贊助／法會報名還沒收款的報名；已收款的（多半之前已登記過）不再列出',
+  ] },
   { version:'v1.16.0', date:'2026-11-04', items:[
     '登記收入時直接配對報名：新增一筆現金或銀行收入後，如果供品贊助、法會報名有姓名對上、還沒對應財務的報名，會跳出「這筆收入對應哪一筆報名？」，活動名稱和金額都對上的會先勾好，按確認就把那幾筆報名標成已收款並記下對應',
     '「最近登記」「本月收支對帳」每筆還沒對應的收入旁有「🔗 配對報名」，晚幾天、報名已結束才登記的紅包袋也能配對；可輸入姓名或場次找別的報名，可勾好幾位（合付）',
@@ -2921,7 +2924,8 @@ const FinPair = (function(){
   // 算出建議：姓名對上（或記住的對照）的未對應報名；活動名稱對上、金額剛好的排前面並預先勾選
   function suggest(e){
     const et = tokens(e.name), al = aliasNames(e);
-    const all = FinLinkStatus.regs().filter(r=>r.amount > 0);
+    // v1.16.1 已收款的報名不列（小朱：多半之前已登記過），只列報名／贊助平台還沒收款的
+    const all = FinLinkStatus.regs().filter(r=>r.amount > 0 && !r.paid);
     all.forEach(r=>{
       r._name = !!((et.length && meet(et, tokens(r.name))) || al.indexOf(r.name) >= 0);
       r._ev = eventHit(r.event, e);
@@ -2970,7 +2974,7 @@ const FinPair = (function(){
         <td>${esc(r.platLabel)}｜${esc(r.event)}${r.closed ? ' <span class="fp-tag">已結束</span>' : ''}${r._ev ? ' <span class="fp-tag ev">活動對上</span>' : ''}</td>
         <td>${esc(r.name || '（未填）')}${r.paid ? ' <span class="fp-tag paid">已收款・還沒對應財務</span>' : ''}</td>
         <td class="muted">${esc(r.what)}</td><td class="num">${moneyPlain(r.amount)}</td></tr>`).join('')
-    }</tbody></table>` : '<p class="muted">沒有可對應的報名（已對應過財務的報名不會列出）。</p>';
+    }</tbody></table>` : '<p class="muted">沒有可對應的報名（已收款或已對應過財務的報名不會列出）。</p>';
     renderSum();
   }
   function renderSum(){
