@@ -1005,9 +1005,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.5';
+const APP_VERSION = 'v1.16.6';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.16.6', date:'2026-11-04', items:[
+    '修正配對報名同一筆報名出現兩次：供品贊助從 Excel 匯入的「歷史場次」（只是去年名單參考）不再列入，只列平台上真正的場次',
+  ] },
   { version:'v1.16.5', date:'2026-11-04', items:[
     '「這筆收入對應哪一筆報名？」和供品／法會的收款狀態連動：每筆報名標「待收款」（紅）或「✔ 已收款」（綠，含已對應財務的），已收款的變淡、不能勾，上方顯示待收款／已收款各幾筆，看得出收款進度、不會誤勾',
   ] },
@@ -2742,6 +2745,8 @@ const FinLinkStatus = (function(){
           const occs = await s.db.collection('occasions').get();
           await Promise.all(occs.docs.map(async od=>{
             const o = od.data()||{}, label = o.label || '';
+            // v1.16.6 從 Excel 匯入的「歷史場次」（history，只給打姓名帶出去年報名參考）不是真的待收款，不列入配對
+            if(o.history) return;
             if(label && !o.deleted) evAll.add(label);
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
             regs.forEach(d=>{
