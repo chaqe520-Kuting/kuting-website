@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.18.4';
+const APP_VERSION = 'v1.18.5';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.18.5', date:'2026-11-04', items:[
+    '後 5 碼前面是 0 的帳號（例如 00400）以前存成 400，現在比對時自動補 0，輸入 00400 也會帶出姓名（例如郭虹汶）',
+  ] },
   { version:'v1.18.4', date:'2026-11-04', items:[
     '後 5 碼對照表與自動帶姓名：以前只寫在備註或項目摘要裡的後 5 碼（例如「後五碼 02949」，或銀行收入備註裡單獨的 5 位數字）也讀出來，不用一筆筆補填欄位',
   ] },
@@ -2502,7 +2505,7 @@ function filterLiveEntries(q){
   if(/^\d+$/.test(digits)){
     const n = Number(digits);
     return liveEntries.filter(e=> envNum(e)===n || Math.round(e.amount)===n
-      || String(e.envelopeNo||'').trim()===q || (q.length===5 && e.counterAcct===q));
+      || String(e.envelopeNo||'').trim()===q || (q.length===5 && acctOf(e)===q));
   }
   const k = q.toLowerCase();
   return liveEntries.filter(e=>`${e.name||''} ${e.activity||''} ${e.item||''} ${e.note||''} ${e.envelopeNo||''} ${e.counterAcct||''} ${e.date||''}`.toLowerCase().includes(k));
@@ -3396,7 +3399,12 @@ function acctFromMemo(e){
   return out;
 }
 // 這筆登記的匯款帳號後 5 碼：有填欄位用欄位，沒填就從備註／摘要讀
-function acctOf(e){ return (e.counterAcct||'').trim() || acctFromMemo(e); }
+// v1.18.5 欄位裡的後 5 碼以前從 Excel 匯入時前面的 0 會不見（00400 變 400），比對時補回 5 碼
+function acctOf(e){
+  const d = String(e.counterAcct||'').replace(/\D/g,'');
+  if(d) return d.length < 5 ? d.padStart(5,'0') : d.slice(-5);
+  return acctFromMemo(e);
+}
 function counterAcctNames(acct){
   if(!acct) return [];
   const m = new Map();
