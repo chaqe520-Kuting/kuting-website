@@ -472,6 +472,20 @@
   .audit-diff{ color:var(--ink-soft); font-size:12.5px; }
   .audit-diff b{ color:var(--temple-red-deep); font-weight:600; }
   footer.version-footer{ margin-top:6px; font-size:12px; color:var(--ink-soft); text-align:center; }
+  /* v1.17.0 後 5 碼對照 */
+  .acct-hint{display:block;font-size:12px;color:#6E5A35;margin-top:3px;line-height:1.7;}
+  .acct-pick{border:1px solid var(--gold);background:#FFF6DC;color:var(--temple-red-deep);border-radius:9px;padding:0 7px;font-size:12px;cursor:pointer;margin:1px 3px 1px 0;}
+  .acct-pick.on{background:var(--temple-red-deep);color:#fff;border-color:var(--temple-red-deep);}
+  #acctOverlay{position:fixed;inset:0;background:rgba(42,33,24,.45);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;}
+  #acctBox{background:#FFFBF2;border:2px solid var(--gold);border-radius:10px;max-width:760px;width:100%;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  #acctBox h3{margin:0 0 6px;color:var(--temple-red-deep);font-size:18px;}
+  #acctBox table{width:100%;border-collapse:collapse;font-size:14px;}
+  #acctBox th,#acctBox td{border-bottom:1px solid #E5D7B8;padding:6px 5px;text-align:left;vertical-align:top;}
+  #acctBox th{color:var(--temple-red-deep);font-weight:600;white-space:nowrap;}
+  #acctBox td.num{text-align:right;}
+  #acctBox tr.multi td{background:#FFF6DC;}
+  #acctBox .acct-name{display:inline-block;margin:1px 8px 1px 0;}
+  #acctBox .acct-name.first{font-weight:700;}
 </style>
 </head>
 <body class="locked">
@@ -674,6 +688,7 @@
           <div style="grid-column:span 2;">
             <label>匯款人帳號後 5 碼（選填，銀行收入）</label>
             <input type="text" id="entryCounterAcct" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="例如 85506，輸入後自動帶出曾用過的姓名">
+            <div id="entryAcctHint"></div>
           </div>
         </div>
 
@@ -681,6 +696,7 @@
           <button class="btn" id="submitEntryBtn">新增登記</button>
           <button class="btn secondary" id="cancelEditBtn" style="display:none;">取消編輯</button>
           <button class="btn secondary" id="reconToggleBtn">📋 本月收支對帳 ▾</button>
+          <button class="btn secondary" id="acctTableBtn">🔢 後 5 碼對照表</button>
           <span id="entryMsg" class="muted"></span>
         </div>
 
@@ -789,7 +805,10 @@
   <section>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
       <h2 class="section-title" style="margin-bottom:0;">月份明細</h2>
-      <button class="btn secondary small" id="exportExcelBtn">匯出 Excel</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn secondary small" id="exportExcelBtn">匯出 Excel（這一年月份）</button>
+        <button class="btn small" id="exportAllBtn">📦 匯出全部紀錄 Excel</button>
+      </div>
     </div>
     <div class="panel" style="overflow-x:auto;">
       <table id="detailTable">
@@ -831,6 +850,7 @@
           <select id="exportMonthPick"></select>
         </div>
         <button class="btn small" id="exportDetailBtn">匯出明細 Excel</button>
+        <button class="btn secondary small" id="exportAllBtn2">📦 匯出全部紀錄</button>
         <span class="muted" id="exportMsg"></span>
       </div>
 
@@ -1005,9 +1025,15 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.16.7';
+const APP_VERSION = 'v1.17.0';
 const APP_DATE = '2026-11-04';
 const CHANGELOG = [
+  { version:'v1.17.0', date:'2026-11-04', items:[
+    '新增「🔢 後 5 碼對照表」：把平台上所有登記過的銀行收入，依匯款人帳號後 5 碼整理出用過的姓名、次數與最近日期，可搜尋後 5 碼或姓名',
+    '銀行截圖快速登記、手動登記輸入後 5 碼時：同一個帳號用過好幾個姓名，會在姓名下面列出來（次數多的在前），點一下就換成那個姓名',
+    '截圖的匯款人姓名讀不到時，改帶這個帳號「最常用」的姓名（次數一樣時用最近的）',
+    '新增「📦 匯出全部紀錄 Excel」（月份明細上方、收支明細匯出旁）：一次匯出整個平台所有年度的月份明細、現金收入、銀行存款、現金支出分類、合併明細與網頁登記明細，不受年度／月份選單限制',
+  ] },
   { version:'v1.16.7', date:'2026-11-04', items:[
     '配對報名：有活動對得上這筆收入的場次時，只列那幾個場次的報名；同姓名但別場（例如渡祖先法會）的報名不再列出',
   ] },
@@ -3316,12 +3342,77 @@ function bankRefOf(r){
   if(!r.date || !r.amount || (!r.time && r.balance===null)) return '';
   return [r.date, (r.time||'').slice(0,5), r.dir, Math.round(r.amount), r.balance===null ? '' : Math.round(r.balance)].join('|');
 }
-// 以前登記過同一個帳號後 5 碼的姓名（最新的一筆）
-function nameForCounterAcct(acct){
-  if(!acct) return '';
-  const hit = liveEntries.find(e=>e.counterAcct===acct && (e.name||'').trim());
-  return hit ? hit.name.trim() : '';
+// v1.17.0 帳號後 5 碼 → 用過的姓名（次數多的在前，次數一樣用最近的）
+function counterAcctNames(acct){
+  if(!acct) return [];
+  const m = new Map();
+  liveEntries.forEach(e=>{
+    const n = (e.name||'').trim();
+    if(e.counterAcct!==acct || !n) return;
+    const x = m.get(n) || { name:n, count:0, last:'' };
+    x.count++; if((e.date||'') > x.last) x.last = e.date||'';
+    m.set(n, x);
+  });
+  return [...m.values()].sort((a,b)=> b.count-a.count || (b.last > a.last ? 1 : b.last < a.last ? -1 : 0));
 }
+// 以前登記過同一個帳號後 5 碼的姓名（最常用的；v1.17.0 前是最新一筆）
+function nameForCounterAcct(acct){
+  const list = counterAcctNames(acct);
+  return list.length ? list[0].name : '';
+}
+// 同一個帳號用過兩個以上姓名時，列出來讓人點選
+function acctHintHtml(acct, cur){
+  const list = counterAcctNames(acct);
+  if(list.length < 2) return '';
+  return '<span class="acct-hint">這個帳號用過：' + list.map(x=>
+    `<button type="button" class="acct-pick${x.name===(cur||'').trim()?' on':''}" data-name="${escHtml(x.name)}">${escHtml(x.name)}（${x.count}）</button>`).join('') + '</span>';
+}
+
+// v1.17.0 後 5 碼對照表
+const AcctTable = (function(){
+  function ensure(){
+    if(document.getElementById('acctOverlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'acctOverlay';
+    ov.innerHTML = `<div id="acctBox">
+      <h3>🔢 匯款帳號後 5 碼對照表</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:13.5px;">從平台上所有登記過「帳號後 5 碼」的收支整理出來。登記銀行收入時輸入後 5 碼，就會自動帶出最常用的姓名；要改姓名，請到明細修改那幾筆登記。</p>
+      <input type="text" id="acctKw" placeholder="搜尋後 5 碼或姓名" autocomplete="off" style="width:100%;max-width:320px;">
+      <div id="acctList" style="margin-top:8px;"></div>
+      <div style="text-align:right;margin-top:12px;"><button class="btn secondary" id="acctCloseBtn">關閉</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', ev=>{ if(ev.target===ov) close(); });
+    document.getElementById('acctCloseBtn').addEventListener('click', close);
+    document.getElementById('acctKw').addEventListener('input', render);
+  }
+  function close(){ const ov = document.getElementById('acctOverlay'); if(ov) ov.style.display = 'none'; }
+  function render(){
+    const kw = document.getElementById('acctKw').value.trim();
+    const accts = new Map();
+    liveEntries.forEach(e=>{
+      if(!e.counterAcct) return;
+      const a = accts.get(e.counterAcct) || { acct:e.counterAcct, total:0, noName:0, last:'' };
+      a.total++; if(!(e.name||'').trim()) a.noName++;
+      if((e.date||'') > a.last) a.last = e.date||'';
+      accts.set(e.counterAcct, a);
+    });
+    let rows = [...accts.values()].map(a=>({ ...a, names: counterAcctNames(a.acct) }));
+    if(kw) rows = rows.filter(a=> a.acct.includes(kw) || a.names.some(x=>x.name.includes(kw)));
+    rows.sort((a,b)=> (b.last > a.last ? 1 : b.last < a.last ? -1 : 0));
+    const box = document.getElementById('acctList');
+    if(!accts.size){ box.innerHTML = '<p class="muted">還沒有登記過帳號後 5 碼的資料。</p>'; return; }
+    if(!rows.length){ box.innerHTML = '<p class="muted">找不到符合的後 5 碼或姓名。</p>'; return; }
+    box.innerHTML = `<p class="muted" style="margin:0 0 4px;font-size:13px;">共 ${rows.length} 個帳號${kw?'（搜尋結果）':''}；用過兩個以上姓名的標黃色</p>
+      <table><thead><tr><th>後 5 碼</th><th>用過的姓名（次數）</th><th>筆數</th><th>最近日期</th></tr></thead><tbody>`
+      + rows.map(a=>`<tr${a.names.length>1?' class="multi"':''}><td><b>${escHtml(a.acct)}</b></td>
+        <td>${a.names.length ? a.names.map((x,i)=>`<span class="acct-name${i===0?' first':''}">${escHtml(x.name)}（${x.count}）</span>`).join('') : ''}${a.noName ? `<span class="muted" style="font-size:12.5px;">未填姓名 ${a.noName} 筆</span>` : ''}</td>
+        <td class="num">${a.total}</td><td style="white-space:nowrap;">${escHtml(a.last)}</td></tr>`).join('')
+      + '</tbody></table>';
+  }
+  function open(){ ensure(); document.getElementById('acctKw').value = ''; render(); document.getElementById('acctOverlay').style.display = 'flex'; }
+  return { open };
+})();
 
 function addBankshotRows(found){
   // 沒有時間和餘額的交易用寬鬆的鍵，避免同一張截圖讀兩次時重複列出
@@ -3380,7 +3471,7 @@ function renderBankshotRows(){
       <td><select data-i="${i}" data-f="dir"${dis}>${opts([['in','收入'],['out','支出']], r.dir)}</select></td>
       <td>${inp('amount', ' inputmode="numeric"')}</td>
       <td>${inp('counterAcct', ' inputmode="numeric" maxlength="5" placeholder="後5碼"')}</td>
-      <td>${inp('name', ' list="nameList" placeholder="匯款人"')}</td>
+      <td>${inp('name', ' list="nameList" placeholder="匯款人"')}<div class="acct-hint-box" data-i="${i}">${r.saved ? '' : acctHintHtml(r.counterAcct, r.name)}</div></td>
       <td>${inp('activity', ' list="activityList"')}</td>
       <td>${inp('item', r.dir==='in' ? ' list="itemInList"' : ' list="itemOutList"')}</td>
       <td>${inp('note')}</td>
@@ -3403,6 +3494,7 @@ function renderBankshotRows(){
     el.addEventListener(el.type==='checkbox' || el.tagName==='SELECT' ? 'change' : 'input', onBankshotEdit);
   });
   document.getElementById('bankshotSaveBtn').addEventListener('click', saveBankshotRows);
+  box.querySelectorAll('.acct-hint-box').forEach(bindAcctHintBox);
   renderBankshotSum();
 }
 
@@ -3430,13 +3522,33 @@ function renderBankshotSum(){
   btn.disabled = !pick.length;
 }
 
+function bindAcctHintBox(hb){
+  hb.addEventListener('click', ev=>{
+    const b = ev.target.closest('.acct-pick'); if(!b) return;
+    const r = bankshotRows[+hb.dataset.i]; if(!r || r.saved) return;
+    r.name = b.dataset.name;
+    const nameEl = hb.closest('td').querySelector('input[data-f="name"]');
+    if(nameEl) nameEl.value = r.name;
+    hb.innerHTML = acctHintHtml(r.counterAcct, r.name);
+  });
+}
+function refreshBankshotHint(el, r){
+  const tr = el.closest('tr'), hb = tr && tr.querySelector('.acct-hint-box');
+  if(hb) hb.innerHTML = acctHintHtml(r.counterAcct, r.name);
+}
+
 function onBankshotEdit(ev){
   const el = ev.target, r = bankshotRows[+el.dataset.i], f = el.dataset.f;
   if(f==='checked'){ r.checked = el.checked; renderBankshotRows(); return; }
   if(f==='amount'){ r.amount = Math.round(Number(String(el.value).replace(/[^\d.]/g,''))||0); }
   else if(f==='counterAcct'){
     el.value = el.value.replace(/\D/g,'').slice(0,5); r.counterAcct = el.value;
-    if(r.counterAcct.length===5 && !r.name){ r.name = nameForCounterAcct(r.counterAcct); }
+    if(r.counterAcct.length===5 && !r.name){
+      r.name = nameForCounterAcct(r.counterAcct);
+      const nameEl = el.closest('tr') && el.closest('tr').querySelector('input[data-f="name"]');
+      if(nameEl) nameEl.value = r.name;
+    }
+    refreshBankshotHint(el, r);
   }
   else r[f] = el.value;
   if(['date','time','dir','amount'].includes(f)){
@@ -4425,7 +4537,9 @@ function populateExportPickers(){
   }
 }
 
+let exportAllMode = false;   // v1.17.0 匯出全部紀錄時不看年度／月份選單
 function exportInScope(y, m){
+  if(exportAllMode) return true;
   const ey = document.getElementById('exportYearPick').value;
   const em = document.getElementById('exportMonthPick').value;
   if(ey && ey !== 'ALL' && y !== Number(ey)) return false;
@@ -4433,8 +4547,15 @@ function exportInScope(y, m){
   return true;
 }
 
+// v1.17.0 匯出整個平台已記錄的資料：所有年度的月份明細＋所有收支明細＋網頁登記明細
+function exportAllExcel(){
+  exportAllMode = true;
+  try { exportDetailExcel(); } finally { exportAllMode = false; }
+}
+
 function exportDetailExcel(){
   const msg = document.getElementById('exportMsg');
+  const allMode = exportAllMode;
   if(!window.XLSX){ alert('匯出功能載入失敗，請檢查網路連線後重新整理頁面再試一次。'); return; }
   const byYM = (a,b)=> (a[0]-b[0]) || (a[1]-b[1]);
 
@@ -4477,6 +4598,15 @@ function exportDetailExcel(){
     formatAmountCols(ws, amountCols);
     XLSX.utils.book_append_sheet(wb, ws, name);
   };
+  if(allMode){
+    const monthRows = computeRows().slice().sort((a,b)=>(a.year-b.year)||(a.month-b.month)).map(r=>{
+      const ob = openBal(r);
+      return [`${r.year}年${MONTH_NAMES[r.month-1]}`, ob.total, ob.cash, ob.bank,
+        r.cashIn, r.cashOut, r.bankIn, r.bankOut, r.net, r.cumBalance, r.cumCash, r.cumBank, r.note||''];
+    });
+    addSheet('月份明細（全部年度）', ['年月','期初餘額','期初現金','期初銀行','現金收入','現金支出','銀行收入','銀行支出','本月收支合計','月底餘額','月底現金','月底銀行','備註'],
+             monthRows, [10,12,12,12,12,12,12,12,12,12,12,12,30], [1,2,3,4,5,6,7,8,9,10,11]);
+  }
   addSheet('現金收入明細', ['年','月','姓名','活動名稱','項目／摘要','金額'], incomeRows, [7,6,16,24,34,12], [5]);
   addSheet('銀行存款明細', ['年','月','姓名','項目／摘要','存入','支出'], bankRows, [7,6,16,36,12,12], [4,5]);
   addSheet('現金支出分類', ['年','月', ...catKeys.map(k=>CAT_LABELS[k]), '分類合計','現金支出總額','備註'], expenseRows,
@@ -4488,11 +4618,12 @@ function exportDetailExcel(){
   const ey = document.getElementById('exportYearPick').value;
   const em = document.getElementById('exportMonthPick').value;
   let scope = '全部資料';
-  if(ey && ey !== 'ALL' && em && em !== 'ALL') scope = `${ey}年${em}月`;
+  if(allMode) scope = '全部紀錄';
+  else if(ey && ey !== 'ALL' && em && em !== 'ALL') scope = `${ey}年${em}月`;
   else if(ey && ey !== 'ALL') scope = `${ey}年`;
   else if(em && em !== 'ALL') scope = `各年度${em}月`;
   const today = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `古亭院財務儀表板_收支明細_${scope}_${today}.xlsx`);
+  XLSX.writeFile(wb, allMode ? `古亭院財務記帳_全部紀錄_${today}.xlsx` : `古亭院財務儀表板_收支明細_${scope}_${today}.xlsx`);
   msg.textContent = `已匯出（${scope}，共 ${total} 筆）`;
   setTimeout(()=>{ msg.textContent=''; }, 4000);
 }
@@ -4545,11 +4676,22 @@ function init(){
     ev.target.value = ev.target.value.replace(/\D/g,'').slice(0,5);
     const nameEl = document.getElementById('entryName');
     if(ev.target.value.length===5 && !nameEl.value.trim()) nameEl.value = nameForCounterAcct(ev.target.value);
+    document.getElementById('entryAcctHint').innerHTML = ev.target.value.length===5 ? acctHintHtml(ev.target.value, nameEl.value) : '';
   });
+  document.getElementById('entryAcctHint').addEventListener('click', ev=>{
+    const b = ev.target.closest('.acct-pick'); if(!b) return;
+    const nameEl = document.getElementById('entryName');
+    nameEl.value = b.dataset.name;
+    nameEl.dispatchEvent(new Event('input', { bubbles:true }));
+    document.getElementById('entryAcctHint').innerHTML = acctHintHtml(document.getElementById('entryCounterAcct').value, nameEl.value);
+  });
+  document.getElementById('acctTableBtn').addEventListener('click', ()=>AcctTable.open());
   bindBankshotUi();
   bindVoiceUi();
   bindReconUi();
   document.getElementById('exportExcelBtn').addEventListener('click', exportMonthlyExcel);
+  document.getElementById('exportAllBtn').addEventListener('click', exportAllExcel);
+  document.getElementById('exportAllBtn2').addEventListener('click', exportAllExcel);
   document.getElementById('exportDetailBtn').addEventListener('click', exportDetailExcel);
   document.getElementById('exportSuggestBtn').addEventListener('click', exportSuggestExcel);
   document.getElementById('toggleSuggestEditorBtn').addEventListener('click', ()=>{
