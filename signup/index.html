@@ -1066,13 +1066,20 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.49 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.50 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.50（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>場次管理新增「📥 匯入去年 Excel」：每一場各自匯入去年的報名表（自動找表頭，表格下方的合計不讀），可勾工作表、調整每一欄對到哪個欄位或費用</li>
+        <li>「同去年」只從這場匯入的 Excel 找，不再拿其他法會帶入；還沒匯入或找不到這位時會提醒手動填</li>
+        <li>同一位去年有好幾列，會全部帶出來，一列一筆，給志工逐筆核對</li>
+        <li>複製場次不會帶走去年 Excel 參考，新場次要自己匯入</li>
+      </ul>
       <b>v4.49（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>開放前志工測試：準備中的場次，登入中的啟用志工在報名頁看得到（🧪 測試中），信眾看不到；送出、LINE 貼上匯入、小幫手待確認匯入的報名都自動標成「🧪 測試」</li>
         <li>測試報名不進財務對照、統計、往年比較、週報與信徒查詢同步；按「✅ 開放報名」時先下載測試報名備份檔，再從名單清掉</li>
-        <li>法會也能「同去年」：LINE 傳「王小明 同去年」或語音說「跟去年一樣」，帶入解析時找這位之前同名法會的報名，自動帶入欄位與數量給志工核對</li>
+        <li>法會也能「同去年」：LINE 傳「王小明 同去年」或語音說「跟去年一樣」，帶入解析時自動帶入欄位與數量給志工核對（v4.50 起改成只參考該場匯入的去年 Excel）</li>
         <li>LINE 貼上預覽的原始內容改成純文字顯示</li>
       </ul>
       <b>v4.48（2026-11-04）</b>
@@ -2549,74 +2556,76 @@ function parseAndBuildPreview(text){
     const a = analyzeBlock(blk, ev);
     return applySameAsLast({...blk, eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain, why, learn:{}}, ev);
   });
+  sameLastExpand();
   sameLastPreload();
 }
 
-/* ---------------- v4.49：法會「同去年」 ----------------
-   LINE 小幫手或貼上的「王小明 同去年」「我叫王小明，跟去年一樣」：找這位之前報過的法會（同名法會最近一場優先，
-   名稱比對忽略年份、日期、干支），把上次的欄位與費用數量帶進來，志工核對後再按確認。測試報名不當參考。 */
+/* ---------------- 法會「同去年」（v4.49；v4.50 改成只參考這場匯入的去年 Excel） ----------------
+   LINE 小幫手或貼上的「王小明 同去年」「我叫王小明，跟去年一樣」：在這場「📥 匯入去年 Excel」的資料裡找這位
+   （一位有好幾列就全部帶出，一列一筆），把欄位與費用數量帶進來，志工核對後再按確認。
+   小朱 2026-11-05：只用各場自己匯入的 Excel，不拿其他法會、也不和供品贊助混用；還沒匯入就提醒先匯入。
+   參考資料存在 regs，eventId 是「ref:場次ID」（不在場次清單裡，所以不會進統計、財務對照、信徒查詢同步與 Excel 匯出）。 */
 const SAME_LAST_RE = /(同|跟|和|照|如)\s*(去年|上次|上一次|上回|上一回|上一屆|之前|以前|前年|往年|往常)|(去年|上次|上一次|上回|上一屆|之前)\s*(一樣|相同)|照舊/;
 function sameLastText(b){ return [b.header||'', ...(b.rawEntries||[]).map(en=>en.raw!==undefined ? en.raw : ((en.label?en.label+'：':'')+(en.value||'')))].join(' '); }
 function sameLastName(text, ev){
   let t = String(text||'').replace(/\s+/g,' ');
-  const m = t.match(/(?:我叫|我是|名字是|名字叫|姓名)\s*[:：]?\s*([\u4e00-\u9fff]{2,4}?)(?=[，,。、\s跟同和照如報]|$)/);
+  const m = t.match(/(?:我叫|我是|名字是|名字叫|姓名)\s*[:：]?\s*([一-鿿]{2,4}?)(?=[，,。、\s跟同和照如報]|$)/);
   if(m) return m[1];
-  t = t.replace(SAME_LAST_RE, ' ').replace(/的?報名|法會|一樣|相同|登記|麻煩|謝謝|感恩|幫我|幫|請|要|也|一樣|[0-9０-９]+/g,' ');
+  t = t.replace(SAME_LAST_RE, ' ').replace(/的?報名|法會|一樣|相同|登記|麻煩|謝謝|感恩|幫我|幫|請|要|也|[0-9０-９]+/g,' ');
   const base = ev ? statCleanName(ev.name) : '';
-  const toks = t.split(/[^\u4e00-\u9fff]+/).filter(w=>w.length>=2 && w.length<=4 && !(base && base.includes(w)) && !/^(梁皇|寶懺|普渡|普度|補運|祖先|超渡|消災|祈福|中元)$/.test(w));
+  const toks = t.split(/[^一-鿿]+/).filter(w=>w.length>=2 && w.length<=4 && !(base && base.includes(w)) && !/^(梁皇|寶懺|普渡|普度|補運|祖先|超渡|消災|祈福|中元|供品|贊助)$/.test(w));
   return toks[0] || '';
+}
+let refCache = {};   // 場次ID → 匯入的去年 Excel 資料
+async function loadRef(eventId){
+  try{
+    const r = await window.storage.get('regs:ref:'+eventId, STORE_SHARED);
+    refCache[eventId] = r ? JSON.parse(r.value) : [];
+  }catch(e){ console.error('loadRef', e); refCache[eventId] = []; }
+  return refCache[eventId];
 }
 let sameLastLoading = false;
 function sameLastPreload(){
-  if(sameLastLoading || !importBlocks.some(b=>b.sameLast && b.sameLast.wait)) return;
+  if(sameLastLoading) return;
+  const waits = importBlocks.filter(b=>b.sameLast && b.sameLast.wait);
+  if(!waits.length) return;
   sameLastLoading = true;
-  Promise.all(events.filter(e=>!regsCache[e.id]).map(e=>loadRegs(e.id))).then(()=>{
+  const ids = Array.from(new Set(waits.map(b=>b.eventId))).filter(id=>id && !refCache[id]);
+  Promise.all(ids.map(loadRef)).then(()=>{
     sameLastLoading = false;
-    importBlocks.forEach((b,bi)=>{ if(b.sameLast && b.sameLast.wait){ const ev = events.find(e=>e.id===b.eventId) || null; reanalyzeImportBlock(bi, b.eventId, b.why); } });
+    waits.forEach(b=>{ const bi = importBlocks.indexOf(b); if(bi>=0) reanalyzeImportBlock(bi, b.eventId, b.why); });
     render();
   }).catch(e=>{ sameLastLoading = false; console.error('sameLast preload', e); });
-}
-function sameLastFind(name, ev){
-  const base = statCleanName(ev.name);
-  const others = events.filter(e=>e.id!==ev.id);
-  const lastAt = e=>Math.max(0, ...statRegs(e.id).map(r=>Number(r.createdAt)||0));
-  const pick = list=>{
-    const hits = [];
-    list.forEach(e=>statRegs(e.id).forEach(r=>{ if(statName(r)===name) hits.push({e, r}); }));
-    hits.sort((a,b)=>(Number(b.r.createdAt)||0)-(Number(a.r.createdAt)||0));
-    return hits[0] || null;
-  };
-  const same = others.filter(e=>{ const o = statCleanName(e.name); return o && base && (o===base || o.includes(base) || base.includes(o)); });
-  return {hit: pick(same), any: pick(others.sort((a,b)=>lastAt(b)-lastAt(a))), sameName: true};
 }
 function applySameAsLast(b, ev){
   const text = sameLastText(b);
   if(!SAME_LAST_RE.test(text) || !ev) return b;
   const name = sameLastName(text, ev);
-  if(!name){ b.sameLast = {ok:false, msg:'🔁 同去年：沒看出姓名，請在報名者欄位填上姓名後重新選一次場次'}; return b; }
-  if(events.some(e=>!regsCache[e.id])){ b.sameLast = {ok:false, wait:true, msg:`🔁 同去年：正在讀取「${name}」之前的報名…`}; return b; }
-  const res = sameLastFind(name, ev);
-  const h = res.hit || res.any;
-  if(!h){
-    b.mapped.fields.reporter = b.mapped.fields.reporter || name;
-    b.sameLast = {ok:false, msg:`🔁 同去年：找不到「${name}」之前的法會報名，請照信徒說的內容手動填`};
+  if(!b.sameLastOf && !String(b.mapped.fields.reporter||'').trim() && name) b.mapped.fields.reporter = name;
+  if(!name){ b.sameLast = {ok:false, msg:'🔁 同去年：沒看出姓名，請照信徒說的內容手動填'}; b.uncertain = true; return b; }
+  if(!ev.sameRef){
+    b.sameLast = {ok:false, msg:`🔁 同去年：「${ev.name}」還沒匯入去年 Excel，請先到「法會場次管理」選這場按「📥 匯入去年 Excel」，再按一次帶入解析`};
+    b.uncertain = true;
     return b;
   }
-  // 只寫「姓名＋同去年」的短訊息整筆照上次；訊息裡還有其他內容時只補空白的欄位、沒填的數量
+  if(!refCache[ev.id]){ b.sameLast = {ok:false, wait:true, msg:`🔁 同去年：正在讀取「${ev.sameRef.file||'去年 Excel'}」…`}; return b; }
+  const hits = refCache[ev.id].filter(r=>statName(r)===name.replace(/\s+/g,''));
+  if(!hits.length){
+    b.sameLast = {ok:false, msg:`🔁 同去年：去年 Excel「${ev.sameRef.file||''}」裡沒有「${name}」，請照信徒說的內容手動填`};
+    b.uncertain = true;
+    return b;
+  }
+  const idx = b.sameLastIdx || 0;
+  const h = hits[idx];
+  if(!h) return b;
+  if(!b.sameLastOf) b._extraCount = hits.length - 1;
+  // 只寫「姓名＋同去年」的短訊息整筆照去年；訊息裡還有其他內容時只補空白的欄位、沒填的數量
   const shortMsg = text.replace(SAME_LAST_RE,'').replace(/[\s，,。:：、]/g,'').length <= 24;
-  const pev = h.e, pr = h.r, fields = {}, fee = {};
-  (ev.fields||[]).forEach(f=>{
-    const pf = (pev.fields||[]).find(x=>x.k===f.k && exactLabelKey(x.label)===exactLabelKey(f.label)) || (pev.fields||[]).find(x=>exactLabelKey(x.label)===exactLabelKey(f.label));
-    const v = pf ? (pr.f||{})[pf.k] : undefined;
-    if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v);
-  });
-  (ev.fees||[]).forEach(fl=>{
-    const pf = (pev.fees||[]).find(x=>x.k===fl.k && exactLabelKey(x.label)===exactLabelKey(fl.label)) || (pev.fees||[]).find(x=>exactLabelKey(x.label)===exactLabelKey(fl.label));
-    const q = pf ? (pr.fee||{})[pf.k] : 0;
-    if(q) fee[fl.k] = q;
-  });
+  const fields = {}, fee = {};
+  (ev.fields||[]).forEach(f=>{ const v = (h.f||{})[f.k]; if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v); });
+  (ev.fees||[]).forEach(fl=>{ const q = Number((h.fee||{})[fl.k])||0; if(q) fee[fl.k] = q; });
   if(!fields.reporter) fields.reporter = name;
-  if(shortMsg){
+  if(shortMsg || b.sameLastOf){
     b.mapped = {fields, fees:{}, unmapped:[]};
     b.fee = fee;
     b.guessed = {};
@@ -2624,12 +2633,168 @@ function applySameAsLast(b, ev){
     Object.keys(fields).forEach(k=>{ if(!String(b.mapped.fields[k]||'').trim()){ b.mapped.fields[k] = fields[k]; if(b.guessed) delete b.guessed[k]; } });
     Object.keys(fee).forEach(k=>{ if(!b.fee[k]) b.fee[k] = fee[k]; });
   }
-  const diff = !res.hit;
-  b.sameLast = {ok:!diff, msg: diff
-    ? `🔁 同去年：沒有同名法會的紀錄，先照「${pev.name}」裡「${name}」的報名帶入（不同法會，欄位可能不同，請仔細核對）`
-    : `🔁 同去年：已照「${pev.name}」裡「${name}」的報名${shortMsg?'帶入欄位與數量':'補上空白的欄位與數量'}，請核對（地址、陽上人有變動要改）`};
-  if(diff) b.uncertain = true;
+  const where = `「${ev.sameRef.file||'去年 Excel'}」${h.sheet?'（'+h.sheet+(h.row?' 第 '+h.row+' 列':'')+'）':''}`;
+  b.sameLast = {ok:true, msg:`🔁 同去年${hits.length>1?` 第 ${idx+1}／${hits.length} 筆`:''}：已照${where}「${name}」的報名${(shortMsg||b.sameLastOf)?'帶入欄位與數量':'補上空白的欄位與數量'}，請核對（地址、陽上人有變動要改）`};
   return b;
+}
+// 同一位去年有好幾列：第一筆之後的每一列各變成一筆（換場次、重新帶入時重新產生）
+function sameLastExpand(){
+  const out = [];
+  let dropOld = false;
+  importBlocks.forEach(b=>{
+    if(b.sameLastOf){ if(!dropOld) out.push(b); return; }
+    dropOld = b._extraCount !== undefined;
+    out.push(b);
+    const n = b._extraCount || 0;
+    delete b._extraCount;
+    const ev = events.find(e=>e.id===b.eventId) || null;
+    for(let k=1; k<=n; k++){
+      const a = analyzeBlock(b, ev);
+      const c = {header:b.header, rawEntries:b.rawEntries, eventId:b.eventId, mapped:a.mapped, fee:a.fee, guessed:a.guessed,
+        include:b.include, uncertain:false, why:b.why, learn:{}, sameLastIdx:k, sameLastOf:true};
+      applySameAsLast(c, ev);
+      out.push(c);
+    }
+  });
+  importBlocks = out;
+}
+
+/* ---------------- v4.50：📥 匯入去年 Excel（同去年參考） ----------------
+   讀小朱整理的報名表（例：115 年農曆七月祭拜祖先、梁皇寶懺兩張表）：第一列標題、第二列表頭、下面每列一筆，
+   表格下方的合計、男女人數不讀（報名者姓名空白的列略過）。表頭自動對到這場的欄位與費用，志工可在畫面上改。 */
+const REF_SKIP_HEAD = /^(編號|序號|總費用|總金額|合計|小計|會計收款|收款|收款狀態|照片|登記資料確認|傳送資料確認|確認|年度|法會名稱)/;
+function refNorm(s){ return String(s==null?'':s).normalize('NFC').replace(/[\s ()（）\[\]【】:：*＊,，、.]/g,''); }
+function refNoPrice(s){ return refNorm(s).replace(/\d[\d,]*元?/g,'').replace(/元$/,''); }
+function refGuessCol(head, ev){
+  const h = refNorm(head), hp = refNoPrice(head);
+  if(!h || REF_SKIP_HEAD.test(h)) return '';
+  if(/報名者/.test(h) || h==='姓名' || h==='報名者姓名') return (ev.fields||[]).some(f=>f.k==='reporter') ? 'f:reporter' : '';
+  const cands = [...(ev.fields||[]).map(f=>({key:'f:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)})), ...(ev.fees||[]).map(f=>({key:'x:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)}))];
+  let best = cands.find(c=>c.n===h) || cands.find(c=>c.p && c.p===hp);
+  if(best) return best.key;
+  const inc = cands.filter(c=>c.p.length>=2 && hp.length>=2 && (c.p.includes(hp) || hp.includes(c.p))).sort((a,b)=>Math.abs(a.p.length-hp.length)-Math.abs(b.p.length-hp.length));
+  if(inc.length) return inc[0].key;
+  const m = mapLabelToField(String(head||'').replace(/\n/g,''), ev);
+  return m ? (m.kind==='fee' ? 'x:' : 'f:') + m.key : '';
+}
+function refReadSheet(ws, ev){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+  let hi = -1;
+  for(let i=0; i<Math.min(rows.length, 12); i++){
+    if((rows[i]||[]).some(c=>{ const t = refNorm(c); return /報名者/.test(t) || t==='姓名'; })){ hi = i; break; }
+  }
+  if(hi<0) return null;
+  const head = rows[hi].map(c=>String(c==null?'':c).replace(/\r/g,''));
+  const map = head.map(hd=>refGuessCol(hd, ev));
+  const nameCol = map.indexOf('f:reporter');
+  const data = [];
+  for(let i=hi+1; i<rows.length; i++){
+    const r = rows[i]||[];
+    const nm = String(nameCol>=0 ? r[nameCol] : '').trim();
+    if(!nm || /合計|總計|小計|數量|桌數|人數/.test(nm) || /^[\d.,\s=]+$/.test(nm)) continue;
+    data.push({row:i+1, cells:r});
+  }
+  return {head, map, nameCol, data};
+}
+function refPhone(fl, v){
+  if(typeof v==='number' && fl && isPhoneField(fl)){ const s = String(v); return /^9\d{8}$/.test(s) ? '0'+s : s; }
+  return v;
+}
+function refBuildRecords(ev, sheets){
+  const out = [];
+  sheets.forEach(sh=>{
+    sh.data.forEach(d=>{
+      const f = {}, fee = {};
+      sh.map.forEach((key, ci)=>{
+        if(!key) return;
+        let v = d.cells[ci];
+        if(v===undefined || v===null || v==='') return;
+        if(key.indexOf('f:')===0){
+          const k = key.slice(2), fl = (ev.fields||[]).find(x=>x.k===k);
+          v = String(refPhone(fl, v)).replace(/\r/g,'').trim();
+          if(!v) return;
+          if(!(fl && fl.type==='textarea')) v = v.replace(/\n+/g,'　');
+          f[k] = f[k] ? f[k]+'　'+v : v;
+        } else {
+          const q = Number(String(v).replace(/[^\d.]/g,''))||0;
+          if(q) fee[key.slice(2)] = q;
+        }
+      });
+      if(!f.reporter) return;
+      out.push({id:uid(), f, fee, ref:true, sheet:sh.name, row:d.row, createdAt:Date.now()});
+    });
+  });
+  return out;
+}
+async function refSaveAll(eventId, records){
+  const key = 'regs:ref:'+eventId;
+  const old = await db.collection('regs').where('eventId','==','ref:'+eventId).get();
+  const docs = []; old.forEach(d=>docs.push(d.ref));
+  for(let i=0; i<docs.length; i+=400){ const bt = db.batch(); docs.slice(i,i+400).forEach(r=>bt.delete(r)); await bt.commit(); }
+  for(let i=0; i<records.length; i+=400){ const bt = db.batch(); records.slice(i,i+400).forEach(it=>bt.set(db.collection('regs').doc(it.id), {eventId:'ref:'+eventId, payload:it})); await bt.commit(); }
+  return key;
+}
+function openRefImport(ev){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.xlsx,.xls,.xlsm';
+  inp.onchange = async ()=>{
+    const file = inp.files && inp.files[0];
+    if(!file) return;
+    let wb;
+    try{ wb = XLSX.read(await file.arrayBuffer(), {type:'array'}); }
+    catch(e){ showToast('⚠️ 讀不到這個 Excel：'+(e && e.message || ''), 5000); return; }
+    const sheets = wb.SheetNames.map(n=>{ const s = refReadSheet(wb.Sheets[n], ev); return s ? {...s, name:n} : null; }).filter(Boolean);
+    if(!sheets.length){ showToast('⚠️ 這個檔案找不到「報名者姓名」的表頭，請確認是報名資料表', 5000); return; }
+    refImportModal(ev, file.name, sheets);
+  };
+  inp.click();
+}
+function refImportModal(ev, fileName, sheets){
+  const opts = `<option value="">（不匯入）</option>` +
+    (ev.fields||[]).map(f=>`<option value="f:${escHtml(f.k)}">欄位：${escHtml(f.label)}</option>`).join('') +
+    (ev.mode!=='items' ? (ev.fees||[]).map(f=>`<option value="x:${escHtml(f.k)}">數量：${escHtml(f.label)}</option>`).join('') : '');
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="max-width:640px;max-height:88vh;overflow-y:auto;">
+    <h3 style="margin:0 0 6px;color:var(--vermilion);">📥 匯入去年 Excel（同去年參考）</h3>
+    <p class="hint" style="margin:0 0 10px;">場次：<b>${escHtml(ev.name)}</b>　檔案：${escHtml(fileName)}<br>信徒說「同去年」時，只會從這份資料找。重新匯入會取代這場原本的參考資料；不會動到報名名單。請勾要用的工作表，並看一下每一欄對到哪裡。</p>
+    ${sheets.map((sh,si)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:700;margin:0 0 6px;"><input type="checkbox" data-refsheet="${si}" ${sh.map.filter(Boolean).length>=2?'checked':''} style="width:auto;min-height:0;"> ${escHtml(sh.name)}　<span class="hint" style="margin:0;font-weight:500;">${sh.data.length} 筆（有報名者姓名的列）</span></label>
+      ${sh.head.map((hd,ci)=> String(hd).trim() ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:3px 0;font-size:13px;">
+        <span style="flex:1;min-width:140px;">${escHtml(String(hd).replace(/\n/g,' '))}</span>
+        <select data-refcol="${si}:${ci}" style="width:auto;min-width:180px;">${opts.replace(`value="${escHtml(sh.map[ci])}"`, `value="${escHtml(sh.map[ci])}" selected`)}</select></div>` : '').join('')}
+    </div>`).join('')}
+    <div class="row-actions">
+      <button class="btn btn-primary" id="ref_ok">匯入</button>
+      <button class="btn btn-ghost" id="ref_cancel">取消</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#ref_cancel').onclick = ()=>bg.remove();
+  const okBtn = bg.querySelector('#ref_ok');
+  okBtn.onclick = async ()=>{
+    const use = sheets.filter((sh,si)=>bg.querySelector(`[data-refsheet="${si}"]`).checked);
+    use.forEach(sh=>{ const si = sheets.indexOf(sh); sh.map = sh.head.map((hd,ci)=>{ const sel = bg.querySelector(`[data-refcol="${si}:${ci}"]`); return sel ? sel.value : ''; }); });
+    if(!use.length){ showToast('請至少勾一張工作表'); return; }
+    if(use.some(sh=>sh.map.indexOf('f:reporter')<0)){ showToast('每張勾選的工作表都要有一欄對到「報名者」姓名', 4000); return; }
+    const recs = refBuildRecords(ev, use);
+    if(!recs.length){ showToast('⚠️ 沒有讀到任何一筆（報名者姓名都是空的？）', 4000); return; }
+    okBtn.disabled = true; okBtn.textContent = '匯入中…';
+    const t0 = Date.now();
+    try{
+      await refSaveAll(ev.id, recs);
+      refCache[ev.id] = recs;
+      ev.sameRef = {file:fileName, sheets:use.map(sh=>sh.name), count:recs.length, at:Date.now(), by:(staff && staff.name) || ''};
+      const ok = await saveEvents();
+      bg.remove();
+      showToast(ok ? `已匯入 ${recs.length} 筆去年資料（${Math.round((Date.now()-t0)/1000)} 秒），之後「同去年」只參考這份` : '⚠️ 參考資料已存，但場次設定沒存到，請再匯入一次', 5000);
+      render();
+    }catch(e){
+      console.error('ref import', e);
+      okBtn.disabled = false; okBtn.textContent = '匯入';
+      showToast('⚠️ 匯入失敗（'+(e && e.code==='permission-denied' ? '這個帳號沒有權限，請確認是啟用中的志工' : (e && e.message || '網路問題'))+'），原本的參考資料可能已清掉，請再匯入一次', 6000);
+    }
+  };
 }
 let importForceEventId = '';
 // 依目前選的場次重新對應一筆（換場次時用）
@@ -2637,9 +2802,10 @@ function reanalyzeImportBlock(bi, eventId, why){
   const b = importBlocks[bi];
   const ev = events.find(e=>e.id===eventId) || null;
   const a = analyzeBlock(b, ev);
-  delete b.sameLast;
+  delete b.sameLast; delete b._extraCount;
   Object.assign(b, {eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain:false, why: why||'手動選擇', learn:{}});
   applySameAsLast(b, ev);
+  sameLastExpand();
   sameLastPreload();
 }
 
@@ -3542,12 +3708,20 @@ function renderEventManager(){
   const ev = events.find(e=>e.id===adminSelectedEvent);
   if(ev){
     if(ev.active===false) html += `<p class="hint" style="margin:0 0 8px;">這場已結束（已關閉報名），信眾看不到也不能報名；報名資料完整保留在後台。要再開放請按「重新開放報名」。</p>`;
+    // v4.50：同去年參考（這場匯入的去年 Excel）
+    if(ev.active!==false){
+      const sr = ev.sameRef;
+      const d = sr && sr.at ? new Date(sr.at) : null;
+      html += `<p class="hint" style="margin:0 0 8px;">🔁 同去年參考：${sr ? `<b>${escHtml(sr.file||'')}</b>（${escHtml((sr.sheets||[]).join('、'))}）共 ${Number(sr.count)||0} 筆${d?`，${d.getFullYear()-1911}/${d.getMonth()+1}/${d.getDate()} ${escHtml(sr.by||'')} 匯入`:''}` : '<span style="color:var(--vermilion);">還沒匯入。信徒說「同去年」時要靠這份，請按「📥 匯入去年 Excel」</span>'}</p>`;
+    }
+    if(ev.active===false){}
     else if(ev.draft) html += `<p class="hint" style="margin:0 0 8px;color:var(--vermilion);">這場還在準備中，報名網站看不到。請先「編輯報名欄位／費用」「編輯場次資料」，確認無誤再按「✅ 開放報名」。</p>`;
     html += `<div class="row-actions">
       <button class="btn btn-ghost btn-sm" id="editFieldsBtn">編輯報名欄位／費用</button>
       <button class="btn btn-ghost btn-sm" id="editEventInfoBtn">編輯場次資料</button>
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
+      ${ev.active!==false ? `<button class="btn btn-ghost btn-sm" id="refImportBtn">📥 匯入去年 Excel</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
       <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
       <button class="btn btn-ghost btn-sm" id="lineFmtBtn">💬 LINE 報名格式</button>
@@ -4803,6 +4977,8 @@ function bindEvents(){
 
   const newBtn = document.getElementById('newEventBtn');
   if(newBtn) newBtn.onclick = openNewEventModal;
+  const refImportBtn = document.getElementById('refImportBtn');
+  if(refImportBtn) refImportBtn.onclick = ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(ev) openRefImport(ev); };
   const copyEventBtn = document.getElementById('copyEventBtn');
   if(copyEventBtn) copyEventBtn.onclick = ()=>openCopyEventModal(adminSelectedEvent);
   // v4.33：範本庫、LINE 報名格式、匯出設定
@@ -5577,6 +5753,7 @@ function openCopyEventModal(eventId){
     copy.note = bg.querySelector('#cp_note').value.trim();
     copy.active = true;
     copy.draft = true;
+    delete copy.sameRef;   // v4.50：去年 Excel 參考每場自己匯入
     const posterChk = bg.querySelector('#cp_poster');
     if(!(posterChk && posterChk.checked)){ delete copy.posterImages; delete copy.posterImage; }
     events.push(copy);
