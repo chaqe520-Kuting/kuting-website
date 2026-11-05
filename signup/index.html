@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.60 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.61 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.61（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：標題是地基主、名字寫在「陽世者姓名」時，自動放到地基主姓名、地址放到地基主地址</li>
+        <li>「⋯⋯⋯」「-----」分隔線當作換下一位；「地址:：」多打一個冒號也能認</li>
+      </ul>
       <b>v4.60（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上辨識加強：「地址」跟著前一個姓名放（祖先地址、倒房／副蓮位地址、地基主地址不再互相蓋掉），「同上」不會蓋掉前面的地址</li>
@@ -2121,6 +2126,8 @@ function normalizeImportText(text){
     .replace(/\u00A0/g, ' ')              // 不斷行空格 -> 一般空格
     .replace(/[\u200B-\u200D\uFEFF]/g, '') // 零寬字元、BOM -> 直接移除
     .replace(/[：﹕︰]/g, '：')             // 各種全形冒號變體 -> 統一
+    .replace(/[:：][ \t]*[:：]/g, '：')       // v4.61：「牌位地址:：台南市…」兩個冒號 -> 一個
+    .replace(/^[ \t]*[⋯…．.。\-－—─━=＝_＿~～*＊·•]{3,}[ \t]*$/gm, '')   // v4.61：「⋯⋯⋯」「-----」分隔線 -> 空行（換下一位）
     // v4.60：「①」「一、」開頭的編號 -> 「1.」
     .replace(/^([ \t]*)([①-⑳])\s*/gm, (m,sp,c)=>sp+(c.charCodeAt(0)-0x245F)+'.')
     .replace(/^([ \t]*)([一二三四五六七八九]|十[一二三四五六七八九]?)[、．.]\s*/gm, (m,sp,c)=>{ const d='一二三四五六七八九'; const n = c.length===1 ? (c==='十'?10:d.indexOf(c)+1) : 10+d.indexOf(c[1])+1; return sp+n+'.'; })
@@ -2803,7 +2810,9 @@ function applyHeaderFee(ev, header, mapped, guessed){
   // 1) 費用指定的姓名欄（例：小蓮位→副蓮位姓名）是空的，名字卻填在同類別另一個費用的姓名欄 → 搬過去，地址一起搬
   const T = fl.auto && fl.auto.k;
   if(T && !has(T)){
-    const S = (ev.fees||[]).map(x=>x.auto && x.auto.k).find(k=>k && k!==T && has(k) && inCat(fields.find(f=>f.k===k)||{}));
+    let S = (ev.fees||[]).map(x=>x.auto && x.auto.k).find(k=>k && k!==T && has(k) && inCat(fields.find(f=>f.k===k)||{}));
+    // v4.61：標題是地基主、名字卻寫在「陽世者姓名」→ 搬到地基主姓名（地址一起搬）
+    if(!S){ const g = fields.find(f=>f.k!==T && has(f.k) && inCat(f) && (f.type||'text')!=='radio' && !isAddrField(f) && !isAncestorField(f) && !f.isShared && !/備註/.test(f.label||'')); if(g) S = g.k; }
     if(S){
       const sa = pairedAddrField(ev, S), ta = pairedAddrField(ev, T);
       move(S, T);
