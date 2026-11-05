@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.62 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.63 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.63（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：地基主沒寫「地址」兩個字、直接寫地址那行，也會放到地基主地址；標題金額沒寫「元」（例「地基主小牌位.1000」）也認得</li>
+      </ul>
       <b>v4.62（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上匯入預覽：每個費用項目標示單價（例：5,000 元／份），下面顯示合計，改數量時合計跟著變</li>
@@ -2735,7 +2739,8 @@ function feeFromHeaderText(ev, text){
   if(!ev || !evHasCond(ev)) return null;
   let t = normalizeKeyword(synLabel(ev, text));
   if(/姓氏祖先|歷代祖先/.test(t)) t += '一戶祖先';
-  const prices = (t.match(/\d[\d,]*(?=元)/g)||[]).map(x=>Number(x.replace(/,/g,'')));
+  // v4.63：金額沒寫「元」也算（例「地基主小牌位.1000」）；不算年份、電話這種長數字
+  const prices = (t.match(/(?<!\d)\d{1,2},\d{3}(?!\d)|(?<!\d)\d{3,5}(?![\d年月])/g)||[]).map(x=>Number(x.replace(/,/g,'')));
   const scored = (ev.fees||[]).filter(fl=>fl.mode!=='amount').map(fl=>{
     let sc = prices.includes(Number(fl.price)) ? 3 : 0;
     feeTokens(ev, fl).forEach(k=>{ if(t.includes(k)) sc += /^[主副](蓮位|牌位)$/.test(k) ? 1 : 2; });
@@ -2811,6 +2816,7 @@ function applyHeaderFee(ev, header, mapped, guessed){
     if(!condOk(fl, vals)){ vals[pk] = (fl.showIf.v||[])[0]; guessed[pk] = true; }
   }
   const inCat = f=>(!f.showIf || !f.showIf.k) ? false : condOk(f, vals);
+  relocateCat();   // v4.63：先把放到別的類別的欄位搬回來，再對應地基主／副蓮位
   // 1) 費用指定的姓名欄（例：小蓮位→副蓮位姓名）是空的，名字卻填在同類別另一個費用的姓名欄 → 搬過去，地址一起搬
   const T = fl.auto && fl.auto.k;
   if(T && !has(T)){
