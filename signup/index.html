@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.57 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.58 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.58（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>從 LINE 貼上快速匯入：認得梁皇寶懺舊範例標題「(個人或公司主牌位3600元)」「(已逝先人小蓮位1000元)」，自動勾費用、選報名類別</li>
+        <li>陽世者、地基主地址、小蓮位（副蓮位）姓名與地址自動放到對的欄位（搬過的標黃色請確認）；多則黏在一起沒空行時，標題也不會跑到上一位</li>
+      </ul>
       <b>v4.57（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>梁皇寶懺範本的填寫範例改用遮蔽的姓名、地址（王○明、○○路○號），避免個資外洩</li>
@@ -2120,8 +2125,10 @@ function parseLineBlocks(text){
     let headerLines = [];
     let currentGroupKey = null;
     let entries = null;
+    let pendingHdr = [];
 
     function flush(){
+      if(pendingHdr.length){ pendingHdr.forEach(pushFree); pendingHdr = []; }
       if(entries && entries.length){
         blocks.push({header: headerLines.join(' ').trim(), entries});
       }
@@ -2157,6 +2164,9 @@ function parseLineBlocks(text){
           pushFree(line);
           return;
         }
+        // v4.58：多則黏在一起沒空行時，下一則的標題（例：「…填寫範例2」「(個人或公司小牌位1000元)」）先暫放，
+        // 下一行是「1.」就當下一位的標題，不是的話才算這一位的內容
+        if(hasNumbered && !/[:：]/.test(line) && (/報名|法會|範例|登記|【|〔|\[/.test(line) || /^[(（][^)）]*\d\s*元[^)）]*[)）]$/.test(line))){ pendingHdr.push(line); return; }
         pushFree(line);
         return;
       }
@@ -2180,10 +2190,12 @@ function parseLineBlocks(text){
       }
 
       if(startsNewBlock){
+        const hadEntries = entries!==null, hdr = pendingHdr;
+        pendingHdr = [];
         flush();
         entries = [];
-        headerLines = [];
-      }
+        if(hadEntries) headerLines = hdr;   // v4.58：第一位前面的標題行（例：「(個人或公司主牌位3600元)」）要保留
+      } else if(pendingHdr.length){ pendingHdr.forEach(pushFree); pendingHdr = []; }
       currentGroupKey = n;
       // 分組格式的第二個數字（例如 "3-1." 的 "1"）直接指定要對應到第幾個欄位，
       // 不依賴這行文字在貼上內容裡「第幾個出現」，這樣就算漏填、順序亂掉也不會對錯欄位
@@ -2630,15 +2642,86 @@ function fixMislabeled(ev, mapped){
     if(bad){ delete mapped.fields[f.k]; mapped.unmapped.push({label:'', value:v, raw:v}); }
   });
 }
+/* v4.58（小朱 115 梁皇 LINE 舊範例）：標題那行「(個人或公司主牌位3600元)」「(已逝先人小蓮位1000元)」
+   用「金額＋項目字眼」判斷是哪一個費用；只用在有「依類別顯示」的場次（例：梁皇寶懺範本）。
+   小牌位＝副牌位、小蓮位＝副蓮位、姓氏祖先＝一戶祖先。主蓮位／副蓮位／主牌位／副牌位這類字算 1 分，
+   其他字眼（個人、公司、地基主、已逝先人…）算 2 分，金額相同算 3 分；最高分要 ≥4 且只有一個才算數。 */
+function feeFromHeaderText(ev, text){
+  if(!ev || !evHasCond(ev)) return null;
+  let t = normalizeKeyword(String(text||'')).replace(/小(蓮位|牌位)/g,'副$1');
+  if(/姓氏祖先|歷代祖先/.test(t)) t += '一戶祖先';
+  const prices = (t.match(/\d[\d,]*(?=元)/g)||[]).map(x=>Number(x.replace(/,/g,'')));
+  const scored = (ev.fees||[]).filter(fl=>fl.mode!=='amount').map(fl=>{
+    const toks = new Set([...String(fl.label||'').split(/[（）()／\/、\s]+/), ...(fl.keywords||[])].map(normalizeKeyword).filter(x=>x.length>=2));
+    let sc = prices.includes(Number(fl.price)) ? 3 : 0;
+    toks.forEach(k=>{ if(t.includes(k)) sc += /^[主副](蓮位|牌位)$/.test(k) ? 1 : 2; });
+    return {fl, sc};
+  }).sort((a,b)=>b.sc-a.sc);
+  if(!scored.length || scored[0].sc<4 || (scored[1] && scored[1].sc===scored[0].sc)) return null;
+  return scored[0].fl;
+}
+// 欄位下一格是地址欄 → 這是它的地址（主蓮位→主蓮位地址、地基主姓名→地基主地址）
+function pairedAddrField(ev, k){
+  const fs = ev.fields||[]; const i = fs.findIndex(f=>f.k===k);
+  return i>=0 && fs[i+1] && isAddrField(fs[i+1]) && !isAddrField(fs[i]) ? fs[i+1] : null;
+}
+function pairedNameField(ev, k){
+  const fs = ev.fields||[]; const i = fs.findIndex(f=>f.k===k);
+  return i>0 && isAddrField(fs[i]) && !isAddrField(fs[i-1]) ? fs[i-1] : null;
+}
+// 依標題判斷出的費用，補上類別，並把放錯格的姓名／地址搬到對的欄位（搬過的標黃色請確認）
+function applyHeaderFee(ev, header, mapped, guessed){
+  const extra = (mapped.unmapped||[]).filter(en=>/\d\s*元/.test(en.raw||en.value||''));
+  const fl = feeFromHeaderText(ev, [header||'', ...extra.map(en=>en.raw||en.value)].join(' '));
+  if(!fl) return null;
+  if(extra.length) mapped.unmapped = mapped.unmapped.filter(en=>!extra.includes(en));
+  const vals = mapped.fields;
+  const has = k=>!!String(vals[k]||'').trim();
+  const move = (from, to)=>{ vals[to] = vals[from]; delete vals[from]; guessed[to] = true; delete guessed[from]; };
+  if(fl.showIf && fl.showIf.k){
+    const pk = fl.showIf.k;
+    if(has(pk) && !guessed[pk] && !condOk(fl, vals)) return null;  // 信眾自己寫了別的類別，以信眾寫的為準
+    if(!condOk(fl, vals)){ vals[pk] = (fl.showIf.v||[])[0]; guessed[pk] = true; }
+  }
+  const fields = ev.fields||[];
+  const inCat = f=>(!f.showIf || !f.showIf.k) ? false : condOk(f, vals);
+  // 1) 費用指定的姓名欄（例：小蓮位→副蓮位姓名）是空的，名字卻填在同類別另一個費用的姓名欄 → 搬過去，地址一起搬
+  const T = fl.auto && fl.auto.k;
+  if(T && !has(T)){
+    const S = (ev.fees||[]).map(x=>x.auto && x.auto.k).find(k=>k && k!==T && has(k) && inCat(fields.find(f=>f.k===k)||{}));
+    if(S){
+      const sa = pairedAddrField(ev, S), ta = pairedAddrField(ev, T);
+      move(S, T);
+      if(sa && ta && has(sa.k) && !has(ta.k)) move(sa.k, ta.k);
+    }
+  }
+  // 2) 姓名有了、地址卻放在別的姓名的地址欄（例：地基主地址放到住家地址）→ 搬到這個姓名的地址欄
+  if(T && has(T)){
+    const ta = pairedAddrField(ev, T);
+    if(ta && !has(ta.k)){
+      const A = fields.find(f=>f.k!==ta.k && isAddrField(f) && has(f.k) && inCat(f) && (()=>{ const n = pairedNameField(ev, f.k); return n && !has(n.k); })());
+      if(A) move(A.k, ta.k);
+    }
+  }
+  // 3) 填在另一個類別的欄位（例：祖先蓮位寫「陽世者姓名」被放到消災的陽世者）→ 搬到這個類別同性質的空欄位
+  fields.forEach(f=>{
+    if(!has(f.k) || !f.showIf || !f.showIf.k || condOk(f, vals)) return;
+    const to = fields.find(g=>g.k!==f.k && inCat(g) && !has(g.k) && (g.type||'text')!=='radio' && isAddrField(g)===isAddrField(f) && isAncestorField(g)===isAncestorField(f));
+    if(to) move(f.k, to.k);
+  });
+  return fl;
+}
 function analyzeBlock(b, ev){
   const mapped = buildMappedEntries(b.rawEntries || b.entries, ev);
   fixMislabeled(ev, mapped);
   const guessed = guessUnmapped(ev, mapped);
   const fee = {};
   if(ev){
+    const hf = applyHeaderFee(ev, b.header||'', mapped, guessed);   // v4.58
     inferShowIfChoice(ev, mapped.fields).forEach(k=>{ guessed[k] = true; });   // v4.51
     Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
     Object.assign(fee, guessFees(b.header||'', ev));
+    if(hf && !(Number(fee[hf.k])>0)) fee[hf.k] = 1;
     Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
   }
   return {mapped, fee, guessed};
