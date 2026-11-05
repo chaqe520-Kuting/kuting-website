@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.72 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.73 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.73（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>報名管理每筆多「📨 LINE 報名成功」「💰 LINE 收款確認」：由小幫手私訊卡片給信徒（需小幫手 v1.55）。從 LINE 待確認帶入的報名會記住是哪位 LINE 好友；手動輸入的用報名姓名找以前私訊過的好友</li>
+        <li>點「未收款」改成已收款時，這筆是 LINE 帶入的會問要不要傳收款確認；傳過的按鈕顯示「✓ 已傳」</li>
+      </ul>
       <b>v4.72（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 待確認：場次還在準備中時，小幫手收到的訊息標「🧪 測試（場次準備中或志工測試）」，不再只寫志工測試（配合小幫手 v1.50～v1.54：關閉的平台不收、準備中的法會直接收）</li>
@@ -3341,6 +3346,65 @@ function reanalyzeImportBlock(bi, eventId, why){
   sameLastPreload();
 }
 
+/* v4.73：法會後台用小幫手私訊「報名成功」「收款確認」卡片（小幫手 v1.55 起） */
+function importLineSource(b){
+  const docs = lineInboxDocs.filter(m=>lineInboxInImport.includes(m.id) && m.sourceType!=='group');
+  if(!docs.length) return null;
+  if(docs.length===1) return docs[0];
+  const nm = String((b.mapped && b.mapped.fields && b.mapped.fields.reporter) || '').split(/[、,，\s]+/)[0];
+  const hit = nm ? docs.filter(m=>lineInboxText(m).includes(nm)) : [];
+  return hit.length===1 ? hit[0] : null;
+}
+function fahuiNoticeCard(ev, r, kind){
+  const rows = [];
+  const nt = n=>'NT$'+(Number(n)||0).toLocaleString();
+  if(ev.mode==='items'){
+    (r.items||[]).forEach(it=>rows.push({label:it.itemName||'', qty:'×'+(it.qty||0), amount:nt((it.qty||0)*(it.price||0))}));
+  } else {
+    (ev.fees||[]).forEach(fl=>{
+      const q = Number((r.fee||{})[fl.k])||0;
+      if(!q) return;
+      rows.push(fl.mode==='amount' ? {label:fl.label, qty:'', amount:nt(q)} : {label:fl.label, qty:'×'+q, amount:nt(q*(Number(fl.price)||0))});
+    });
+  }
+  if(!rows.length) rows.push({label:'法會報名', qty:'', amount:''});
+  const sum = regSummaryText(ev, r);
+  if(sum) rows[rows.length-1].extra = sum.slice(0,110);
+  const d = new Date();
+  return {kind: kind==='paid'?'paid':'', name: String(r.f.reporter||'').slice(0,30), occasion: ev.name, rows,
+    total: nt(r.total), payStatus: r.paid?'已收款':'待收款', payColor: r.paid?'#2e7d32':'#b26a00',
+    time: `${d.getFullYear()-1911}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+}
+async function fahuiLinePush(regId, kind, quiet){
+  const ev = events.find(e=>e.id===adminSelectedEvent);
+  const r = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
+  if(!ev || !r) return false;
+  const who = r.lineName ? `LINE「${r.lineName}」` : `「${r.f.reporter||''}」的 LINE（用報名姓名找）`;
+  if(!quiet && !(await showConfirm(`由小幫手把「${escHtml(r.f.reporter||'')}」的${kind==='paid'?'<b>收款確認</b>（已收到您的護持）':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}？<br><span style="font-size:13px;color:var(--muted);">會用到 LINE 官方帳號每月的免費訊息則數</span>`))) return false;
+  const url = linebotUrl(false);
+  if(!url) return false;
+  const t0 = Date.now();
+  showToast('小幫手傳送中…', 2000);
+  try{
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'notify', from:'fahui', idToken, msgId: r.lineMsgId||'', lineUserId: r.lineUserId||'', name: r.f.reporter||'', card: fahuiNoticeCard(ev, r, kind)})});
+    const out = await res.json();
+    if(!out || !out.ok){ showToast('沒有傳出去：'+((out && out.error) || '小幫手沒有回應') + ((out && /action|不支援|不是啟用/.test(out.error||'')) ? '（小幫手可能還不是 v1.55）' : ''), 6000); return false; }
+    const updated = {...r};
+    if(out.userId) updated.lineUserId = out.userId;
+    if(out.to) updated.lineName = String(out.to).slice(0,40);
+    updated[kind==='paid' ? 'linePaidPushedAt' : 'linePushedAt'] = Date.now();
+    if(await updateReg(adminSelectedEvent, r.id, updated)) Object.assign(r, updated);
+    showToast(`已傳${kind==='paid'?'收款確認':'報名成功通知'}給 LINE「${out.to||r.lineName||''}」（${Math.round((Date.now()-t0)/1000)} 秒）`, 4000);
+    render();
+    return true;
+  }catch(e){
+    console.error('linebot notify', e);
+    if(confirm('連不到小幫手（可能是網址不對，或小幫手還沒更新）。要重新輸入小幫手網址嗎？')) linebotUrl(true);
+    return false;
+  }
+}
+
 async function confirmImport(){
   let count = 0;
   const byEvent = {};
@@ -3371,6 +3435,9 @@ async function confirmImport(){
       rec.fee = {...b.fee};
       rec.total = calcTotal(ev, f, rec.fee, []);
     }
+    // v4.73：從 LINE 待確認帶入的報名記住是哪則訊息、哪位 LINE 好友，之後可用小幫手私訊報名成功／收款確認
+    const lsrc = importLineSource(b);
+    if(lsrc){ rec.lineMsgId = lsrc.id; if(lsrc.userId) rec.lineUserId = lsrc.userId; if(lsrc.displayName) rec.lineName = String(lsrc.displayName).slice(0,40); }
     if(!byEvent[ev.id]) byEvent[ev.id] = [];
     byEvent[ev.id].push(rec);
     count++;
@@ -4383,6 +4450,8 @@ function renderRegTable(ev){
       <td><span class="pill ${r.confirmed?'ok':'pending'}" data-toggleok="${escHtml(r.id)}" style="cursor:pointer">${r.confirmed?'已確認':'待確認'}</span></td>
       <td class="row-actions">
         <button class="btn btn-ghost btn-sm" data-edit="${escHtml(r.id)}">編輯</button>
+        <button class="btn btn-ghost btn-sm" data-linepush="${escHtml(r.id)}" title="由 LINE 小幫手私訊報名成功通知${r.lineName?'給「'+escHtml(r.lineName)+'」':'（用報名姓名找 LINE 好友）'}">${r.linePushedAt?'✓ 已傳報名':'📨 LINE 報名成功'}</button>
+        ${r.paid?`<button class="btn btn-ghost btn-sm" data-linepaid="${escHtml(r.id)}" title="由 LINE 小幫手私訊收款確認">${r.linePaidPushedAt?'✓ 已傳收款':'💰 LINE 收款確認'}</button>`:''}
         <button class="btn btn-danger btn-sm" data-del="${escHtml(r.id)}">刪除</button>
       </td>
     </tr>`;
@@ -5642,8 +5711,12 @@ function bindEvents(){
       if(!ok) return;
       finSyncFields(r, updated);
       render();
+      // v4.73：改成已收款、這筆是從 LINE 帶入的 → 問要不要用小幫手私訊收款確認
+      if(updated.paid && r.lineUserId && !r.linePaidPushedAt) fahuiLinePush(id, 'paid');
     };
   });
+  document.querySelectorAll('[data-linepush]').forEach(el=>{ el.onclick = ()=>fahuiLinePush(el.dataset.linepush, ''); });
+  document.querySelectorAll('[data-linepaid]').forEach(el=>{ el.onclick = ()=>fahuiLinePush(el.dataset.linepaid, 'paid'); });
   document.querySelectorAll('[data-toggleok]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.dataset.toggleok;
