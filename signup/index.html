@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.75 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.76 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.76（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>「📋 這次共幾筆報名」統計表移到「確認並產生報名資料」按鈕正上方，看完統計直接按確認</li>
+      </ul>
       <b>v4.75（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>我要報名：志工登入後打「報名者姓名」，有匯入去年 Excel 的場次會列出這位去年報了哪些，按「帶入去年報名」自動填好報名類別、姓名、地址與份數（一筆一個牌位，不夠會自動再加一個）</li>
@@ -4335,7 +4339,7 @@ function importSummaryHtml(){
     <div style="font-weight:700;color:var(--vermilion);font-size:17px;">📋 這次共 ${inc.length} 筆報名，合計 ${money(grand)} 元${skip?`<span style="font-size:13px;color:var(--muted);font-weight:400;">（另有 ${skip} 筆不匯入）</span>`:''}</div>
     <div class="tbl-wrap" style="margin-top:6px;"><table><thead><tr><th>#</th><th>報名者</th><th>報名項目</th><th>金額</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
     ${order.length?`<div class="tbl-wrap" style="margin-top:6px;"><table><thead><tr><th>項目統計</th><th>份數</th><th>單價</th><th>小計</th></tr></thead><tbody>${feeRows}<tr><td colspan="3" style="text-align:right;font-weight:700;">總計</td><td style="text-align:right;font-weight:700;color:var(--vermilion);white-space:nowrap;">${money(grand)}</td></tr></tbody></table></div>`:''}
-    <div class="hint">請核對筆數和金額；下面每一筆改了份數，這裡會跟著更新。</div>
+    <div class="hint">請核對筆數和金額；上面每一筆改了份數，這裡會跟著更新。沒問題再按下面「確認並產生報名資料」。</div>
   </div>`;
 }
 function renderImportPanel(){
@@ -4369,7 +4373,6 @@ function renderImportPanel(){
       <select id="importForceSel"><option value="">🤖 每一筆自動判斷</option>${adminOpenEvents().map(e=>`<option value="${e.id}" ${e.id===importForceEventId?'selected':''}>${escHtml(e.name)}${e.draft?'（準備中）':''}</option>`).join('')}</select>
       <div class="hint">${nUnc ? `<b style="color:var(--vermilion);">有 ${nUnc} 筆場次不確定（紅框），請確認。</b>` : '每筆的場次都有判斷依據，仍可在每筆右上角修改。'} 黃色欄位是系統依內容猜的，請看一下對不對。</div>
     </div>`;
-    html += `<div id="importSummary">${importSummaryHtml()}</div>`;   // v4.74 總筆數、明細、統計金額
     importBlocks.forEach((b,bi)=>{
       const ev = events.find(e=>e.id===b.eventId);
       html += `<div class="card" style="background:#FBF6EA;margin-bottom:12px;${b.uncertain&&b.include?'border:2px solid var(--vermilion);':''}">
@@ -4419,6 +4422,7 @@ function renderImportPanel(){
       }
       html += `</div>`;
     });
+    html += `<div id="importSummary">${importSummaryHtml()}</div>`;   // v4.74 總筆數、明細、統計金額（v4.76 移到「確認並產生報名資料」正上方）
     html += `<div class="row-actions">
       <button class="btn btn-primary" id="confirmImportBtn">確認並產生報名資料</button>
       <button class="btn btn-ghost" id="discardImportBtn">放棄本次匯入</button>
