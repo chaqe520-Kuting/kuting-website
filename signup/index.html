@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.52 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.53 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.53（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>依報名類別的場次（梁皇寶懺）：報名清單「內容摘要」只列有報名的項目，例「地基主（副蓮位）×1」「個人／公司（主牌位）×1、個人／公司（副牌位）×1」</li>
+      </ul>
       <b>v4.52（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>修正：「新增法會場次」的範本選單漏了「梁皇寶懺（祖先＋個人／地基主，依類別顯示）」（小朱回報找不到）</li>
@@ -1415,9 +1419,21 @@ function staffActive(){ return !!(staff && staff.active); }
 function finRegSummary(r){
   const ev = events.find(e=>e.id===adminSelectedEvent);
   if(!ev) return '';
-  return ev.mode==='items'
-    ? (r.items||[]).map(it=>`${it.itemName}×${it.qty}`).join('、')
-    : getRepeatFields(ev).filter(f=>f.type!=='textarea').map(f=>(r.f||{})[f.k]).filter(Boolean).slice(0,2).join(' / ');
+  return regSummaryText(ev, r);
+}
+/* v4.53：小朱：依報名類別的場次（例：梁皇寶懺），內容摘要只列有報名的項目，例「地基主（副蓮位）×1」
+   「個人／公司（主牌位）×1、個人／公司（副牌位）×1」；其他場次照舊顯示前兩個欄位 */
+function regSummaryText(ev, r){
+  if(ev.mode==='items') return (r.items||[]).map(it=>`${it.itemName}×${it.qty}`).join('、');
+  if(evHasCond(ev)){
+    const got = (ev.fees||[]).map(fl=>{
+      const q = Number((r.fee||{})[fl.k])||0;
+      if(!q) return '';
+      return fl.mode==='amount' ? `${fl.label} ${money(q)} 元` : `${fl.label}×${q}`;
+    }).filter(Boolean);
+    if(got.length) return got.join('、');
+  }
+  return getRepeatFields(ev).filter(f=>f.type!=='textarea').map(f=>(r.f||{})[f.k]).filter(Boolean).slice(0,2).join(' / ');
 }
 const FIN_FIELDS = ['paid','finEntryIds','finEntryId','finMatches','finMatch','finLog'];
 function finSyncFields(r, updated){ FIN_FIELDS.forEach(k=>{ if(k in updated) r[k] = updated[k]; else delete r[k]; }); }
@@ -3957,9 +3973,7 @@ function renderRegTable(ev){
   </tr></thead><tbody>`;
   pageRegs.forEach((r,i)=>{
     // v4.4：報名資料來自公開表單，輸出到後台一律做 HTML 跳脫，避免有人在欄位裡塞程式碼
-    const summary = escHtml(ev.mode==='items'
-      ? (r.items||[]).map(it=>`${it.itemName}×${it.qty}`).join('、')
-      : getRepeatFields(ev).filter(f=>f.type!=='textarea').map(f=>r.f[f.k]).filter(Boolean).slice(0,2).join(' / '));
+    const summary = escHtml(regSummaryText(ev, r));
     html += `<tr>
       <td><input type="checkbox" class="reg-select-cb" data-id="${escHtml(r.id)}" ${selectedRegIds.has(r.id)?'checked':''}></td>
       <td>${startIdx+i+1}</td>
