@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.76 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.77 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.77（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>我要報名打姓名：這場有匯入去年 Excel 時，只帶出這場的去年報名，不再出現「📇 老信眾」（那份是各平台合在一起，會帶到供品贊助的資料）</li>
+      </ul>
       <b>v4.76（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「📋 這次共幾筆報名」統計表移到「確認並產生報名資料」按鈕正上方，看完統計直接按確認</li>
@@ -1739,6 +1743,9 @@ function bindContactHint(pf){
   const ev = events.find(e=>e.id===publicSelectedEvent);
   const rep = pf.querySelector('[name="reporter"]');
   if(!ev || !rep) return;
+  // v4.77（小朱）：老信眾資料是各平台合在一起的（會帶出供品贊助的地址、電話）；
+  // 這場有匯入去年 Excel 時只用這場自己的去年資料，不混供品、不混其他法會
+  if(ev.sameRef) return;
   fahuiContacts.attach(rep, null, c=>{
     const done = [];
     let addrDone = false;
