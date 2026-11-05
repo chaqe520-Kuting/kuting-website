@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.67 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.68 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.68（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：個人／公司主牌位也改成一人一份，依陽世者人數自動算（例：寫 4 位就是 4 份）</li>
+        <li>姓名用「.」「。」分隔（例「黃小裕.鄧小釧.」）也會算人數</li>
+      </ul>
       <b>v4.67（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>從 LINE 貼上快速匯入：「解析文字」旁邊加「🧹 清除文字」，一鍵清掉已貼上的文字</li>
@@ -1827,7 +1832,7 @@ const TEMPLATES = {
     ],
     lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
     addLabel: '＋ 再加一個牌位',
-    exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。（以下姓名、地址都是範例）\n① 超薦祖先：主蓮位「王氏歷代祖先」，牌位地址「○○市○○區○○路○號」，\n   副蓮位「王○明、王○華、王○美(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名，例「王○明」，地址可寫塔位「○○縣○○鄉○○寶塔」。\n③ 消災個人：陽世者「王○明、陳○英」，住家地址寫到門牌號，主牌位、副牌位數量自己填。\n④ 地基主：姓名「王○明」，地址「○○縣○○鄉○○村○○路○號」。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
+    exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。（以下姓名、地址都是範例）\n① 超薦祖先：主蓮位「王氏歷代祖先」，牌位地址「○○市○○區○○路○號」，\n   副蓮位「王○明、王○華、王○美(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名，例「王○明」，地址可寫塔位「○○縣○○鄉○○寶塔」。\n③ 消災個人：陽世者「王○明、陳○英」，住家地址寫到門牌號，主牌位、副牌位一人一份。\n④ 地基主：姓名「王○明」，地址「○○縣○○鄉○○村○○路○號」。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
   },
   birthday: {
     label: '聖誕供品贊助',
@@ -2581,7 +2586,7 @@ function condOk(item, vals){
   return (c.v||[]).includes(String((vals||{})[c.k]||'').trim());
 }
 function countNames(v){
-  return String(v||'').split(/[、,，;；\n\/…]+|\.{3,}/)
+  return String(v||'').split(/[、,，;；\n\/…。．.]+/)   // v4.68：「王小明.王小華.」用句點分隔也算
     .flatMap(p=>{ const ws = p.trim().split(/\s+/); return ws.length>1 && ws.every(w=>/^[一-鿿○〇Ｏ]{2,4}$/.test(w)) ? ws : [p]; })   // v4.60：「王小明 王小華」用空白隔開
     .map(x=>x.replace(/^[\s\d０-９.．、)）(（\-]+/,'').trim())
     .filter(x=>/[A-Za-z一-鿿À-ỹ]/.test(x)).length;
@@ -2837,7 +2842,7 @@ function applyHeaderFee(ev, header, mapped, guessed){
     const tk = (fl.auto && fl.auto.k) || (fields.find(f=>inCat0(f) && (f.type||'text')!=='radio' && !isAddrField(f) && !isAncestorField(f) && !f.isShared)||{}).k;
     if(!tk){ mapped.unmapped.push({label:fl.label, value:v, raw:v}); return; }
     vals[tk] = has(tk) ? vals[tk]+'、'+v : v; guessed[tk] = true;
-    if(!(fl.auto && fl.auto.k)) qtys[k] = /副|小/.test(fl.label||'') ? Math.max(1, countNames(v)) : 1;
+    if(!(fl.auto && fl.auto.k)) qtys[k] = Math.max(1, countNames(v));   // v4.68：主牌位也依人數
     notes.push(fl.label+'：'+v);
   });
   if(notes.length>1) vals.note = [vals.note, notes.join('；')].filter(Boolean).join('\n');
@@ -2907,8 +2912,8 @@ function analyzeBlock(b, ev){
     if(hf && hit.qty>0) fee[hf.k] = hit.qty;
     else if(hf && !(Number(fee[hf.k])>0)){
       fee[hf.k] = 1;
-      // v4.59（小朱）：副牌位／小牌位一人一份 → 依陽世者姓名人數算；主牌位一戶一份維持 1
-      if(/副|小/.test(hf.label||'') && !(hf.auto && hf.auto.k)){
+      // v4.59／v4.68（小朱）：主牌位、副牌位都是一人一份 → 依陽世者姓名人數算
+      if(!(hf.auto && hf.auto.k)){
         const nf = (ev.fields||[]).find(f=>f.showIf && f.showIf.k && condOk(f, mapped.fields) && String(mapped.fields[f.k]||'').trim()
           && (f.type||'text')!=='radio' && !isAddrField(f) && !isPhoneField(f) && !isAncestorField(f));
         const n = nf ? countNames(mapped.fields[nf.k]) : 0;
@@ -2924,7 +2929,18 @@ function analyzeBlock(b, ev){
         fee[k] = /[\d一二兩三四五六七八九十]/.test(v) ? parseFeeValue(v) : 1;
         return;
       }
-      fee[k] = (fl && fl.mode!=='amount' && !v.trim()) ? 1 : parseFeeValue(v);   // v4.60：只寫「主牌位」＝1 份
+      if(fl && fl.mode!=='amount' && !v.trim()){
+        // v4.60：只寫「主牌位」＝1 份；v4.68：沒指定算法的（主牌位／副牌位）依同類別陽世者人數
+        let n = 1;
+        if(evHasCond(ev) && !(fl.auto && fl.auto.k) && fl.mode!=='amount'){
+          const nf = (ev.fields||[]).find(f=>f.showIf && f.showIf.k && condOk(f, mapped.fields) && String(mapped.fields[f.k]||'').trim()
+            && (f.type||'text')!=='radio' && !isAddrField(f) && !isPhoneField(f) && !isAncestorField(f) && !f.isShared);
+          if(nf) n = Math.max(1, countNames(mapped.fields[nf.k]));
+        }
+        fee[k] = Math.max(Number(fee[k])||0, n);
+        return;
+      }
+      fee[k] = parseFeeValue(v);
     });
   }
   return {mapped, fee, guessed};
