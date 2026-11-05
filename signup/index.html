@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.70 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.71 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.71（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：同一欄又寫一次（例：後面再補一位陽世者「2.劉小德」、第二個住家地址），會加在後面，不會蓋掉前一個；地址之間用「；」隔開，人數照算</li>
+      </ul>
       <b>v4.70（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：「1報名者.王小明」編號後沒點、欄位名稱和內容用「.」隔開也認得；下一行「吳小國.吳小霈」會接回陽世者並算人數</li>
@@ -2548,6 +2552,8 @@ function buildMappedEntries(entries, ev){
       // 「主蓮位數量：1」這種只有數字的，不放進姓名欄
       if(fdx && !isAddrField(fdx) && !isPhoneField(fdx) && /^\s*\d+\s*[位份個]?\s*$/.test(String(result.value||''))) result = null;
     }
+    // v4.71：編號那行只寫一個人名（例「2.劉小德」），前面已經有姓名欄 → 加到那個姓名欄
+    if(!result && !enLabel && lastName && isNameLike(String(en.value||'').replace(/[（(]\s*[男女]\s*[)）]/g,'').trim())) result = {key:lastName, kind:'field', value:String(en.value).trim()};
     if(!result){ unmapped.push(en); return; }
     // v4.66：「已逝先人（高小葉）」整個用括號包起來 → 拿掉括號
     if(result.kind==='field'){ const pm = String(result.value||'').trim().match(/^[（(]\s*([^()（）]+?)\s*[)）]$/); if(pm) result.value = pm[1]; }
@@ -2559,7 +2565,12 @@ function buildMappedEntries(entries, ev){
     }
     if(result.kind==='field'){
       const fd = (ev.fields||[]).find(x=>x.k===result.key);
-      fields[result.key] = fd && (fd.type==='select'||fd.type==='radio') ? snapToOption(fd, result.value) : result.value;
+      const nv = fd && (fd.type==='select'||fd.type==='radio') ? snapToOption(fd, result.value) : result.value;
+      const ov = String(fields[result.key]||'').trim(), nt = String(nv||'').trim();
+      // v4.71：同一欄又寫一次（例：第二位陽世者、第二個地址）→ 加在後面，不蓋掉前一個
+      if(ov && nt && ov!==nt && !ov.includes(nt) && /[A-Za-z一-鿿]/.test(ov) && /[A-Za-z一-鿿]/.test(nt) && fd && (fd.type||'text')!=='select' && fd.type!=='radio' && !isPhoneField(fd))
+        fields[result.key] = ov + (isAddrField(fd) ? '；' : '、') + nt;
+      else fields[result.key] = nv;
     }
     else fees[result.key] = result.value;
   });
