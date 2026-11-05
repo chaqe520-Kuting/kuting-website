@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.53 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.54 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.54（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>梁皇寶懺內容摘要加上參加者姓名，例「一戶祖先（主蓮位）×1：黃氏歷代祖先；已逝先人（副蓮位）×3：黃火木、黃燦崑、黃滿足(女)；陽上人：黃彥維」</li>
+      </ul>
       <b>v4.53（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>依報名類別的場次（梁皇寶懺）：報名清單「內容摘要」只列有報名的項目，例「地基主（副蓮位）×1」「個人／公司（主牌位）×1、個人／公司（副牌位）×1」</li>
@@ -1426,12 +1430,25 @@ function finRegSummary(r){
 function regSummaryText(ev, r){
   if(ev.mode==='items') return (r.items||[]).map(it=>`${it.itemName}×${it.qty}`).join('、');
   if(evHasCond(ev)){
+    // v4.54：每個項目後面加參加者姓名（主蓮位祖先／先人、副蓮位名單、陽世者、地基主），最後補陽上人
+    const vals = r.f||{};
+    const short = v=>{ v = String(v||'').replace(/\s+/g,' ').trim(); return v.length>40 ? v.slice(0,40)+'…' : v; };
+    const nameFs = getRepeatFields(ev).filter(f=>!(f.type==='radio'||f.type==='select') && !isAddrField(f) && !isPhoneField(f) && !/備註/.test(f.label||'') && condOk(f, vals) && String(vals[f.k]||'').trim());
+    const used = new Set();
     const got = (ev.fees||[]).map(fl=>{
       const q = Number((r.fee||{})[fl.k])||0;
       if(!q) return '';
-      return fl.mode==='amount' ? `${fl.label} ${money(q)} 元` : `${fl.label}×${q}`;
+      const head = fl.mode==='amount' ? `${fl.label} ${money(q)} 元` : `${fl.label}×${q}`;
+      let nf = fl.auto && fl.auto.k ? nameFs.find(f=>f.k===fl.auto.k) : null;
+      if(!nf) nf = nameFs.find(f=>!/陽上/.test(f.label||'') && (!fl.showIf || !f.showIf || f.showIf.k!==fl.showIf.k || condOk(f, {[fl.showIf.k]:(fl.showIf.v||[])[0]})));
+      if(!nf || used.has(nf.k)) return head;
+      used.add(nf.k);
+      return `${head}：${short(vals[nf.k])}`;
     }).filter(Boolean);
-    if(got.length) return got.join('、');
+    if(got.length){
+      nameFs.filter(f=>!used.has(f.k) && /陽上/.test(f.label||'')).forEach(f=>got.push(`陽上人：${short(vals[f.k])}`));
+      return got.join('；');
+    }
   }
   return getRepeatFields(ev).filter(f=>f.type!=='textarea').map(f=>(r.f||{})[f.k]).filter(Boolean).slice(0,2).join(' / ');
 }
