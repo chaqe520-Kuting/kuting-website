@@ -6512,7 +6512,7 @@ async function renderAccountCard(){
       <button class="btn btn-ghost btn-sm" data-staff-toggle="${r.uid}" data-field="admin">${r.admin?'取消管理者':'設為管理者'}</button>`}
     </div>`).join('');
   return `<details class="card" id="accountCard" ${accountCardOpen?'open':''} ontoggle="accountCardOpen=this.open">
-    <summary style="cursor:pointer;list-style:none;"><h2 style="display:inline;">帳號管理</h2>　<span class="hint">${rows.length} 個帳號・點此${accountCardOpen?'收合':'展開'}</span></summary>
+    <summary style="cursor:pointer;list-style:none;"><h2 style="display:inline;">帳號管理</h2>　<span class="hint">${rows.length} 個帳號・點標題展開／收合</span></summary>
     <p class="hint" style="margin:8px 0 8px;">工作人員自行用「中文姓名＋個人密碼」註冊後，要在這裡按「啟用」才能進入後台。不再負責或不認識的帳號請按「停用」。忘記密碼：停用舊帳號，請對方用加註的姓名（例如「王小明2」）重新註冊。</p>
     ${list || '<p class="hint">尚無帳號</p>'}
     <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);">
