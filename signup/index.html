@@ -1066,8 +1066,17 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.50 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.51 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.51（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>梁皇寶懺報名（小朱同意的 6 項）：新範本「梁皇寶懺（祖先＋個人／地基主，依類別顯示）」，報名類別選「超薦祖先」只出現主蓮位、副蓮位欄位，選「消災個人」只出現陽世者、地基主欄位；沒顯示的欄位不存、不檢查必填</li>
+        <li>編輯報名欄位：每個欄位、費用可選「只在某選項時顯示」；費用可選數量怎麼自動算（有填＝1、幾個名字＝幾份、寫祖先＝1、寫先人姓名＝1、不自動）</li>
+        <li>副蓮位依「、」分開的名字數自動算份數；地基主有填姓名＝1 份</li>
+        <li>📥 匯入去年 Excel：每張工作表可指定報名類別（依工作表名稱自動猜，可改）</li>
+        <li>同去年：報名者一格寫兩個人（例「林嘉鴻、林佳緯」），打其中一位也帶得出來；去年沒寫數量的費用依欄位自動算</li>
+        <li>編輯場次資料可自訂「新增一位」按鈕文字（例：＋ 再加一個牌位）；💬 LINE 報名格式會註明哪一類才填、自動算的數量不列</li>
+      </ul>
       <b>v4.50（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>場次管理新增「📥 匯入去年 Excel」：每一場各自匯入去年的報名表（自動找表頭，表格下方的合計不讀），可勾工作表、調整每一欄對到哪個欄位或費用</li>
@@ -1694,6 +1703,36 @@ const TEMPLATES = {
       {k:'mainDeceased', label:'已逝先人(主蓮位)', price:3600, mode:'qty'},
       {k:'subDeceased', label:'已逝先人(副蓮位)', price:1000, mode:'qty'},
     ],
+  },
+  // v4.51：116 梁皇寶懺建議（小朱 2026-11-05 同意）：一場分兩類，選報名類別只出現那一類的欄位，副蓮位依名字數算份數
+  liang2: {
+    label: '梁皇寶懺（祖先＋個人／地基主，依類別顯示）',
+    fields: [
+      {k:'reporter', label:'報名者姓名', type:'text', required:true, isShared:true, help:'繳費、聯絡的人', keywords:['報名者']},
+      {k:'phone', label:'聯絡電話', type:'tel', isShared:true, help:'手機或市話，可不填', keywords:['電話','手機']},
+      {k:'regType', label:'報名類別', type:'radio', required:true, options:['超薦祖先／已逝先人','消災個人／公司／地基主'], keywords:['報名類別','類別']},
+      {k:'yangshang', label:'陽上人姓名', type:'text', help:'在世的子孫，多位用「、」分開', keywords:['陽上人'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'mainAncestor', label:'主蓮位 姓氏祖先或已逝先人', type:'text', required:true, help:'例：黃氏歷代祖先；已逝先人請寫全名，一格一位', keywords:['主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'mainAddr', label:'主蓮位 祖先牌位地址', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'subName', label:'副蓮位 已逝及倒房先人姓名', type:'textarea', help:'多位用「、」分開，女性可加（女）', keywords:['副蓮位','倒房'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'subAddr', label:'副蓮位 已逝及倒房先人住址', type:'textarea', help:'和主蓮位一樣可寫「同上」', keywords:['副蓮位住址'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'liveName', label:'陽世者姓名或公司行號', type:'textarea', help:'一戶多人用「、」分開，外籍姓名照護照寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'liveAddr', label:'住家或公司地址', type:'textarea', help:'寫到門牌號', keywords:['住家地址','公司地址'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'jijiName', label:'地基主姓名', type:'text', help:'地基主是誰家的，例：朱士仁', keywords:['地基主'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'jijiAddr', label:'地基主地址', type:'textarea', help:'兩處以上請再加一個牌位寫', keywords:['地基主地址'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'note', label:'備註', type:'textarea', help:'其他交代，例如多一紮大壽金', keywords:['備註']},
+    ],
+    fees: [
+      {k:'mainHousehold', label:'一戶祖先（主蓮位）', price:5000, mode:'qty', auto:{how:'ancestor', k:'mainAncestor'}, showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'mainDeceased', label:'已逝先人（主蓮位）', price:3600, mode:'qty', auto:{how:'person', k:'mainAncestor'}, showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'subDeceased', label:'已逝先人（副蓮位）', price:1000, mode:'qty', auto:{how:'names', k:'subName'}, showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
+      {k:'personMain', label:'個人／公司（主牌位）', price:3600, mode:'qty', auto:{how:'none'}, keywords:['主牌位'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'personSub', label:'個人／公司（副牌位）', price:1000, mode:'qty', auto:{how:'none'}, keywords:['副牌位'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'jijiFee', label:'地基主（副蓮位）', price:1000, mode:'qty', auto:{how:'filled', k:'jijiName'}, showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+    ],
+    lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
+    addLabel: '＋ 再加一個牌位',
+    exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。\n① 超薦祖先：主蓮位「黃氏歷代祖先」，牌位地址「台南市南區新都路259號」，\n   副蓮位「黃火木、黃燦崑、黃滿足(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名「黃川賜」，地址寫塔位「嘉義縣水上鄉慈雲寶塔」。\n③ 消災個人：陽世者「陳俊清、阮氏金好」，住家地址寫到門牌號，主牌位、副牌位數量自己填。\n④ 地基主：姓名「陳俊清」，地址「嘉義縣中埔鄉和睦村後庄7巷5號」。\n去年有報過、內容一樣：用 LINE 傳「姓名 梁皇 同去年」就可以。',
   },
   birthday: {
     label: '聖誕供品贊助',
@@ -2337,11 +2376,53 @@ function getFeeRelatedFieldKeys(ev, fl){
   }).map(f=>f.k);
 }
 
+/* v4.51（梁皇寶懺建議 1、3）：欄位／費用可以設「只在某個選項時顯示」（例：報名類別選祖先，才出現主蓮位、副蓮位），
+   費用數量可以指定怎麼自動算：某欄位有填＝1、某欄位幾個名字＝幾份、寫「…氏歷代祖先」＝1、寫先人姓名＝1、或不自動（信徒自己填）。 */
+function condOk(item, vals){
+  const c = item && item.showIf;
+  if(!c || !c.k) return true;
+  return (c.v||[]).includes(String((vals||{})[c.k]||'').trim());
+}
+function countNames(v){
+  return String(v||'').split(/[、,，;；\n\/…]+|\.{3,}/)
+    .map(x=>x.replace(/^[\s\d０-９.．、)）(（\-]+/,'').trim())
+    .filter(x=>/[A-Za-z一-鿿À-ỹ]/.test(x)).length;
+}
+const ANCESTOR_NAME_RE = /祖先|歷代/;
+function autoQtyFor(fl, vals){
+  const a = fl.auto || {};
+  const v = String((vals||{})[a.k]||'').trim();
+  if(!v) return 0;
+  if(a.how==='filled') return 1;
+  if(a.how==='names') return countNames(v);
+  if(a.how==='ancestor') return ANCESTOR_NAME_RE.test(v) ? 1 : 0;
+  if(a.how==='person') return ANCESTOR_NAME_RE.test(v) ? 0 : 1;
+  return 0;
+}
+// 沒選類別、但填了只屬於某個類別的欄位（LINE 貼上、語音、同去年）→ 自動補上那個類別；回傳補上的欄位
+function inferShowIfChoice(ev, vals){
+  const set = [];
+  if(!ev) return set;
+  const parents = new Set((ev.fields||[]).filter(f=>f.showIf && f.showIf.k).map(f=>f.showIf.k));
+  parents.forEach(pk=>{
+    if(String(vals[pk]||'').trim()) return;
+    const got = new Set();
+    (ev.fields||[]).forEach(f=>{ if(f.showIf && f.showIf.k===pk && String(vals[f.k]||'').trim()) (f.showIf.v||[]).forEach(x=>got.add(x)); });
+    if(got.size===1){ vals[pk] = Array.from(got)[0]; set.push(pk); }
+  });
+  return set;
+}
+function evHasCond(ev){ return !!ev && ((ev.fields||[]).some(f=>f.showIf && f.showIf.k) || (ev.fees||[]).some(f=>f.showIf && f.showIf.k)); }
+
 function autoInferFeeQuantities(ev, mappedFieldValues){
   const fee = {};
   if(!ev || ev.mode==='items') return fee;
   (ev.fees||[]).forEach(fl=>{
     if(fl.mode==='amount') return; // 金額類（例如隨喜功德）金額因人而異，不自動代填
+    // v4.51：類別選了別的 → 這個費用是 0；有指定自動算法就照指定的算
+    if(fl.showIf && fl.showIf.k && String((mappedFieldValues||{})[fl.showIf.k]||'').trim() && !condOk(fl, mappedFieldValues)){ fee[fl.k] = 0; return; }
+    if(fl.auto && fl.auto.how==='none') return;
+    if(fl.auto && fl.auto.k){ fee[fl.k] = autoQtyFor(fl, mappedFieldValues); return; }
     // 有幾個「姓名/內容類」欄位（不含地址/牌位類欄位）跟這個費用項目關鍵字相關、而且有填資料，
     // 費用數量就設成那個數字——例如「1-1姓名」跟「3-1姓名」都有填，數量就是2；只填一個，數量就是1。
     // 地址/牌位類欄位不算獨立一筆，因為地址是附屬在姓名底下的資訊，不是另外一個人/一筆。
@@ -2472,6 +2553,7 @@ function analyzeBlock(b, ev){
   const guessed = guessUnmapped(ev, mapped);
   const fee = {};
   if(ev){
+    inferShowIfChoice(ev, mapped.fields).forEach(k=>{ guessed[k] = true; });   // v4.51
     Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
     Object.assign(fee, guessFees(b.header||'', ev));
     Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
@@ -2577,6 +2659,7 @@ function sameLastName(text, ev){
   return toks[0] || '';
 }
 let refCache = {};   // 場次ID → 匯入的去年 Excel 資料
+function refNameParts(r){ return String((r.f||{}).reporter||'').split(/[、,，\/&＆;；]+/).map(x=>x.replace(/\s+/g,'')).filter(Boolean); }
 async function loadRef(eventId){
   try{
     const r = await window.storage.get('regs:ref:'+eventId, STORE_SHARED);
@@ -2609,7 +2692,9 @@ function applySameAsLast(b, ev){
     return b;
   }
   if(!refCache[ev.id]){ b.sameLast = {ok:false, wait:true, msg:`🔁 同去年：正在讀取「${ev.sameRef.file||'去年 Excel'}」…`}; return b; }
-  const hits = refCache[ev.id].filter(r=>statName(r)===name.replace(/\s+/g,''));
+  // v4.51：報名者一格寫兩個人（例「林嘉鴻、林佳緯」），打其中一位也找得到
+  const nm = name.replace(/\s+/g,'');
+  const hits = refCache[ev.id].filter(r=>statName(r)===nm || refNameParts(r).includes(nm));
   if(!hits.length){
     b.sameLast = {ok:false, msg:`🔁 同去年：去年 Excel「${ev.sameRef.file||''}」裡沒有「${name}」，請照信徒說的內容手動填`};
     b.uncertain = true;
@@ -2625,6 +2710,10 @@ function applySameAsLast(b, ev){
   (ev.fields||[]).forEach(f=>{ const v = (h.f||{})[f.k]; if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v); });
   (ev.fees||[]).forEach(fl=>{ const q = Number((h.fee||{})[fl.k])||0; if(q) fee[fl.k] = q; });
   if(!fields.reporter) fields.reporter = name;
+  // v4.51：去年資料沒有類別就依填的欄位補上；Excel 沒寫數量的費用依欄位自動算
+  inferShowIfChoice(ev, fields);
+  const inf = autoInferFeeQuantities(ev, fields);
+  Object.keys(inf).forEach(k=>{ if(!(k in fee) && inf[k]) fee[k] = inf[k]; });
   if(shortMsg || b.sameLastOf){
     b.mapped = {fields, fees:{}, unmapped:[]};
     b.fee = fee;
@@ -2663,8 +2752,8 @@ function sameLastExpand(){
    讀小朱整理的報名表（例：115 年農曆七月祭拜祖先、梁皇寶懺兩張表）：第一列標題、第二列表頭、下面每列一筆，
    表格下方的合計、男女人數不讀（報名者姓名空白的列略過）。表頭自動對到這場的欄位與費用，志工可在畫面上改。 */
 const REF_SKIP_HEAD = /^(編號|序號|總費用|總金額|合計|小計|會計收款|收款|收款狀態|照片|登記資料確認|傳送資料確認|確認|年度|法會名稱)/;
-function refNorm(s){ return String(s==null?'':s).normalize('NFC').replace(/[\s ()（）\[\]【】:：*＊,，、.]/g,''); }
-function refNoPrice(s){ return refNorm(s).replace(/\d[\d,]*元?/g,'').replace(/元$/,''); }
+function refNorm(s){ return String(s==null?'':s).normalize('NFC').replace(/[\s ()（）\[\]【】:：*＊,，、.&＆／\/]/g,''); }
+function refNoPrice(s){ return refNorm(s).replace(/\d[\d,]*元?/g,'').replace(/元$/,'').replace(/或/g,''); }   // v4.51：「個人&公司」「個人或公司」「個人／公司」視為同一個
 function refGuessCol(head, ev){
   const h = refNorm(head), hp = refNoPrice(head);
   if(!h || REF_SKIP_HEAD.test(h)) return '';
@@ -2721,6 +2810,9 @@ function refBuildRecords(ev, sheets){
         }
       });
       if(!f.reporter) return;
+      // v4.51：這張表指定的報名類別（例：祖先表＝超薦祖先，個人表＝消災個人）
+      Object.keys(sh.fixed||{}).forEach(k=>{ if(sh.fixed[k] && !String(f[k]||'').trim()) f[k] = sh.fixed[k]; });
+      inferShowIfChoice(ev, f);
       out.push({id:uid(), f, fee, ref:true, sheet:sh.name, row:d.row, createdAt:Date.now()});
     });
   });
@@ -2749,7 +2841,27 @@ function openRefImport(ev){
   };
   inp.click();
 }
+// v4.51：工作表名稱猜類別（「梁皇寶懺-祖先&已逝先人」→ 超薦祖先／已逝先人；「個人&地基主」→ 消災個人／公司／地基主）
+function refGuessFixed(sheetName, f){
+  const sn = refNorm(sheetName);
+  let best = '', bestScore = 0;
+  (f.options||[]).forEach(o=>{
+    let sc = 0;
+    String(o).split(/[／\/、,，&＆＋+]/).map(refNorm).filter(t=>t.length>=2).forEach(t=>{
+      if(sn.includes(t)) sc += 2; else if(sn.includes(t.slice(-2))) sc += 1;
+    });
+    if(sc>bestScore){ best = o; bestScore = sc; }
+  });
+  return best;
+}
 function refImportModal(ev, fileName, sheets){
+  const choiceFs = (ev.fields||[]).filter(f=>(f.type==='radio'||f.type==='select') && (f.options||[]).length);
+  const fixedHtml = (sh, si)=>choiceFs.filter(f=>sh.map.indexOf('f:'+f.k)<0).map(f=>{
+    const g = refGuessFixed(sh.name, f);
+    return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;font-size:13px;background:#FFF8E6;border-radius:8px;padding:6px 8px;">
+      <span style="flex:1;min-width:140px;font-weight:700;">這張表的「${escHtml(f.label)}」</span>
+      <select data-reffix="${si}:${escHtml(f.k)}" style="width:auto;min-width:180px;"><option value="">（不指定）</option>${(f.options||[]).map(o=>`<option value="${escHtml(o)}" ${o===g?'selected':''}>${escHtml(o)}</option>`).join('')}</select></div>`;
+  }).join('');
   const opts = `<option value="">（不匯入）</option>` +
     (ev.fields||[]).map(f=>`<option value="f:${escHtml(f.k)}">欄位：${escHtml(f.label)}</option>`).join('') +
     (ev.mode!=='items' ? (ev.fees||[]).map(f=>`<option value="x:${escHtml(f.k)}">數量：${escHtml(f.label)}</option>`).join('') : '');
@@ -2760,6 +2872,7 @@ function refImportModal(ev, fileName, sheets){
     <p class="hint" style="margin:0 0 10px;">場次：<b>${escHtml(ev.name)}</b>　檔案：${escHtml(fileName)}<br>信徒說「同去年」時，只會從這份資料找。重新匯入會取代這場原本的參考資料；不會動到報名名單。請勾要用的工作表，並看一下每一欄對到哪裡。</p>
     ${sheets.map((sh,si)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff;">
       <label style="display:flex;align-items:center;gap:6px;font-weight:700;margin:0 0 6px;"><input type="checkbox" data-refsheet="${si}" ${sh.map.filter(Boolean).length>=2?'checked':''} style="width:auto;min-height:0;"> ${escHtml(sh.name)}　<span class="hint" style="margin:0;font-weight:500;">${sh.data.length} 筆（有報名者姓名的列）</span></label>
+      ${fixedHtml(sh, si)}
       ${sh.head.map((hd,ci)=> String(hd).trim() ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:3px 0;font-size:13px;">
         <span style="flex:1;min-width:140px;">${escHtml(String(hd).replace(/\n/g,' '))}</span>
         <select data-refcol="${si}:${ci}" style="width:auto;min-width:180px;">${opts.replace(`value="${escHtml(sh.map[ci])}"`, `value="${escHtml(sh.map[ci])}" selected`)}</select></div>` : '').join('')}
@@ -2774,7 +2887,8 @@ function refImportModal(ev, fileName, sheets){
   const okBtn = bg.querySelector('#ref_ok');
   okBtn.onclick = async ()=>{
     const use = sheets.filter((sh,si)=>bg.querySelector(`[data-refsheet="${si}"]`).checked);
-    use.forEach(sh=>{ const si = sheets.indexOf(sh); sh.map = sh.head.map((hd,ci)=>{ const sel = bg.querySelector(`[data-refcol="${si}:${ci}"]`); return sel ? sel.value : ''; }); });
+    use.forEach(sh=>{ const si = sheets.indexOf(sh); sh.map = sh.head.map((hd,ci)=>{ const sel = bg.querySelector(`[data-refcol="${si}:${ci}"]`); return sel ? sel.value : ''; });
+      sh.fixed = {}; bg.querySelectorAll(`[data-reffix^="${si}:"]`).forEach(sel=>{ if(sel.value) sh.fixed[sel.dataset.reffix.slice(String(si).length+1)] = sel.value; }); });
     if(!use.length){ showToast('請至少勾一張工作表'); return; }
     if(use.some(sh=>sh.map.indexOf('f:reporter')<0)){ showToast('每張勾選的工作表都要有一欄對到「報名者」姓名', 4000); return; }
     const recs = refBuildRecords(ev, use);
@@ -2785,6 +2899,8 @@ function refImportModal(ev, fileName, sheets){
       await refSaveAll(ev.id, recs);
       refCache[ev.id] = recs;
       ev.sameRef = {file:fileName, sheets:use.map(sh=>sh.name), count:recs.length, at:Date.now(), by:(staff && staff.name) || ''};
+      const fx = use.filter(sh=>Object.keys(sh.fixed||{}).length).map(sh=>sh.name+'＝'+Object.values(sh.fixed).join('、'));
+      if(fx.length) ev.sameRef.fixed = fx;
       const ok = await saveEvents();
       bg.remove();
       showToast(ok ? `已匯入 ${recs.length} 筆去年資料（${Math.round((Date.now()-t0)/1000)} 秒），之後「同去年」只參考這份` : '⚠️ 參考資料已存，但場次設定沒存到，請再匯入一次', 5000);
@@ -3196,6 +3312,15 @@ function getPublicFields(ev){
   return (ev.fields||[]).filter(f=>!f.adminOnly);
 }
 
+// v4.51：有「只在某選項時顯示」的欄位／費用，加上條件標記，畫面依選項顯示或隱藏
+function condAttr(item){
+  return item && item.showIf && item.showIf.k ? ` data-cond-k="${escHtml(item.showIf.k)}" data-cond-v="${escHtml(JSON.stringify(item.showIf.v||[]))}"` : '';
+}
+function condEmptyHint(ev, f, repeat){
+  const kids = [...(ev.fields||[]), ...(ev.fees||[])].filter(x=>x.showIf && x.showIf.k===f.k);
+  if(!kids.length) return '';
+  return `<div class="field-help" data-cond-empty="${escHtml(f.k)}" style="color:var(--vermilion);font-weight:600;">請先選「${escHtml(f.label)}」，下面才會出現要填的欄位</div>`;
+}
 function renderPersonBlockHtml(ev, blockIdx){
   const repeatFields = getRepeatFields(ev);
   let html = `<div class="person-block" data-block="${blockIdx}" style="background:#FBF6EA;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">`;
@@ -3204,15 +3329,16 @@ function renderPersonBlockHtml(ev, blockIdx){
     <button type="button" class="btn btn-danger btn-sm person-remove-btn" data-block="${blockIdx}" style="display:none;">移除此位</button>
   </div>`;
   repeatFields.forEach(f=>{
-    html += `<div class="field">${fieldLabelHtml(f)}${renderFieldInput(f, `pf_${blockIdx}_${f.k}`)}</div>`;
+    html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${renderFieldInput(f, `pf_${blockIdx}_${f.k}`)}${condEmptyHint(ev, f)}</div>`;
   });
   if((ev.fees||[]).length){
     html += `<label>費用項目</label>`;
     ev.fees.forEach(fl=>{
       const isAmt = fl.mode==='amount';
       const hint = isAmt ? (fl.price ? `<div class="price">建議金額 ${money(fl.price)} 元（可自行調整）</div>` : '') : `<div class="price">單價 ${money(fl.price)} 元</div>`;
-      html += `<div class="fee-row">
-        <div><div class="name">${fl.label}</div>${hint}</div>
+      const autoTip = fl.auto && fl.auto.how && fl.auto.how!=='none' ? `<div class="price" style="color:var(--gold-dark,#8a6d1f);">數量依填寫內容自動算</div>` : '';
+      html += `<div class="fee-row"${condAttr(fl)}>
+        <div><div class="name">${fl.label}</div>${hint}${autoTip}</div>
         <input type="number" min="0" name="pf_${blockIdx}_fee_${fl.k}" data-feeinput data-mode="${fl.mode||'qty'}" data-price="${fl.price||0}" value="${isAmt?(fl.price||0):0}">
       </div>`;
     });
@@ -3241,7 +3367,7 @@ function renderPublicForm(ev){
 
   const sharedFields = ev.mode==='items' ? getPublicFields(ev) : getSharedFields(ev);
   sharedFields.forEach(f=>{
-    html += `<div class="field">${fieldLabelHtml(f)}${renderFieldInput(f, f.k)}</div>`;
+    html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${renderFieldInput(f, f.k)}${condEmptyHint(ev, f)}</div>`;
   });
 
   if(ev.mode==='items'){
@@ -3256,7 +3382,7 @@ function renderPublicForm(ev){
     });
   } else {
     html += `<div id="personBlocksWrap" data-next-idx="1">` + renderPersonBlockHtml(ev, 0) + `</div>`;
-    html += `<button type="button" class="btn btn-ghost" id="addPersonBtn" style="margin-bottom:14px;">＋ 新增一位（一次報名多位）</button>`;
+    html += `<button type="button" class="btn btn-ghost" id="addPersonBtn" style="margin-bottom:14px;">${escHtml(ev.addLabel || '＋ 新增一位（一次報名多位）')}</button>`;   // v4.51：按鈕文字可依場次自訂
   }
 
   html += `<div style="margin:16px 0;">總金額：<span class="total-badge" id="publicTotal">0 元</span></div>`;
@@ -5245,6 +5371,17 @@ function bindEvents(){
       });
     }
     pf.querySelectorAll('.person-block').forEach(blockEl=>bindBlockAutoFee(blockEl));
+    // v4.51：選了報名類別 → 顯示這一類的欄位、重算數量
+    if(evHasCond(evForFees)){
+      const onCond = (e)=>{
+        if(e && e.target && e.target.matches && e.target.matches('[data-feeinput]')) return;
+        pf.querySelectorAll('.person-block').forEach(b=>autoFillBlockFees(evForFees, b));
+        applyCondVisibility(evForFees, pf);
+        updatePublicTotal();
+      };
+      pf.addEventListener('change', onCond);
+      applyCondVisibility(evForFees, pf);
+    }
     bindPersonRemoveButtons(pf);
     updatePersonRemoveVisibility();
     updatePublicTotal();
@@ -5264,6 +5401,7 @@ function bindEvents(){
 
       newBlock.querySelectorAll('[data-feeinput]').forEach(inp=>inp.addEventListener('input', updatePublicTotal));
       bindBlockAutoFee(newBlock);
+      applyCondVisibility(ev, document.getElementById('publicForm'));
       bindPersonRemoveButtons(newBlock);
       updatePersonRemoveVisibility();
       updatePublicTotal();
@@ -5375,13 +5513,30 @@ function updatePersonRemoveVisibility(){
   });
 }
 
+function blockVals(ev, pf, blockEl){
+  const vals = {};
+  if(pf) getSharedFields(ev).forEach(f=>{ vals[f.k] = readFieldValue(pf, f.k); });
+  if(blockEl){ const bi = blockEl.dataset.block; getRepeatFields(ev).forEach(f=>{ vals[f.k] = readFieldValue(blockEl, `pf_${bi}_${f.k}`); }); }
+  return vals;
+}
+function applyCondVisibility(ev, pf){
+  if(!ev || !pf || !evHasCond(ev)) return;
+  const shared = blockVals(ev, pf, null);
+  pf.querySelectorAll('[data-cond-k], [data-cond-empty]').forEach(el=>{
+    const blockEl = el.closest('.person-block');
+    const vals = blockEl ? blockVals(ev, pf, blockEl) : shared;
+    if(el.dataset.condEmpty){ el.style.display = String(vals[el.dataset.condEmpty]||'').trim() ? 'none' : ''; return; }
+    let want = [];
+    try{ want = JSON.parse(el.dataset.condV||'[]'); }catch(_){}
+    const show = want.includes(String(vals[el.dataset.condK]||'').trim());
+    el.style.display = show ? '' : 'none';
+    if(!show) el.querySelectorAll('[data-feeinput]').forEach(inp=>{ if(inp.dataset.mode!=='amount') inp.value = 0; });
+  });
+}
 function autoFillBlockFees(ev, blockEl){
   if(!ev || ev.mode==='items') return;
+  const fieldValues = blockVals(ev, document.getElementById('publicForm'), blockEl);
   const blockIdx = blockEl.dataset.block;
-  const fieldValues = {};
-  getRepeatFields(ev).forEach(f=>{
-    fieldValues[f.k] = readFieldValue(blockEl, `pf_${blockIdx}_${f.k}`);
-  });
   const inferred = autoInferFeeQuantities(ev, fieldValues);
   Object.keys(inferred).forEach(feeKey=>{
     const feeInp = blockEl.querySelector(`[name="pf_${blockIdx}_fee_${feeKey}"]`);
@@ -5413,7 +5568,8 @@ async function submitPublicForm(pf){
 
     const sharedF = {};
     sharedFields.forEach(fl=>{ sharedF[fl.k] = readFieldValue(pf, fl.k); });
-    const missingShared = sharedFields.filter(fl=>fl.required && !sharedF[fl.k]);
+    sharedFields.forEach(fl=>{ if(!condOk(fl, sharedF)) sharedF[fl.k] = ''; });   // v4.51：沒顯示的欄位不存
+    const missingShared = sharedFields.filter(fl=>fl.required && !sharedF[fl.k] && condOk(fl, sharedF));
     if(missingShared.length){
       showToast('請填寫必填欄位：' + missingShared.map(m=>m.label).join('、'), 3000);
       return;
@@ -5433,11 +5589,14 @@ async function submitPublicForm(pf){
       const blocks = Array.from(pf.querySelectorAll('.person-block'));
       for(const blockEl of blocks){
         const idx = blockEl.dataset.block;
-        const visibleFields = repeatFields;
         const blockF = {};
-        visibleFields.forEach(fl=>{ blockF[fl.k] = readFieldValue(blockEl, `pf_${idx}_${fl.k}`); });
+        repeatFields.forEach(fl=>{ blockF[fl.k] = readFieldValue(blockEl, `pf_${idx}_${fl.k}`); });
+        // v4.51：依報名類別沒顯示的欄位、費用不存、不檢查必填
+        const allVals = {...sharedF, ...blockF};
+        const visibleFields = repeatFields.filter(fl=>condOk(fl, allVals));
+        repeatFields.forEach(fl=>{ if(!condOk(fl, allVals)) blockF[fl.k] = ''; });
         const blockFee = {};
-        (ev.fees||[]).forEach(fl=>{ blockFee[fl.k] = Number((blockEl.querySelector(`[name="pf_${idx}_fee_${fl.k}"]`)||{}).value)||0; });
+        (ev.fees||[]).forEach(fl=>{ blockFee[fl.k] = condOk(fl, allVals) ? (Number((blockEl.querySelector(`[name="pf_${idx}_fee_${fl.k}"]`)||{}).value)||0) : 0; });
 
         const hasAnyValue = Object.values(blockF).some(v=>v) || Object.values(blockFee).some(v=>v);
         if(!hasAnyValue) continue;
@@ -5537,6 +5696,7 @@ function eventFormatSnapshot(src){
   if(mode==='items') snap.items = JSON.parse(JSON.stringify(src.items||[]));
   else snap.fees = JSON.parse(JSON.stringify(src.fees||[]));
   if(src.exampleNote) snap.exampleNote = src.exampleNote;
+  if(src.addLabel) snap.addLabel = src.addLabel;
   if(src.lineKeywords && src.lineKeywords.length) snap.lineKeywords = src.lineKeywords.slice();
   if(src.exportCfg) snap.exportCfg = JSON.parse(JSON.stringify(src.exportCfg));
   return snap;
@@ -5603,7 +5763,8 @@ async function openNewEventModal(){
     const kind = v.slice(0,2), id = v.slice(2);
     if(kind==='b:'){
       const tpl = TEMPLATES[id];
-      return tpl ? {type:id, mode: tpl.mode==='items'?'items':'fees', fields:tpl.fields, fees:tpl.fees||[], items:[], confirmLabel:tpl.confirmLabel} : null;
+      return tpl ? {type:id, mode: tpl.mode==='items'?'items':'fees', fields:tpl.fields, fees:tpl.fees||[], items:[], confirmLabel:tpl.confirmLabel,
+        exampleNote:tpl.exampleNote, lineKeywords:tpl.lineKeywords, addLabel:tpl.addLabel} : null;
     }
     if(kind==='t:') return custom.find(t=>t.id===id) || null;
     if(kind==='e:'){ const e = events.find(x=>x.id===id); return e ? eventFormatSnapshot(e) : null; }
@@ -5774,6 +5935,7 @@ function openFieldEditor(eventId){
     <h2 style="font-family:'Noto Serif TC';margin:0 0 14px;">編輯「${ev.name}」的報名欄位</h2>
     ${ev.mode!=='items' ? `<p class="hint" style="margin:0 0 10px;">信徒填表時：勾選「共用欄位」的欄位（例如報名者姓名、聯絡電話）顯示在最上方、整張表單只需填一次；<b>沒勾選的欄位（含費用項目）</b>則是每一位都要填的部分，可以按「新增一位」重複填寫，一次報名多位。用下面的 ▲▼ 可調整欄位顯示順序。</p>` : ''}
     <label>基本資料欄位</label>
+    ${ev.mode!=='items' ? `<p class="hint" style="margin:0 0 8px;">v4.51：有「單選／下拉」欄位（例：報名類別）時，每個欄位和費用後面可選「只在某選項時顯示」；費用可選數量怎麼自動算。新增的選項欄位請先按「儲存變更」，再打開一次才會出現在選單裡。</p>` : ''}
     <div id="fe_fields"></div>
     <button type="button" class="btn btn-ghost btn-sm" id="fe_addField">＋ 新增欄位</button>
     <div style="margin-top:18px;">
@@ -5800,6 +5962,38 @@ function openFieldEditor(eventId){
   document.body.appendChild(bg);
 
   const fieldsWrap = bg.querySelector('#fe_fields');
+  // v4.51：「只在某選項時顯示」與「數量自動算」的選單（選項來自目前已存的單選／下拉欄位；新加的選項欄位要先儲存再回來設）
+  const SEP = '\u001f', VSEP = '\u001e';
+  const choiceFields = (ev.fields||[]).filter(f=>(f.type==='radio'||f.type==='select') && (f.options||[]).length);
+  function condSelHtml(cls, item, selfKey){
+    const cur = item && item.showIf && item.showIf.k ? item.showIf.k + SEP + (item.showIf.v||[]).join(VSEP) : '';
+    let opts = `<option value="">一律顯示</option>`;
+    const seen = new Set(['']);
+    choiceFields.filter(cf=>cf.k!==selfKey).forEach(cf=>(cf.options||[]).forEach(o=>{
+      const v = cf.k + SEP + o; seen.add(v);
+      opts += `<option value="${escHtml(v)}" ${v===cur?'selected':''}>只在「${escHtml(cf.label)}」選「${escHtml(o)}」時顯示</option>`;
+    }));
+    if(!seen.has(cur)) opts += `<option value="${escHtml(cur)}" selected>只在「${escHtml(item.showIf.k)}」選「${escHtml((item.showIf.v||[]).join('／'))}」時顯示</option>`;
+    return `<select class="${cls}" style="flex:2;min-width:200px;" title="例：梁皇寶懺的「主蓮位」只在報名類別選「超薦祖先」時出現；信徒沒選的類別，欄位不會出現、也不會存">${opts}</select>`;
+  }
+  function condRead(row, cls){
+    const v = (row.querySelector('.'+cls)||{}).value || '';
+    if(!v) return null;
+    const i = v.indexOf(SEP);
+    return {k: v.slice(0,i), v: v.slice(i+1).split(VSEP).filter(Boolean)};
+  }
+  const textFields = (ev.fields||[]).filter(f=>!(f.type==='radio'||f.type==='select') && !isPhoneField(f) && !f.adminOnly);
+  function autoSelHtml(fl){
+    const cur = fl.auto ? (fl.auto.how==='none' ? 'none' : fl.auto.how + SEP + (fl.auto.k||'')) : '';
+    const one = (v, t)=>`<option value="${escHtml(v)}" ${v===cur?'selected':''}>${t}</option>`;
+    let opts = one('', '數量：依關鍵字自動（原本做法）') + one('none', '數量：不自動，信徒自己填');
+    textFields.forEach(f=>{
+      const L = escHtml(f.label);
+      opts += one('filled'+SEP+f.k, `「${L}」有填＝1`) + one('names'+SEP+f.k, `「${L}」幾個名字＝幾份（用「、」分開）`)
+            + one('ancestor'+SEP+f.k, `「${L}」寫「…氏歷代祖先」＝1`) + one('person'+SEP+f.k, `「${L}」寫先人姓名（不是祖先）＝1`);
+    });
+    return `<select class="fl_auto" style="flex:3;min-width:220px;">${opts}</select>`;
+  }
   function addFieldRow(f){
     f = f || {k:'f_'+uid(), label:'', type:'text', required:false, options:[]};
     const row = document.createElement('div');
@@ -5831,6 +6025,7 @@ function openFieldEditor(eventId){
       </label>
       <input type="text" class="ff_help" placeholder="填寫說明（選填，顯示在欄位名稱下方），如：請寫祖先牌位上的姓氏" value="${(f.help||'').replace(/"/g,'&quot;')}" style="flex:3;min-width:200px;">
       <input type="text" class="ff_keywords" placeholder="LINE貼上比對關鍵字，逗號分隔，如：報名者" value="${(f.keywords||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:180px;" title="從LINE貼上快速匯入時，貼上內容裡只要包含這些關鍵字之一，就會自動對應到這個欄位。留空則預設用「欄位名稱」本身當關鍵字">
+      ${choiceFields.length ? condSelHtml('ff_cond', f, f.k) : ''}
       <button type="button" class="btn btn-danger btn-sm ff_del">刪</button>`;
     row.querySelector('.ff_del').onclick = ()=>row.remove();
     row.querySelector('.ff_type').addEventListener('change', e=>{
@@ -5870,7 +6065,7 @@ function openFieldEditor(eventId){
     function addFeeRow(fl){
       fl = fl || {k:'fee_'+uid(), label:'', price:0, mode:'qty'};
       const row = document.createElement('div');
-      row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+      row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line);flex-wrap:wrap;';
       row.dataset.key = fl.k;
       const isAmt = fl.mode==='amount';
       row.innerHTML = `
@@ -5881,6 +6076,8 @@ function openFieldEditor(eventId){
         </select>
         <input type="number" placeholder="${isAmt?'建議金額(選填)':'單價'}" value="${fl.price||''}" class="fl_price" style="flex:1">
         <input type="text" class="fl_keywords" placeholder="LINE比對關鍵字，逗號分隔" value="${(fl.keywords||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:140px;">
+        ${autoSelHtml(fl)}
+        ${choiceFields.length ? condSelHtml('fl_cond', fl, '') : ''}
         <button type="button" class="btn btn-danger btn-sm fl_del">刪</button>`;
       row.querySelector('.fl_del').onclick = ()=>row.remove();
       row.querySelector('.fl_mode').addEventListener('change', e=>{
@@ -5910,6 +6107,8 @@ function openFieldEditor(eventId){
       const help = row.querySelector('.ff_help').value.trim();
       if(help) obj.help = help;
       if(row.querySelector('.ff_admin').checked) obj.adminOnly = true;
+      const cond = condRead(row, 'ff_cond');
+      if(cond) obj.showIf = cond;
       return obj;
     }).filter(f=>f.label);
     if(!newFields.length){ showToast('至少需要一個欄位'); return; }
@@ -5925,13 +6124,21 @@ function openFieldEditor(eventId){
         total: Number(row.querySelector('.mi_total').value)||0,
       })).filter(it=>it.name);
     } else {
-      ev.fees = Array.from(feesWrap.children).map(row=>({
-        k: row.dataset.key,
-        label: row.querySelector('.fl_label').value.trim(),
-        mode: row.querySelector('.fl_mode').value,
-        price: Number(row.querySelector('.fl_price').value)||0,
-        keywords: row.querySelector('.fl_keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
-      })).filter(fl=>fl.label);
+      ev.fees = Array.from(feesWrap.children).map(row=>{
+        const o = {
+          k: row.dataset.key,
+          label: row.querySelector('.fl_label').value.trim(),
+          mode: row.querySelector('.fl_mode').value,
+          price: Number(row.querySelector('.fl_price').value)||0,
+          keywords: row.querySelector('.fl_keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
+        };
+        const av = row.querySelector('.fl_auto').value;
+        if(av==='none') o.auto = {how:'none'};
+        else if(av){ const i = av.indexOf(SEP); o.auto = {how: av.slice(0,i), k: av.slice(i+1)}; }
+        const cond = condRead(row, 'fl_cond');
+        if(cond) o.showIf = cond;
+        return o;
+      }).filter(fl=>fl.label);
     }
     const ok = await saveEvents();
     if(!ok){ ev.fields = backup.fields; ev.items = backup.items; ev.fees = backup.fees; ev.lineKeywords = backup.lineKeywords; return; }
@@ -6277,6 +6484,11 @@ function openEventInfoEditor(eventId){
       <input type="file" id="ei_poster" accept="image/*" multiple>
       <p class="hint" style="margin-top:4px;">可一次選取多張圖片，或分次上傳、之後再補加。</p>
     </div>
+    ${ev.mode!=='items' ? `<div class="field">
+      <label>「新增一位」按鈕文字（選填）</label>
+      <input type="text" id="ei_addLabel" value="${escHtml(ev.addLabel||'')}" placeholder="＋ 新增一位（一次報名多位）">
+      <div class="hint">例：梁皇寶懺可改成「＋ 再加一個牌位」。空白就用預設文字。</div>
+    </div>` : ''}
     <div class="field">
       <label>填寫範例說明（選填，教報名者怎麼正確填寫，會顯示在報名表最上方）</label>
       <textarea id="ei_exampleNote" placeholder="例如：&#10;報名者：王小明&#10;陽上人姓名：王大明&#10;姓氏歷代祖先：王氏歷代祖先&#10;祖先牌位地址：嘉義市東區忠孝路100號">${(ev.exampleNote||'').replace(/</g,'&lt;')}</textarea>
@@ -6300,12 +6512,14 @@ function openEventInfoEditor(eventId){
   bindRemoveButtons();
   bg.querySelector('#ei_cancel').onclick = ()=>bg.remove();
   bg.querySelector('#ei_save').onclick = async ()=>{
-    const backup = {name: ev.name, date: ev.date, note: ev.note, confirmLabel: ev.confirmLabel, posterImages: (ev.posterImages||[]).slice(), posterImageLegacy: ev.posterImage, exampleNote: ev.exampleNote};
+    const backup = {name: ev.name, date: ev.date, note: ev.note, confirmLabel: ev.confirmLabel, posterImages: (ev.posterImages||[]).slice(), posterImageLegacy: ev.posterImage, exampleNote: ev.exampleNote, addLabel: ev.addLabel};
     ev.name = bg.querySelector('#ei_name').value.trim() || ev.name;
     ev.date = bg.querySelector('#ei_date').value.trim();
     ev.note = bg.querySelector('#ei_note').value.trim();
     ev.confirmLabel = bg.querySelector('#ei_confirmLabel').value.trim() || '登記資料確認';
     ev.exampleNote = bg.querySelector('#ei_exampleNote').value.trim();
+    const addLabelEl = bg.querySelector('#ei_addLabel');
+    if(addLabelEl){ const al = addLabelEl.value.trim(); if(al) ev.addLabel = al; else delete ev.addLabel; }
 
     let keepImages = existingImages.filter((_,i)=>!removedIdx.has(i));
     const fileInput = bg.querySelector('#ei_poster');
@@ -6332,7 +6546,7 @@ function openEventInfoEditor(eventId){
 
     const ok = await saveEvents();
     if(!ok){
-      ev.name = backup.name; ev.date = backup.date; ev.note = backup.note; ev.confirmLabel = backup.confirmLabel; ev.exampleNote = backup.exampleNote;
+      ev.name = backup.name; ev.date = backup.date; ev.note = backup.note; ev.confirmLabel = backup.confirmLabel; ev.exampleNote = backup.exampleNote; if(backup.addLabel) ev.addLabel = backup.addLabel; else delete ev.addLabel;
       ev.posterImages = backup.posterImages;
       if(backup.posterImageLegacy !== undefined) ev.posterImage = backup.posterImageLegacy;
       return;
@@ -6636,12 +6850,16 @@ function openExportSettings(eventId){
 function buildLineFormatText(ev){
   const lines = [`【${ev.name}】報名`];
   let n = 1;
+  const condNote = x=>x.showIf && x.showIf.k ? `〔選「${(x.showIf.v||[]).join('／')}」才填〕` : '';   // v4.51
   getPublicFields(ev).forEach(f=>{
-    const opt = (f.type==='select'||f.type==='radio') && (f.options||[]).length ? `（${f.options.join('／')}）` : '';
-    lines.push(`${n++}.${f.label}${opt}${f.required?'*':''}：`);
+    const opt = (f.type==='select'||f.type==='radio') && (f.options||[]).length ? `（${f.options.join('、')}）` : '';
+    lines.push(`${n++}.${f.label}${opt}${f.required?'*':''}${condNote(f)}：`);
   });
   if(ev.mode!=='items'){
-    (ev.fees||[]).forEach(fl=>{ lines.push(`${n++}.${fl.label}${fl.mode==='amount'?'金額':'數量'}：`); });
+    (ev.fees||[]).forEach(fl=>{
+      if(fl.auto && fl.auto.how && fl.auto.how!=='none') return;   // 自動算的數量不用信徒寫
+      lines.push(`${n++}.${fl.label}${fl.mode==='amount'?'金額':'數量'}${condNote(fl)}：`);
+    });
   }
   lines.push('');
   lines.push(ev.mode==='items' ? '（供品項目請在備註寫品名與數量）' : '（一次報名多位：每位之間空一行，再從「1.」開始寫）');
