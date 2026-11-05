@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.56 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.57 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.57（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>梁皇寶懺範本的填寫範例改用遮蔽的姓名、地址（王○明、○○路○號），避免個資外洩</li>
+      </ul>
       <b>v4.56（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「帳號管理」移到後台最下面，預設收合（點標題展開），不常用不佔畫面</li>
@@ -1777,7 +1781,7 @@ const TEMPLATES = {
     ],
     lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
     addLabel: '＋ 再加一個牌位',
-    exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。\n① 超薦祖先：主蓮位「黃氏歷代祖先」，牌位地址「台南市南區新都路259號」，\n   副蓮位「黃火木、黃燦崑、黃滿足(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名「黃川賜」，地址寫塔位「嘉義縣水上鄉慈雲寶塔」。\n③ 消災個人：陽世者「陳俊清、阮氏金好」，住家地址寫到門牌號，主牌位、副牌位數量自己填。\n④ 地基主：姓名「陳俊清」，地址「嘉義縣中埔鄉和睦村後庄7巷5號」。\n去年有報過、內容一樣：用 LINE 傳「姓名 梁皇 同去年」就可以。',
+    exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。（以下姓名、地址都是範例）\n① 超薦祖先：主蓮位「王氏歷代祖先」，牌位地址「○○市○○區○○路○號」，\n   副蓮位「王○明、王○華、王○美(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名，例「王○明」，地址可寫塔位「○○縣○○鄉○○寶塔」。\n③ 消災個人：陽世者「王○明、陳○英」，住家地址寫到門牌號，主牌位、副牌位數量自己填。\n④ 地基主：姓名「王○明」，地址「○○縣○○鄉○○村○○路○號」。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
   },
   birthday: {
     label: '聖誕供品贊助',
