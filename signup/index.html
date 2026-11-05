@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.69 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.70 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.70（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：「1報名者.王小明」編號後沒點、欄位名稱和內容用「.」隔開也認得；下一行「吳小國.吳小霈」會接回陽世者並算人數</li>
+        <li>金額打成「10OO元」（英文字母 O）也當 1000</li>
+      </ul>
       <b>v4.69（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：姓名寫在下一行、名字後面有「（女）」也會整串接回同一欄，不會拆到別的欄位；人數照算</li>
@@ -2164,6 +2169,9 @@ function normalizeImportText(text){
     .replace(/[：﹕︰]/g, '：')             // 各種全形冒號變體 -> 統一
     .replace(/[:：][ \t]*[:：]/g, '：')       // v4.61：「牌位地址:：台南市…」兩個冒號 -> 一個
     .replace(/^[ \t]*[⋯…．.。\-－—─━=＝_＿~～*＊·•]{3,}[ \t]*$/gm, '')   // v4.61：「⋯⋯⋯」「-----」分隔線 -> 空行（換下一位）
+    // v4.70：「1報名者.王小明」編號後面沒點 -> 「1.報名者.王小明」；「10OO元」字母 O 當 0
+    .replace(/^([ \t]*)(\d{1,2})(?=報名|陽世|陽上|姓名|地址|住址|電話|手機|姓氏|祖先|已逝|先人|倒房|地基主|牌位|主牌|副牌|小牌|主蓮|副蓮|小蓮|備註)/gm, '$1$2.')
+    .replace(/(\d)([OoＯ〇]+)(?=\s*元|\b|[^A-Za-z])/g, (m,d,o)=>d+'0'.repeat(o.length))
     // v4.60：「①」「一、」開頭的編號 -> 「1.」
     .replace(/^([ \t]*)([①-⑳])\s*/gm, (m,sp,c)=>sp+(c.charCodeAt(0)-0x245F)+'.')
     .replace(/^([ \t]*)([一二三四五六七八九]|十[一二三四五六七八九]?)[、．.]\s*/gm, (m,sp,c)=>{ const d='一二三四五六七八九'; const n = c.length===1 ? (c==='十'?10:d.indexOf(c)+1) : 10+d.indexOf(c[1])+1; return sp+n+'.'; })
@@ -2228,11 +2236,11 @@ function parseLineBlocks(text){
           const addrLike = /地址|住址|塔位|牌位/.test(last.label||'') || ADDR_RE.test(pv);
           let joined = null;
           const addrSep = pv && /^[一-鿿]{1,3}[縣市]/.test(line) ? ' ' : '';   // 下一行是另一段完整地址 → 空一格
-          const nameish = t=>isNameLike(String(t).replace(/[（(]\s*[男女]\s*[)）]/g,'').replace(/\s+/g,'').replace(/[.。,，、;；]+$/,''));
+          const nameish = t=>isNameLike(String(t).replace(/[（(]\s*[男女]\s*[)）]/g,'').replace(/\s+/g,'').replace(/[.。,，、;；]+$/,'').replace(/[.。．;；]/g,'、'));
           const placeLine = /^[（(]?[^()（）]{2,20}(塔|寺|宮|祠|堂|納骨|纳骨|公墓|墓園|園區)[^()（）]{0,6}[)）]?$/.test(line);   // v4.69：「（聖賢祠納骨塔）」
           if(addrLike && pv && placeLine) joined = pv + ' ' + line;
           else if(addrLike && (!pv || /^[\d一-鿿()（）\-－—─~～、,，之巷弄號樓路街段村里鄰區鄉鎮市縣 ]{1,40}$/.test(line)) && (!pv || /[\d巷弄號樓路街段村里鄰區鄉鎮]/.test(line))) joined = pv + addrSep + line;
-          else if(!addrLike && nameish(line) && (!pv || nameish(pv))) joined = pv ? pv.replace(/[.。,，、;；\s]+$/,'')+'、'+line.replace(/[.。,，、;；]+$/,'') : line;
+          else if(!addrLike && nameish(line) && (!pv || nameish(pv))) joined = pv ? pv.replace(/[.。,，、;；\s]+$/,'')+'、'+line.replace(/[.。,，、;；]+$/,'').replace(/[.。．]/g,'、') : line;
           if(joined!==null){ last.value = joined; last.raw = (last.label ? last.label+'：' : '')+joined; return; }
         }
         // v4.58：多則黏在一起沒空行時，下一則的標題（例：「…填寫範例2」「(個人或公司小牌位1000元)」）先暫放，
@@ -2381,9 +2389,9 @@ function matchKeywordPrefix(raw, ev){
   if(!candidates.length) return null;
   candidates.sort((a,b)=>b.kraw.length-a.kraw.length); // 前綴越長、越具體的優先
   const best = candidates[0];
-  let value = trimmed.slice(best.kraw.length).replace(/^[:：,，\-\s]+/,'').trim();
+  let value = trimmed.slice(best.kraw.length).replace(/^[:：,，.．\-\s]+/,'').trim();
   // v4.66：「陽世者姓名高小嫻」關鍵字只對到「陽世」→ 把剩下的「者姓名」去掉
-  const v2 = value.replace(/^(者|人)?(姓名|名字)?(或公司行號)?[:：,，\s]*/,'');
+  const v2 = value.replace(/^(者|人)?(姓名|名字)?(或公司行號)?[:：,，.．\s]*/,'');
   if(v2 && v2!==value && best.kind==='field') value = v2;
   return {key:best.key, kind:best.kind, value};
 }
