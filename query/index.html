@@ -895,7 +895,7 @@ document.getElementById('fahuiSyncBtn').addEventListener('click', async () => {
       const evDoc = await fDb.collection('kv').doc('events').get();
       events = evDoc.exists ? JSON.parse(evDoc.data().value || '[]') : [];
       const snap = await fDb.collection('regs').get();
-      snap.forEach(d => { const x = d.data(); if(x && x.eventId && x.payload) regDocs.push({ eventId: x.eventId, payload: x.payload }); });
+      snap.forEach(d => { const x = d.data(); if(x && x.eventId && x.payload && !x.payload.test) regDocs.push({ eventId: x.eventId, payload: x.payload }); });
     }catch(e){
       if(e.code === 'permission-denied') throw new Error('這個帳號在法會報名平台尚未啟用，無法讀取報名資料，請先由法會報名平台的管理者啟用');
       throw e;
@@ -1278,8 +1278,11 @@ searchBtn.addEventListener('click', doSearch);
 searchInput.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 // ---- 版本紀錄 ----
-const APP_VERSION = 'v2.9';
+const APP_VERSION = 'v2.10';
 const CHANGELOG = [
+  { version:'v2.10', date:'2026-11-05', items:[
+    '「從法會報名平台更新」不帶入法會準備中場次的「🧪 測試」報名（自動同步也一樣）'
+  ]},
   { version:'v2.9', date:'2026-11-04', items:[
     '法會報名、供品贊助的報名資料每天凌晨 3 點自動更新到查詢平台（由「古亭院自動備份」執行），不用再手動按更新、也不用再輸入那兩個平台的帳密',
     '上方「目前資料」會寫更新時間，以及是每日自動同步還是手動更新',

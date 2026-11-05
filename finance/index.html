@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.19.0';
-const APP_DATE = '2026-11-04';
+const APP_VERSION = 'v1.19.1';
+const APP_DATE = '2026-11-05';
 const CHANGELOG = [
+  { version:'v1.19.1', date:'2026-11-05', items:[
+    '對照報名未收款時，不列法會報名平台準備中場次的「🧪 測試」報名'
+  ]},
   { version:'v1.19.0', date:'2026-11-04', items:[
     '後 5 碼對照表新增「📥 從 Excel 帳本匯入」：讀舊帳本有「姓名」和「摘要(帳號)」欄的工作表（例如 銀行存款-115），前面少了 0 的自動補成 5 碼，存進平台後所有人輸入後 5 碼都會自動帶出姓名',
   ] },
@@ -2826,7 +2829,7 @@ const FinLinkStatus = (function(){
           regs.forEach(d=>{
             const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
             const ev = evs[x.eventId];
-            if(ev) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
+            if(ev && !r.test) list.push({ plat:'fh',   // v1.19.1：法會準備中的測試報名不列入配對 platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
               name:String((r.f||{}).reporter||'').trim(), amount:Number(r.total)||0, paid:!!r.paid,
               what:(r.items||[]).map(it=>`${it.itemName||''}×${it.qty||''}`).join('、') });
           });
