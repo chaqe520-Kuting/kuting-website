@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.51 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.52 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.52（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>修正：「新增法會場次」的範本選單漏了「梁皇寶懺（祖先＋個人／地基主，依類別顯示）」（小朱回報找不到）</li>
+      </ul>
       <b>v4.51（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>梁皇寶懺報名（小朱同意的 6 項）：新範本「梁皇寶懺（祖先＋個人／地基主，依類別顯示）」，報名類別選「超薦祖先」只出現主蓮位、副蓮位欄位，選「消災個人」只出現陽世者、地基主欄位；沒顯示的欄位不存、不檢查必填</li>
@@ -5726,6 +5730,7 @@ async function openNewEventModal(){
   const builtinOpts = [
     ['ancestor','祭拜祖先（一戶/倒房/地基主/金紙）'],
     ['liang','梁皇寶懺（主蓮位/副蓮位）'],
+    ['liang2','梁皇寶懺（祖先＋個人／地基主，依類別顯示）'],   // v4.52：v4.51 漏加進選單
     ['general','一般法會（一戶 6000、隨喜功德）'],
     ['buyun','補運（每位 1000，補運／補運+補財庫、地址）'],
     ['donation','隨喜/樂捐登記（單純金額贊助，如普渡功德金）'],
