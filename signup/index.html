@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.66 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.67 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.67（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>從 LINE 貼上快速匯入：「解析文字」旁邊加「🧹 清除文字」，一鍵清掉已貼上的文字</li>
+      </ul>
       <b>v4.66（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：沒有主蓮位姓名就不放主蓮位地址，小蓮位的牌位地址（含換行的長地址）全部放到副蓮位住址</li>
@@ -4102,7 +4106,7 @@ function renderImportPanel(){
     <p class="hint">如果要新增/修改關鍵字，請到「編輯報名欄位／費用」裡調整。</p>`;
   }
   html += `<textarea id="importRawArea" placeholder="貼上 LINE 報名訊息內容…（多人可留空行分隔）" style="min-height:120px;">${importRaw}</textarea>
-    <div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="parseBtn">解析文字</button></div>`;
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="parseBtn">解析文字</button><button class="btn btn-ghost btn-sm" id="clearRawBtn">🧹 清除文字</button></div>`;
 
   if(importParseFailed){
     html += `<div style="background:#FBF0EC;border:1px solid var(--vermilion);border-radius:10px;padding:12px 14px;margin-top:14px;">
@@ -5775,6 +5779,13 @@ function bindEvents(){
     };
   }
 
+  // v4.67（小朱）：清除貼上的文字（下方已解析的內容不動）
+  const clearRawBtn = document.getElementById('clearRawBtn');
+  if(clearRawBtn) clearRawBtn.onclick = ()=>{
+    const ta = document.getElementById('importRawArea');
+    importRaw = '';
+    if(ta){ ta.value = ''; ta.focus(); }
+  };
   const parseBtn = document.getElementById('parseBtn');
   if(parseBtn) parseBtn.onclick = ()=>{
     importRaw = document.getElementById('importRawArea').value;
