@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.63 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.64 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.64（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：姓名或地址換行寫成兩行（例「陽世者姓名:王小明.」下一行「王小華」、地址拆兩行），會接回同一欄，人數也算對</li>
+      </ul>
       <b>v4.63（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：地基主沒寫「地址」兩個字、直接寫地址那行，也會放到地基主地址；標題金額沒寫「元」（例「地基主小牌位.1000」）也認得</li>
@@ -2192,6 +2196,16 @@ function parseLineBlocks(text){
           if(hasNumbered || (titleLike && li===0 && lines.length>1)){ headerLines.push(line); return; }
           pushFree(line);
           return;
+        }
+        // v4.64：編號那行的內容換行寫（例「陽世者姓名:王小明.」下一行「王小華」、地址拆兩行）→ 接回上一欄
+        if(hasNumbered && entries && entries.length && !/[:：]/.test(line)){
+          const last = entries[entries.length-1];
+          const pv = String(last.value||'').trim();
+          const addrLike = /地址|住址|塔位|牌位/.test(last.label||'') || ADDR_RE.test(pv);
+          let joined = null;
+          if(addrLike && (!pv || /^[\d一-鿿()（）\-之巷弄號樓路街段村里鄰區鄉鎮市縣 ]{1,40}$/.test(line)) && (!pv || /[\d巷弄號樓路街段村里鄰區鄉鎮]/.test(line))) joined = pv + line;
+          else if(!addrLike && isNameLike(line.replace(/[.。,，、;；]+$/,'')) && (!pv || isNameLike(pv.replace(/[.。,，、;；]+$/,'')))) joined = pv ? pv.replace(/[.。,，、;；\s]+$/,'')+'、'+line.replace(/[.。,，、;；]+$/,'') : line;
+          if(joined!==null){ last.value = joined; last.raw = (last.label ? last.label+'：' : '')+joined; return; }
         }
         // v4.58：多則黏在一起沒空行時，下一則的標題（例：「…填寫範例2」「(個人或公司小牌位1000元)」）先暫放，
         // 下一行是「1.」就當下一位的標題，不是的話才算這一位的內容
