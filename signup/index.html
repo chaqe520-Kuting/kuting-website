@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.61 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.62 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.62（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上匯入預覽：每個費用項目標示單價（例：5,000 元／份），下面顯示合計，改數量時合計跟著變</li>
+      </ul>
       <b>v4.61（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：標題是地基主、名字寫在「陽世者姓名」時，自動放到地基主姓名、地址放到地基主地址</li>
@@ -4092,9 +4096,12 @@ function renderImportPanel(){
         });
         if(ev.mode!=='items' && (ev.fees||[]).length){
           html += `<label>費用項目（依標題自動猜測，請確認）</label>`;
+          // v4.62（小朱）：每個費用項目標示單價，下面顯示合計
           ev.fees.forEach(fl=>{
-            html += `<div class="fee-row"><div class="name">${fl.label}</div><input type="number" data-blk="${bi}" data-feekey="${fl.k}" value="${b.fee[fl.k]||0}"></div>`;
+            const priceTxt = fl.mode==='amount' ? '（填金額）' : `（${money(Number(fl.price)||0)} 元／份）`;
+            html += `<div class="fee-row"><div class="name">${escHtml(fl.label)} <span style="color:#8a6d3b;font-weight:500;white-space:nowrap;">${priceTxt}</span></div><input type="number" data-blk="${bi}" data-feekey="${fl.k}" value="${b.fee[fl.k]||0}"></div>`;
           });
+          html += `<div style="text-align:right;font-weight:700;color:var(--vermilion);margin:6px 2px 0;">合計 <span data-imptotal="${bi}">${money(calcTotal(ev, {}, b.fee, []))}</span> 元</div>`;
         }
         if(b.mapped.unmapped.length){
           html += `<div style="background:#FBF0EC;border:1px solid var(--vermilion);border-radius:8px;padding:8px 10px;margin-top:8px;">
@@ -5776,7 +5783,12 @@ function bindEvents(){
     };
   });
   document.querySelectorAll('[data-blk][data-feekey]').forEach(el=>{
-    el.oninput = ()=>{ importBlocks[Number(el.dataset.blk)].fee[el.dataset.feekey] = Number(el.value)||0; };
+    el.oninput = ()=>{
+      const bi = Number(el.dataset.blk), b = importBlocks[bi];
+      b.fee[el.dataset.feekey] = Number(el.value)||0;
+      const ev = events.find(e=>e.id===b.eventId), t = document.querySelector(`[data-imptotal="${bi}"]`);
+      if(ev && t) t.textContent = money(calcTotal(ev, {}, b.fee, []));
+    };
   });
   const confirmImportBtn = document.getElementById('confirmImportBtn');
   if(confirmImportBtn) confirmImportBtn.onclick = async ()=>{
