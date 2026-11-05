@@ -1066,8 +1066,15 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.48 ・ 2026-11-04（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.49 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.49（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>開放前志工測試：準備中的場次，登入中的啟用志工在報名頁看得到（🧪 測試中），信眾看不到；送出、LINE 貼上匯入、小幫手待確認匯入的報名都自動標成「🧪 測試」</li>
+        <li>測試報名不進財務對照、統計、往年比較、週報與信徒查詢同步；按「✅ 開放報名」時先下載測試報名備份檔，再從名單清掉</li>
+        <li>法會也能「同去年」：LINE 傳「王小明 同去年」或語音說「跟去年一樣」，帶入解析時找這位之前同名法會的報名，自動帶入欄位與數量給志工核對</li>
+        <li>LINE 貼上預覽的原始內容改成純文字顯示</li>
+      </ul>
       <b>v4.48（2026-11-04）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>志工登入後代報名：打報名者姓名時，如果是老信眾（信徒查詢裡有紀錄），欄位下方出現「📇 老信眾」列出上次的電話、陽上人、地址，按「帶入」只填空白的欄位</li>
@@ -1397,7 +1404,7 @@ function finSyncFields(r, updated){ FIN_FIELDS.forEach(k=>{ if(k in updated) r[k
 const fahuiFinMatcher = window.KutingFinMatch({
   id: 'fahui',
   title: ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); return ev ? ev.name : ''; },
-  regs: ()=>regsCache[adminSelectedEvent] || [],
+  regs: ()=>(regsCache[adminSelectedEvent] || []).filter(r=>!r.test),   // v4.49：測試報名不對照財務
   key: r=>r.id,
   name: r=>String((r.f||{}).reporter||'').trim(),
   amount: r=>Number(r.total)||0,
@@ -1899,6 +1906,9 @@ async function saveRegs(eventId){
 /* 新增/修改/刪除「單一一筆」報名資料一律用這三個，讓伺服器端做鎖定保護，
    避免多人同時操作時彼此覆蓋、資料遺失（saveRegs 整份覆蓋僅用於還原備份等情境）。 */
 async function appendRegs(eventId, items){
+  // v4.49：準備中（測試中）的場次新增的報名一律標成測試（報名表、LINE 貼上匯入、小幫手待確認都經過這裡）
+  const tev = events.find(e=>e.id===eventId);
+  if(tev && tev.draft) (items||[]).forEach(it=>{ it.test = true; });
   try{
     await window.storage.appendItems('regs:'+eventId, items);
     return true;
@@ -2537,8 +2547,89 @@ function parseAndBuildPreview(text){
     }
     prevEv = ev || prevEv;
     const a = analyzeBlock(blk, ev);
-    return {...blk, eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain, why, learn:{}};
+    return applySameAsLast({...blk, eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain, why, learn:{}}, ev);
   });
+  sameLastPreload();
+}
+
+/* ---------------- v4.49：法會「同去年」 ----------------
+   LINE 小幫手或貼上的「王小明 同去年」「我叫王小明，跟去年一樣」：找這位之前報過的法會（同名法會最近一場優先，
+   名稱比對忽略年份、日期、干支），把上次的欄位與費用數量帶進來，志工核對後再按確認。測試報名不當參考。 */
+const SAME_LAST_RE = /(同|跟|和|照|如)\s*(去年|上次|上一次|上回|上一回|上一屆|之前|以前|前年|往年|往常)|(去年|上次|上一次|上回|上一屆|之前)\s*(一樣|相同)|照舊/;
+function sameLastText(b){ return [b.header||'', ...(b.rawEntries||[]).map(en=>en.raw!==undefined ? en.raw : ((en.label?en.label+'：':'')+(en.value||'')))].join(' '); }
+function sameLastName(text, ev){
+  let t = String(text||'').replace(/\s+/g,' ');
+  const m = t.match(/(?:我叫|我是|名字是|名字叫|姓名)\s*[:：]?\s*([\u4e00-\u9fff]{2,4}?)(?=[，,。、\s跟同和照如報]|$)/);
+  if(m) return m[1];
+  t = t.replace(SAME_LAST_RE, ' ').replace(/的?報名|法會|一樣|相同|登記|麻煩|謝謝|感恩|幫我|幫|請|要|也|一樣|[0-9０-９]+/g,' ');
+  const base = ev ? statCleanName(ev.name) : '';
+  const toks = t.split(/[^\u4e00-\u9fff]+/).filter(w=>w.length>=2 && w.length<=4 && !(base && base.includes(w)) && !/^(梁皇|寶懺|普渡|普度|補運|祖先|超渡|消災|祈福|中元)$/.test(w));
+  return toks[0] || '';
+}
+let sameLastLoading = false;
+function sameLastPreload(){
+  if(sameLastLoading || !importBlocks.some(b=>b.sameLast && b.sameLast.wait)) return;
+  sameLastLoading = true;
+  Promise.all(events.filter(e=>!regsCache[e.id]).map(e=>loadRegs(e.id))).then(()=>{
+    sameLastLoading = false;
+    importBlocks.forEach((b,bi)=>{ if(b.sameLast && b.sameLast.wait){ const ev = events.find(e=>e.id===b.eventId) || null; reanalyzeImportBlock(bi, b.eventId, b.why); } });
+    render();
+  }).catch(e=>{ sameLastLoading = false; console.error('sameLast preload', e); });
+}
+function sameLastFind(name, ev){
+  const base = statCleanName(ev.name);
+  const others = events.filter(e=>e.id!==ev.id);
+  const lastAt = e=>Math.max(0, ...statRegs(e.id).map(r=>Number(r.createdAt)||0));
+  const pick = list=>{
+    const hits = [];
+    list.forEach(e=>statRegs(e.id).forEach(r=>{ if(statName(r)===name) hits.push({e, r}); }));
+    hits.sort((a,b)=>(Number(b.r.createdAt)||0)-(Number(a.r.createdAt)||0));
+    return hits[0] || null;
+  };
+  const same = others.filter(e=>{ const o = statCleanName(e.name); return o && base && (o===base || o.includes(base) || base.includes(o)); });
+  return {hit: pick(same), any: pick(others.sort((a,b)=>lastAt(b)-lastAt(a))), sameName: true};
+}
+function applySameAsLast(b, ev){
+  const text = sameLastText(b);
+  if(!SAME_LAST_RE.test(text) || !ev) return b;
+  const name = sameLastName(text, ev);
+  if(!name){ b.sameLast = {ok:false, msg:'🔁 同去年：沒看出姓名，請在報名者欄位填上姓名後重新選一次場次'}; return b; }
+  if(events.some(e=>!regsCache[e.id])){ b.sameLast = {ok:false, wait:true, msg:`🔁 同去年：正在讀取「${name}」之前的報名…`}; return b; }
+  const res = sameLastFind(name, ev);
+  const h = res.hit || res.any;
+  if(!h){
+    b.mapped.fields.reporter = b.mapped.fields.reporter || name;
+    b.sameLast = {ok:false, msg:`🔁 同去年：找不到「${name}」之前的法會報名，請照信徒說的內容手動填`};
+    return b;
+  }
+  // 只寫「姓名＋同去年」的短訊息整筆照上次；訊息裡還有其他內容時只補空白的欄位、沒填的數量
+  const shortMsg = text.replace(SAME_LAST_RE,'').replace(/[\s，,。:：、]/g,'').length <= 24;
+  const pev = h.e, pr = h.r, fields = {}, fee = {};
+  (ev.fields||[]).forEach(f=>{
+    const pf = (pev.fields||[]).find(x=>x.k===f.k && exactLabelKey(x.label)===exactLabelKey(f.label)) || (pev.fields||[]).find(x=>exactLabelKey(x.label)===exactLabelKey(f.label));
+    const v = pf ? (pr.f||{})[pf.k] : undefined;
+    if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v);
+  });
+  (ev.fees||[]).forEach(fl=>{
+    const pf = (pev.fees||[]).find(x=>x.k===fl.k && exactLabelKey(x.label)===exactLabelKey(fl.label)) || (pev.fees||[]).find(x=>exactLabelKey(x.label)===exactLabelKey(fl.label));
+    const q = pf ? (pr.fee||{})[pf.k] : 0;
+    if(q) fee[fl.k] = q;
+  });
+  if(!fields.reporter) fields.reporter = name;
+  if(shortMsg){
+    b.mapped = {fields, fees:{}, unmapped:[]};
+    b.fee = fee;
+    b.guessed = {};
+  } else {
+    Object.keys(fields).forEach(k=>{ if(!String(b.mapped.fields[k]||'').trim()){ b.mapped.fields[k] = fields[k]; if(b.guessed) delete b.guessed[k]; } });
+    Object.keys(fee).forEach(k=>{ if(!b.fee[k]) b.fee[k] = fee[k]; });
+  }
+  const diff = !res.hit;
+  b.sameLast = {ok:!diff, msg: diff
+    ? `🔁 同去年：沒有同名法會的紀錄，先照「${pev.name}」裡「${name}」的報名帶入（不同法會，欄位可能不同，請仔細核對）`
+    : `🔁 同去年：已照「${pev.name}」裡「${name}」的報名${shortMsg?'帶入欄位與數量':'補上空白的欄位與數量'}，請核對（地址、陽上人有變動要改）`};
+  if(diff) b.uncertain = true;
+  return b;
 }
 let importForceEventId = '';
 // 依目前選的場次重新對應一筆（換場次時用）
@@ -2546,7 +2637,10 @@ function reanalyzeImportBlock(bi, eventId, why){
   const b = importBlocks[bi];
   const ev = events.find(e=>e.id===eventId) || null;
   const a = analyzeBlock(b, ev);
+  delete b.sameLast;
   Object.assign(b, {eventId: ev ? ev.id : '', mapped:a.mapped, fee:a.fee, guessed:a.guessed, include: !!ev, uncertain:false, why: why||'手動選擇', learn:{}});
+  applySameAsLast(b, ev);
+  sameLastPreload();
 }
 
 async function confirmImport(){
@@ -2655,7 +2749,7 @@ function renderLineInboxCard(){
     const when = ms && !isNaN(d.getTime()) ? `${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}` : '—';
     const src = m.sourceType==='group' ? ('群組'+(m.groupName?'：'+m.groupName:'')) : (m.sourceType==='room' ? '多人聊天' : '私訊');
     const inImp = lineInboxInImport.includes(m.id);
-    const tag = m.kind==='audio' ? `🎤 語音${m.audioSec?' '+m.audioSec+' 秒':''}（AI 聽寫，姓名可能是同音字）` : (m.image ? '📷 照片（AI 照抄，請對照照片）' : '');
+    const tag = (m.test ? '🧪 志工測試（請匯入準備中的場次）　' : '') + (m.kind==='audio' ? `🎤 語音${m.audioSec?' '+m.audioSec+' 秒':''}（AI 聽寫，姓名可能是同音字）` : (m.image ? '📷 照片（AI 照抄，請對照照片）' : ''));
     html += `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;${inImp?'border-color:var(--gold);':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin:0;"><input type="checkbox" class="lin-chk" data-id="${escHtml(m.id)}" style="width:auto;min-height:0;"> ${escHtml(m.displayName||'（未知）')}</label>
@@ -2841,7 +2935,8 @@ async function render(){
   bindEvents();
 }
 
-function activeEvents(){ return events.filter(e=>e.active!==false && !e.draft); }  // v4.31：準備中（draft）不在報名網站出現
+// v4.31：準備中（draft）不在報名網站出現；v4.49：登入中的啟用志工看得到（🧪 測試中），送出的報名自動標成測試
+function activeEvents(){ const open = events.filter(e=>e.active!==false); return [...open.filter(e=>!e.draft), ...(staffActive() ? open.filter(e=>e.draft) : [])]; }
 function adminOpenEvents(){ return events.filter(e=>e.active!==false); }  // 後台匯入用：準備中＋開放中
 
 async function renderPublicAsync(){
@@ -2864,7 +2959,7 @@ function renderPublic(){
   }
   let html = `<div class="card"><h2>選擇法會場次</h2><div class="event-pick">`;
   list.forEach(e=>{
-    html += `<div class="event-chip ${e.id===publicSelectedEvent?'active':''}" data-pick="${e.id}">${e.name}</div>`;
+    html += `<div class="event-chip ${e.id===publicSelectedEvent?'active':''}" data-pick="${e.id}">${escHtml(e.name)}${e.draft?' 🧪 測試中':''}</div>`;
   });
   html += `</div></div>`;
   const ev = list.find(e=>e.id===publicSelectedEvent);
@@ -2962,6 +3057,7 @@ function renderPersonBlockHtml(ev, blockIdx){
 
 function renderPublicForm(ev){
   let html = `<div class="card"><h2>${ev.name}　報名表</h2>`;
+  if(ev.draft) html += `<div style="background:#FFF4D6;border:2px dashed var(--gold);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px;line-height:1.7;"><b style="color:var(--vermilion);">🧪 測試中（只有登入的志工看得到）</b><br>這場還在準備中，信眾看不到。這裡送出的報名會標成「測試」，不會進財務對照、週報、信徒查詢；按「✅ 開放報名」時會先備份再清掉。</div>`;
   const posterImgs = (ev.posterImages && ev.posterImages.length) ? ev.posterImages : (ev.posterImage ? [ev.posterImage] : []);
   if(posterImgs.length){
     html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">` +
@@ -3085,6 +3181,8 @@ function statTrendSvg(regs){
 }
 /* v4.12：姓名比對（去掉空白）、場次年份（名稱或日期裡的「115年」「115/8/16」「2026」，都沒有就用第一筆報名的年份） */
 function statName(r){ return String((r.f||{}).reporter||'').replace(/\s+/g,''); }
+// v4.49：統計、往年比較、功德主都不算測試報名
+function statRegs(id){ return (regsCache[id]||[]).filter(r=>!r.test); }
 function statPhone(ev, r){
   const fl = (ev.fields||[]).find(isPhoneField);
   return fl ? String((r.f||{})[fl.k]||'') : '';
@@ -3202,7 +3300,7 @@ function renderStatsYearCompare(rows){
 }
 function renderStatsTopDonors(){
   const map = {};
-  events.forEach(e=>(regsCache[e.id]||[]).forEach(r=>{
+  events.forEach(e=>statRegs(e.id).forEach(r=>{
     const n = statName(r); if(!n) return;
     const o = map[n] = map[n]||{name:n, total:0, evs:new Set(), count:0};
     o.total += Number(r.total)||0; o.evs.add(e.id); o.count++;
@@ -3218,7 +3316,7 @@ function renderStatsNewReturning(sev, sregs){
   const hereFirst = {};
   sregs.forEach(r=>{ const n=statName(r); if(!n) return; const t=Number(r.createdAt)||0; if(!(n in hereFirst) || t<hereFirst[n]) hereFirst[n]=t; });
   const otherFirst = {};
-  events.forEach(e=>{ if(e.id===sev.id) return; (regsCache[e.id]||[]).forEach(r=>{ const n=statName(r); if(!n) return; const t=Number(r.createdAt)||0; if(!(n in otherFirst) || t<otherFirst[n]) otherFirst[n]=t; }); });
+  events.forEach(e=>{ if(e.id===sev.id) return; statRegs(e.id).forEach(r=>{ const n=statName(r); if(!n) return; const t=Number(r.createdAt)||0; if(!(n in otherFirst) || t<otherFirst[n]) otherFirst[n]=t; }); });
   const sy = statEventYear(sev);
   const histPrior = new Set(lookupHist && sy!=null ? lookupHist.filter(r=>r.year<sy && r.name).map(r=>r.name) : []);
   const names = Object.keys(hereFirst);
@@ -3250,7 +3348,7 @@ async function renderStatsAsync(){
   if(!events.length) return `<div class="card"><div class="empty">尚無法會場次。</div></div>`;
   await Promise.all(events.filter(e=>!regsCache[e.id]).map(e=>loadRegs(e.id)));
   const rows = events.map(e=>{
-    const regs = regsCache[e.id]||[];
+    const regs = statRegs(e.id);
     const total = regs.reduce((s,r)=>s+(Number(r.total)||0),0);
     const paidRegs = regs.filter(r=>r.paid);
     const paid = paidRegs.reduce((s,r)=>s+(Number(r.total)||0),0);
@@ -3279,7 +3377,7 @@ async function renderStatsAsync(){
   html += renderStatsYearCompare(rows);
   if(!statsEventId || !events.some(e=>e.id===statsEventId)) statsEventId = adminSelectedEvent || events[0].id;
   const sev = events.find(e=>e.id===statsEventId);
-  const sregs = regsCache[sev.id]||[];
+  const sregs = statRegs(sev.id);
   const opts = events.map(e=>`<option value="${e.id}" ${e.id===sev.id?'selected':''}>${escHtml(e.name)}</option>`).join('');
   html += `<div class="card"><h2 style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">單場明細 <select id="statsEventSel" class="st-sel">${opts}</select></h2>`;
   const br = statFeeBreakdown(sev, sregs);
@@ -3384,8 +3482,9 @@ function renderImportPanel(){
           </div>
         </div>
         ${b.why ? `<p class="hint" style="margin:4px 0;${b.uncertain?'color:var(--vermilion);font-weight:700;':''}">${b.uncertain?'⚠️ 場次不確定：':'✅ '}${escHtml(b.why)}</p>` : ''}
-        <p class="hint">原始標題：${b.header||'（無）'}</p>
-        <p class="hint">原始貼上內容：${b.rawEntries.map((en,i)=>`${i+1}.${en.label}:${en.value}`).join('　')}</p>`;
+        <p class="hint">原始標題：${escHtml(b.header||'（無）')}</p>
+        <p class="hint">原始貼上內容：${escHtml(b.rawEntries.map((en,i)=>`${i+1}.${en.label}:${en.value}`).join('　'))}</p>
+        ${b.sameLast ? `<p class="hint" style="margin:4px 0;font-weight:700;color:${b.sameLast.ok?'#2E7D32':'var(--vermilion)'};">${escHtml(b.sameLast.msg)}</p>` : ''}`;
       if(ev){
         (ev.fields||[]).forEach(f=>{
           const val = (b.mapped.fields[f.k]||'').toString();
@@ -3560,7 +3659,7 @@ function renderRegTable(ev){
     html += `<tr>
       <td><input type="checkbox" class="reg-select-cb" data-id="${escHtml(r.id)}" ${selectedRegIds.has(r.id)?'checked':''}></td>
       <td>${startIdx+i+1}</td>
-      <td>${escHtml(r.f.reporter||'')}</td>
+      <td>${escHtml(r.f.reporter||'')}${r.test?' <span class="pill pending" title="準備中測試時送出的報名，開放報名時會清掉" style="background:#FFF4D6;color:#9a6a00;">🧪 測試</span>':''}</td>
       <td>${summary}</td>
       <td>${money(r.total)}</td>
       <td><span class="pill ${r.paid?'ok':'pending'}" data-togglepaid="${escHtml(r.id)}" style="cursor:pointer"${r.paid&&fahuiFinMatcher.hasLink(r)?` title="${escHtml(fahuiFinMatcher.regMatchText(r))}"`:''}>${r.paid?'已收款':'未收款'}</span>${r.paid&&fahuiFinMatcher.hasLink(r)?`<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">💵 ${escHtml(fahuiFinMatcher.regMatchText(r))}</div>`:''}</td>
@@ -4762,10 +4861,28 @@ function bindEvents(){
   const publishBtn = document.getElementById('publishEventBtn');
   if(publishBtn) publishBtn.onclick = async ()=>{
     const ev = events.find(e=>e.id===adminSelectedEvent);
-    if(!(await showConfirm(`「${escHtml(ev.name)}」的報名欄位、費用、日期都確認好了嗎？<br>按確定後，報名網站就會出現這場法會，信眾可以開始報名。`))) return;
+    // v4.49：開放前先清掉測試報名（先下載備份），正式名單不會混到測試資料
+    await loadRegs(ev.id);
+    const tests = (regsCache[ev.id]||[]).filter(r=>r.test);
+    if(!(await showConfirm(`「${escHtml(ev.name)}」的報名欄位、費用、日期都確認好了嗎？<br>按確定後，報名網站就會出現這場法會，信眾可以開始報名。` +
+      (tests.length ? `<br><br><b style="color:var(--vermilion);">🧪 這場有 ${tests.length} 筆測試報名</b>，會先下載備份檔，再從名單清掉。` : '')))) return;
+    if(tests.length){
+      try{
+        const blob = new Blob([JSON.stringify({event:ev.name, eventId:ev.id, clearedAt:new Date().toISOString(), regs:tests}, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `法會測試報名備份_${String(ev.name).replace(/[\\/:*?"<>|\s]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+      }catch(e){ console.error('test backup', e); if(!(await showConfirm('測試報名備份檔下載失敗，仍要清掉測試報名並開放嗎？'))) return; }
+      let fail = 0;
+      for(const r of tests){
+        try{ await window.storage.deleteItem('regs:'+ev.id, r.id); }catch(e){ console.error('delete test reg', e); fail++; }
+      }
+      await loadRegs(ev.id);
+      if(fail){ showToast(`⚠️ 有 ${fail} 筆測試報名沒有清掉（${'網路或權限問題'}），場次維持準備中，請再按一次「開放報名」`, 6000); render(); return; }
+    }
     delete ev.draft;
     const ok = await saveEvents(); render();
-    if(ok) showToast('已開放報名，報名網站看得到了', 3000);
+    if(ok) showToast((tests.length ? `已清掉 ${tests.length} 筆測試報名，` : '') + '已開放報名，報名網站看得到了（LINE 小幫手約 10 分鐘後認得這場）', 5000);
   };
   const unpublishBtn = document.getElementById('unpublishEventBtn');
   if(unpublishBtn) unpublishBtn.onclick = async ()=>{
