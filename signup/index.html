@@ -1066,8 +1066,14 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.59 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.60 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.60（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上辨識加強：「地址」跟著前一個姓名放（祖先地址、倒房／副蓮位地址、地基主地址不再互相蓋掉），「同上」不會蓋掉前面的地址</li>
+        <li>支援「①②」「一、二、」編號、「陽世者姓名 王小明 王小華」用空白隔開、姓名後面直接接電話</li>
+        <li>梁皇：「主牌位：王小明」「小牌位：王小華、王小美」「小牌位1000元x3」「主牌位」一行字都會自動勾費用、算份數；小蓮位＝副蓮位</li>
+      </ul>
       <b>v4.59（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：標題是「小牌位／副牌位」時，份數依陽世者姓名人數自動算（例：寫 6 位就是 6 份）；主牌位一戶維持 1 份</li>
@@ -2115,6 +2121,9 @@ function normalizeImportText(text){
     .replace(/\u00A0/g, ' ')              // 不斷行空格 -> 一般空格
     .replace(/[\u200B-\u200D\uFEFF]/g, '') // 零寬字元、BOM -> 直接移除
     .replace(/[：﹕︰]/g, '：')             // 各種全形冒號變體 -> 統一
+    // v4.60：「①」「一、」開頭的編號 -> 「1.」
+    .replace(/^([ \t]*)([①-⑳])\s*/gm, (m,sp,c)=>sp+(c.charCodeAt(0)-0x245F)+'.')
+    .replace(/^([ \t]*)([一二三四五六七八九]|十[一二三四五六七八九]?)[、．.]\s*/gm, (m,sp,c)=>{ const d='一二三四五六七八九'; const n = c.length===1 ? (c==='十'?10:d.indexOf(c)+1) : 10+d.indexOf(c[1])+1; return sp+n+'.'; })
     .replace(/[，、]/g, (m)=>m);           // (保留，不動)
 }
 
@@ -2148,7 +2157,8 @@ function parseLineBlocks(text){
       if(colonMatch){
         const label = colonMatch[1].trim(), value = colonMatch[2].trim();
         const lk = exactLabelKey(label);
-        if(entries && lk && seenLabels.has(lk)){ flush(); entries = []; headerLines = []; seenLabels.clear(); }
+        // v4.60：「地址」可以寫好幾次（主蓮位、倒房各一個），不算換下一位
+        if(entries && lk && seenLabels.has(lk) && !/地址|住址|塔位|地點/.test(lk)){ flush(); entries = []; headerLines = []; seenLabels.clear(); }
         if(!entries) entries = [];
         if(lk) seenLabels.add(lk);
         entries.push({label, value, raw:line});
@@ -2163,7 +2173,7 @@ function parseLineBlocks(text){
       const m = line.match(ENTRY_LINE_RE);
       if(!m){
         if(entries===null){
-          const titleLike = /報名|法會|登記|【|〔|\[/.test(line) && !/[:：]/.test(line);
+          const titleLike = (/報名|法會|登記|範例|梁皇|寶懺|【|〔|\[/.test(line) || /\d\s*元/.test(line)) && !/[:：]/.test(line);
           if(hasNumbered || (titleLike && li===0 && lines.length>1)){ headerLines.push(line); return; }
           pushFree(line);
           return;
@@ -2425,19 +2435,56 @@ function buildMappedEntries(entries, ev){
   // 同時有兩個欄位都可能符合的情況（例如「祖先牌位地址」跟「倒房先人牌位地址」）
   const blockText = entries.map(en=>en.raw!==undefined ? en.raw : (en.label ? en.label+'：'+en.value : en.value)).join(' ');
   const blockHasDaofang = normalizeKeyword(blockText).includes('倒房');
+  // v4.60：依類別顯示的場次（梁皇）——小蓮位＝副蓮位、小牌位＝副牌位；「地址」跟著前一個姓名放
+  const condEv = evHasCond(ev);
+  const syn = t=>condEv ? synLabel(ev, t) : t;
+  const fdOf = k=>(ev.fields||[]).find(x=>x.k===k);
+  const filled = k=>!!String(fields[k]||'').trim();
+  let lastName = null;
   entries.forEach(en=>{
-    const rawFull = en.raw!==undefined ? en.raw : (en.label ? en.label+'：'+en.value : en.value);
+    const rawFull = syn(en.raw!==undefined ? en.raw : (en.label ? en.label+'：'+en.value : en.value));
+    const enLabel = syn(en.label||'');
     let result = null;
-    if(en.label){
+    if(enLabel){
       // 這一行有冒號：整行文字（冒號前後都算）搜尋關鍵字，內容值一律取冒號後面的原始文字
-      const ex = matchExactLabel(en.label, ev, en.value);
+      const ex = matchExactLabel(enLabel, ev, en.value);
       const m = ex || findKeywordAnywhere(rawFull, ev, blockHasDaofang);
       if(m) result = {key:m.key, kind:m.kind, value:en.value};
     } else {
+      // v4.60：沒有冒號、欄位名稱和內容用空白隔開（例「陽世者姓名 王小明 王小華」）
+      const m2 = condEv && rawFull.match(/^([^\s\d:：]{2,12})\s+(\S.*)$/);
+      if(m2){
+        const hit = matchExactLabel(m2[1], ev, m2[2]) || findKeywordAnywhere(m2[1], ev, blockHasDaofang);
+        if(hit) result = {key:hit.key, kind:hit.kind, value:m2[2].trim()};
+      }
       // 這一行沒有冒號：用「開頭前綴」比對，抓出關鍵字後面剩下的文字當內容值
-      result = matchKeywordPrefix(rawFull, ev);
+      if(!result) result = matchKeywordPrefix(rawFull, ev);
+    }
+    if(lastName){
+      const pa = pairedAddrField(ev, lastName);
+      if(pa && !filled(pa.k)){
+        if(!result){
+          // 只寫「地址／住址／塔位」→ 放到前一個姓名的地址欄
+          const lab = enLabel || ((rawFull.match(/^(\S{2,6})\s/)||[])[1]||'');
+          if(/地址|住址|塔位|地點/.test(lab)) result = {key:pa.k, kind:'field', value: enLabel ? en.value : rawFull.slice(lab.length).trim()};
+        } else if(result.kind==='field' && result.key!==pa.k && isAddrField(fdOf(result.key)||{})){
+          const pn = pairedNameField(ev, result.key);
+          if(!pn || !filled(pn.k) || filled(result.key)) result.key = pa.k;
+        }
+      }
+    }
+    if(result && condEv && result.kind==='field'){
+      const fdx = fdOf(result.key);
+      // 「主蓮位數量：1」這種只有數字的，不放進姓名欄
+      if(fdx && !isAddrField(fdx) && !isPhoneField(fdx) && /^\s*\d+\s*[位份個]?\s*$/.test(String(result.value||''))) result = null;
     }
     if(!result){ unmapped.push(en); return; }
+    // v4.60：地址欄已經有了，又寫一次「同上」→ 保留原本的地址
+    if(result.kind==='field' && filled(result.key) && /^\s*(同上|同前|同住址|同地址)\s*$/.test(String(result.value||''))) return;
+    if(result.kind==='field'){
+      const fd0 = fdOf(result.key);
+      if(fd0 && !isAddrField(fd0) && !fd0.isShared && !isPhoneField(fd0) && fd0.type!=='radio' && fd0.type!=='select' && !/備註/.test(fd0.label||'')) lastName = result.key;
+    }
     if(result.kind==='field'){
       const fd = (ev.fields||[]).find(x=>x.k===result.key);
       fields[result.key] = fd && (fd.type==='select'||fd.type==='radio') ? snapToOption(fd, result.value) : result.value;
@@ -2484,6 +2531,7 @@ function condOk(item, vals){
 }
 function countNames(v){
   return String(v||'').split(/[、,，;；\n\/…]+|\.{3,}/)
+    .flatMap(p=>{ const ws = p.trim().split(/\s+/); return ws.length>1 && ws.every(w=>/^[一-鿿○〇Ｏ]{2,4}$/.test(w)) ? ws : [p]; })   // v4.60：「王小明 王小華」用空白隔開
     .map(x=>x.replace(/^[\s\d０-９.．、)）(（\-]+/,'').trim())
     .filter(x=>/[A-Za-z一-鿿À-ỹ]/.test(x)).length;
 }
@@ -2570,6 +2618,7 @@ function classifyValue(ev, v){
   if(!t) return null;
   const digits = t.replace(/[^\d]/g,'');
   if(PHONE_RE.test(t) && digits.length>=8 && t.replace(/[\d\s\-()（）+#轉分機]/g,'').length<=2) return 'phone';
+  if(isFeeWord(ev, t)) return 'feeword';   // v4.60
   if(optionFieldFor(ev, t, false, {fields:{}})) return 'option';
   if(ADDR_RE.test(t) && t.length>=6) return 'addr';
   if(ev.mode!=='items' && /^\s*[\d一二兩三四五六七八九十]+\s*(位|份|戶|個|人)\s*$/.test(t)) return 'qty';
@@ -2600,6 +2649,7 @@ function guessUnmapped(ev, mapped){
   const left = new Set();
   const take = type=>items.filter(it=>it.type===type && !it.done);
   // 2) 依類型放（電話 → 選項 → 地址 → 祖先先人 → 數量 → 人名），跟信眾寫的順序無關
+  take('feeword').forEach(it=>{ (mapped.feeWords = mapped.feeWords||[]).push(it.v); it.done = true; });   // v4.60：交給 applyHeaderFee 判斷費用
   take('phone').forEach(it=>{ const f = fields.find(x=>isPhoneField(x) && empty(x)); if(f){ set(f, it.v); it.done=true; } });
   take('option').forEach(it=>{ const o = optionFieldFor(ev, it.v, true, mapped); if(o){ set(o.f, o.val); it.done=true; } });
   take('addr').forEach(it=>{
@@ -2636,6 +2686,15 @@ function guessUnmapped(ev, mapped){
 // v4.37：有標名稱但內容明顯放錯（例：電話欄寫地址、地址欄寫電話），移回去重新依內容判斷
 function fixMislabeled(ev, mapped){
   if(!ev) return;
+  // v4.60：姓名後面直接接電話（例「林美玲 0933111222」）→ 電話拆到電話欄
+  const pf = (ev.fields||[]).find(f=>isPhoneField(f));
+  if(pf && !String(mapped.fields[pf.k]||'').trim()){
+    for(const f of (ev.fields||[])){
+      if(f===pf || isAddrField(f)) continue;
+      const m = String(mapped.fields[f.k]||'').match(/^(.*?[^\d\s,，])[\s,，]*((?:\+?886[-\s]?|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}|0\d{1,2}[-\s)）]?\d{6,8})\s*$/);
+      if(m){ mapped.fields[f.k] = m[1].trim(); mapped.fields[pf.k] = m[2]; break; }
+    }
+  }
   (ev.fields||[]).forEach(f=>{
     const v = String(mapped.fields[f.k]||'').trim();
     if(!v) return;
@@ -2650,19 +2709,39 @@ function fixMislabeled(ev, mapped){
    用「金額＋項目字眼」判斷是哪一個費用；只用在有「依類別顯示」的場次（例：梁皇寶懺範本）。
    小牌位＝副牌位、小蓮位＝副蓮位、姓氏祖先＝一戶祖先。主蓮位／副蓮位／主牌位／副牌位這類字算 1 分，
    其他字眼（個人、公司、地基主、已逝先人…）算 2 分，金額相同算 3 分；最高分要 ≥4 且只有一個才算數。 */
+function synLabel(ev, t){
+  t = String(t||'');
+  const own = JSON.stringify([(ev.fields||[]).map(f=>[f.label,f.keywords]), (ev.fees||[]).map(f=>[f.label,f.keywords])]);
+  if(!/小蓮位/.test(own)) t = t.replace(/小蓮位/g,'副蓮位');
+  if(!/小牌位/.test(own)) t = t.replace(/小牌位/g,'副牌位');
+  return t;
+}
+function feeTokens(ev, fl){
+  const fk = fl.auto && fl.auto.k ? ((ev.fields||[]).find(f=>f.k===fl.auto.k)||{}).keywords||[] : [];
+  return new Set([...String(fl.label||'').split(/[（）()／\/、\s]+/), ...(fl.keywords||[]), ...fk].map(normalizeKeyword).filter(x=>x.length>=2));
+}
 function feeFromHeaderText(ev, text){
   if(!ev || !evHasCond(ev)) return null;
-  let t = normalizeKeyword(String(text||'')).replace(/小(蓮位|牌位)/g,'副$1');
+  let t = normalizeKeyword(synLabel(ev, text));
   if(/姓氏祖先|歷代祖先/.test(t)) t += '一戶祖先';
   const prices = (t.match(/\d[\d,]*(?=元)/g)||[]).map(x=>Number(x.replace(/,/g,'')));
   const scored = (ev.fees||[]).filter(fl=>fl.mode!=='amount').map(fl=>{
-    const toks = new Set([...String(fl.label||'').split(/[（）()／\/、\s]+/), ...(fl.keywords||[])].map(normalizeKeyword).filter(x=>x.length>=2));
     let sc = prices.includes(Number(fl.price)) ? 3 : 0;
-    toks.forEach(k=>{ if(t.includes(k)) sc += /^[主副](蓮位|牌位)$/.test(k) ? 1 : 2; });
+    feeTokens(ev, fl).forEach(k=>{ if(t.includes(k)) sc += /^[主副](蓮位|牌位)$/.test(k) ? 1 : 2; });
     return {fl, sc};
   }).sort((a,b)=>b.sc-a.sc);
-  if(!scored.length || scored[0].sc<4 || (scored[1] && scored[1].sc===scored[0].sc)) return null;
-  return scored[0].fl;
+  // 有寫金額：要 ≥4 分；只寫項目（例「主牌位」）：≥1 分；同分不算
+  if(!scored.length || scored[0].sc<(prices.length?4:1) || (scored[1] && scored[1].sc===scored[0].sc)) return null;
+  // 寫了份數（例「小牌位1000元x3」「主牌位2位」）
+  const q = t.replace(/\d[\d,]*元/g,'').match(/[x×X＊*]\s*(\d{1,2})(?!\d)|(?<![\d例])(\d{1,2})[位份]/);
+  return {fl:scored[0].fl, qty: q ? Number(q[1]||q[2])||0 : 0};
+}
+// 一小段文字是不是只寫了費用項目（例「主牌位」「小牌位2位」）
+function isFeeWord(ev, v){
+  if(!evHasCond(ev)) return false;
+  const t = normalizeKeyword(synLabel(ev, v)).replace(/\d[\d,]*元|[x×X＊*]?\d+[位份個]?/g,'');
+  if(!t || t.length>8) return false;
+  return (ev.fees||[]).some(fl=>fl.mode!=='amount' && feeTokens(ev, fl).has(t));
 }
 // 欄位下一格是地址欄 → 這是它的地址（主蓮位→主蓮位地址、地基主姓名→地基主地址）
 function pairedAddrField(ev, k){
@@ -2675,19 +2754,51 @@ function pairedNameField(ev, k){
 }
 // 依標題判斷出的費用，補上類別，並把放錯格的姓名／地址搬到對的欄位（搬過的標黃色請確認）
 function applyHeaderFee(ev, header, mapped, guessed){
-  const extra = (mapped.unmapped||[]).filter(en=>/\d\s*元/.test(en.raw||en.value||''));
-  const fl = feeFromHeaderText(ev, [header||'', ...extra.map(en=>en.raw||en.value)].join(' '));
-  if(!fl) return null;
-  if(extra.length) mapped.unmapped = mapped.unmapped.filter(en=>!extra.includes(en));
+  if(!ev || !evHasCond(ev)) return null;
   const vals = mapped.fields;
   const has = k=>!!String(vals[k]||'').trim();
   const move = (from, to)=>{ vals[to] = vals[from]; delete vals[from]; guessed[to] = true; delete guessed[from]; };
+  const fields = ev.fields||[];
+  const setCat = fl=>{
+    if(!fl.showIf || !fl.showIf.k) return true;
+    const pk = fl.showIf.k;
+    if(has(pk) && !condOk(fl, vals) && !guessed[pk]) return false;
+    if(!condOk(fl, vals)){ vals[pk] = (fl.showIf.v||[])[0]; guessed[pk] = true; }
+    return true;
+  };
+  const inCat0 = f=>(!f.showIf || !f.showIf.k) ? false : condOk(f, vals);
+  // 填在另一個類別的欄位（例：祖先蓮位寫「陽世者姓名」被放到消災的陽世者）→ 搬到這個類別同性質的空欄位
+  const relocateCat = ()=>fields.forEach(f=>{
+    if(!has(f.k) || !f.showIf || !f.showIf.k || condOk(f, vals)) return;
+    const to = fields.find(g=>g.k!==f.k && inCat0(g) && !has(g.k) && (g.type||'text')!=='radio' && isAddrField(g)===isAddrField(f) && isAncestorField(g)===isAncestorField(f));
+    if(to) move(f.k, to.k);
+  });
+  // v4.60：「主牌位：王小明、陳小英」「小牌位：王小華」這種費用名稱後面寫姓名 → 姓名放進該類別的姓名欄，份數依人數
+  const qtys = {};
+  const nameFees = Object.keys(mapped.fees||{}).filter(k=>{ const v = String(mapped.fees[k]||''); return !/\d/.test(v) && /[一-鿿]{2}/.test(v) && !/^[一二兩三四五六七八九十]+\s*[位份個戶人]?$/.test(v.trim()); });
+  const notes = [];
+  nameFees.forEach(k=>{
+    const fl = (ev.fees||[]).find(x=>x.k===k); const v = String(mapped.fees[k]).trim();
+    delete mapped.fees[k];
+    if(!fl || !setCat(fl)) { mapped.unmapped.push({label:fl?fl.label:'', value:v, raw:v}); return; }
+    const tk = (fl.auto && fl.auto.k) || (fields.find(f=>inCat0(f) && (f.type||'text')!=='radio' && !isAddrField(f) && !isAncestorField(f) && !f.isShared)||{}).k;
+    if(!tk){ mapped.unmapped.push({label:fl.label, value:v, raw:v}); return; }
+    vals[tk] = has(tk) ? vals[tk]+'、'+v : v; guessed[tk] = true;
+    if(!(fl.auto && fl.auto.k)) qtys[k] = /副|小/.test(fl.label||'') ? Math.max(1, countNames(v)) : 1;
+    notes.push(fl.label+'：'+v);
+  });
+  if(notes.length>1) vals.note = [vals.note, notes.join('；')].filter(Boolean).join('\n');
+  const extra = (mapped.unmapped||[]).filter(en=>/\d\s*元/.test(en.raw||en.value||''));
+  const hit = feeFromHeaderText(ev, [header||'', ...extra.map(en=>en.raw||en.value), ...(mapped.feeWords||[])].join(' '));
+  const fl = hit && hit.fl;
+  if(!fl){ if(!nameFees.length) return null; relocateCat(); return {fl:null, qty:0, qtys}; }
+  if(extra.length) mapped.unmapped = mapped.unmapped.filter(en=>!extra.includes(en));
+  hit.qtys = qtys;
   if(fl.showIf && fl.showIf.k){
     const pk = fl.showIf.k;
-    if(has(pk) && !guessed[pk] && !condOk(fl, vals)) return null;  // 信眾自己寫了別的類別，以信眾寫的為準
+    if(has(pk) && !guessed[pk] && !condOk(fl, vals)) return {fl:null, qty:0, qtys};  // 信眾自己寫了別的類別，以信眾寫的為準
     if(!condOk(fl, vals)){ vals[pk] = (fl.showIf.v||[])[0]; guessed[pk] = true; }
   }
-  const fields = ev.fields||[];
   const inCat = f=>(!f.showIf || !f.showIf.k) ? false : condOk(f, vals);
   // 1) 費用指定的姓名欄（例：小蓮位→副蓮位姓名）是空的，名字卻填在同類別另一個費用的姓名欄 → 搬過去，地址一起搬
   const T = fl.auto && fl.auto.k;
@@ -2707,13 +2818,8 @@ function applyHeaderFee(ev, header, mapped, guessed){
       if(A) move(A.k, ta.k);
     }
   }
-  // 3) 填在另一個類別的欄位（例：祖先蓮位寫「陽世者姓名」被放到消災的陽世者）→ 搬到這個類別同性質的空欄位
-  fields.forEach(f=>{
-    if(!has(f.k) || !f.showIf || !f.showIf.k || condOk(f, vals)) return;
-    const to = fields.find(g=>g.k!==f.k && inCat(g) && !has(g.k) && (g.type||'text')!=='radio' && isAddrField(g)===isAddrField(f) && isAncestorField(g)===isAncestorField(f));
-    if(to) move(f.k, to.k);
-  });
-  return fl;
+  relocateCat();
+  return hit;
 }
 function analyzeBlock(b, ev){
   const mapped = buildMappedEntries(b.rawEntries || b.entries, ev);
@@ -2721,11 +2827,14 @@ function analyzeBlock(b, ev){
   const guessed = guessUnmapped(ev, mapped);
   const fee = {};
   if(ev){
-    const hf = applyHeaderFee(ev, b.header||'', mapped, guessed);   // v4.58
+    const hit = applyHeaderFee(ev, b.header||'', mapped, guessed);   // v4.58
+    const hf = hit && hit.fl;
     inferShowIfChoice(ev, mapped.fields).forEach(k=>{ guessed[k] = true; });   // v4.51
     Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
     Object.assign(fee, guessFees(b.header||'', ev));
-    if(hf && !(Number(fee[hf.k])>0)){
+    if(hit) Object.assign(fee, hit.qtys||{});
+    if(hf && hit.qty>0) fee[hf.k] = hit.qty;
+    else if(hf && !(Number(fee[hf.k])>0)){
       fee[hf.k] = 1;
       // v4.59（小朱）：副牌位／小牌位一人一份 → 依陽世者姓名人數算；主牌位一戶一份維持 1
       if(/副|小/.test(hf.label||'') && !(hf.auto && hf.auto.k)){
@@ -2735,7 +2844,17 @@ function analyzeBlock(b, ev){
         if(n>1) fee[hf.k] = n;
       }
     }
-    Object.keys(mapped.fees).forEach(k=>{ fee[k] = parseFeeValue(mapped.fees[k]); });
+    Object.keys(mapped.fees).forEach(k=>{
+      const fl = (ev.fees||[]).find(x=>x.k===k);
+      let v = String(mapped.fees[k]);
+      // v4.60：數量欄寫「1000元x3」「3600元」→ 把單價拿掉，剩下的才是份數（沒寫份數＝1）
+      if(fl && fl.mode!=='amount' && /\d\s*元/.test(v)){
+        v = v.replace(/[\d,]+\s*元/g, m=>Number(m.replace(/[^\d]/g,''))===Number(fl.price) ? '' : m);
+        fee[k] = /[\d一二兩三四五六七八九十]/.test(v) ? parseFeeValue(v) : 1;
+        return;
+      }
+      fee[k] = (fl && fl.mode!=='amount' && !v.trim()) ? 1 : parseFeeValue(v);   // v4.60：只寫「主牌位」＝1 份
+    });
   }
   return {mapped, fee, guessed};
 }
