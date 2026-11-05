@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.78 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.79 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.79（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>「📨 LINE 報名成功」「💰 LINE 收款確認」：同一位報名者的所有報名合併成一張卡片，只傳給報名者（確認視窗會寫合併幾筆、合計多少）</li>
+        <li>傳送時顯示等待秒數；成功或失敗都跳出視窗寫清楚結果與原因，不再只閃一下提示</li>
+      </ul>
       <b>v4.78（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「📇 老信眾」帶入全部拿掉（還沒匯入去年 Excel 的場次也不出現）：打姓名只會帶這場自己匯入的去年報名，不混其他法會、不混供品</li>
@@ -3467,7 +3472,8 @@ function importLineSource(b){
   const hit = nm ? docs.filter(m=>lineInboxText(m).includes(nm)) : [];
   return hit.length===1 ? hit[0] : null;
 }
-function fahuiNoticeCard(ev, r, kind){
+// v4.79（小朱）：同一位報名者的報名合併成一張卡片，只傳給報名者
+function regRowsForCard(ev, r){
   const rows = [];
   const nt = n=>'NT$'+(Number(n)||0).toLocaleString();
   if(ev.mode==='items'){
@@ -3479,42 +3485,86 @@ function fahuiNoticeCard(ev, r, kind){
       rows.push(fl.mode==='amount' ? {label:fl.label, qty:'', amount:nt(q)} : {label:fl.label, qty:'×'+q, amount:nt(q*(Number(fl.price)||0))});
     });
   }
-  if(!rows.length) rows.push({label:'法會報名', qty:'', amount:''});
-  const sum = regSummaryText(ev, r);
+  if(!rows.length) rows.push({label:'法會報名', qty:'', amount:nt(r.total)});
+  // 參加者姓名（例：「個人／公司（主牌位）×1：朱○仁」去掉項目名稱，只留姓名）
+  const sum = String(regSummaryText(ev, r)||'').split('；').map(x=>x.replace(/^[^：；]*×\d+：/,'')).join('；');
   if(sum) rows[rows.length-1].extra = sum.slice(0,110);
+  return rows;
+}
+function fahuiNoticeCard(ev, regs, kind){
+  regs = Array.isArray(regs) ? regs : [regs];
+  let rows = [];
+  regs.forEach(r=>{ rows = rows.concat(regRowsForCard(ev, r)); });
+  if(rows.length>20){ const more = rows.length-19; rows = rows.slice(0,19).concat([{label:`…另有 ${more} 項`, qty:'', amount:''}]); }
+  const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
+  const allPaid = regs.every(r=>r.paid), somePaid = regs.some(r=>r.paid);
   const d = new Date();
-  return {kind: kind==='paid'?'paid':'', name: String(r.f.reporter||'').slice(0,30), occasion: ev.name, rows,
-    total: nt(r.total), payStatus: r.paid?'已收款':'待收款', payColor: r.paid?'#2e7d32':'#b26a00',
+  return {kind: kind==='paid'?'paid':'', name: String((regs[0].f||{}).reporter||'').slice(0,30), occasion: ev.name, rows,
+    total: 'NT$'+total.toLocaleString(), payStatus: allPaid?'已收款':(somePaid?'部分收款':'待收款'), payColor: allPaid?'#2e7d32':(somePaid?'#1565c0':'#b26a00'),
     time: `${d.getFullYear()-1911}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+}
+function regReporterKey(r){ return String((r.f||{}).reporter||'').replace(/\s+/g,''); }
+function sameReporterRegs(r, kind){
+  const k = regReporterKey(r);
+  const all = (regsCache[adminSelectedEvent]||[]).filter(x=>k ? regReporterKey(x)===k : x.id===r.id);
+  return kind==='paid' ? all.filter(x=>x.paid) : all;
+}
+function showResultModal(html){
+  return new Promise(resolve=>{
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal" style="max-width:420px;"><div style="margin:0 0 18px;font-size:15px;line-height:1.7;">${html}</div><div class="row-actions"><button class="btn btn-primary" id="rm_ok">知道了</button></div></div>`;
+    document.body.appendChild(bg);
+    bg.querySelector('#rm_ok').onclick = ()=>{ bg.remove(); resolve(); };
+  });
 }
 async function fahuiLinePush(regId, kind, quiet){
   const ev = events.find(e=>e.id===adminSelectedEvent);
-  const r = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
-  if(!ev || !r) return false;
-  const who = r.lineName ? `LINE「${r.lineName}」` : `「${r.f.reporter||''}」的 LINE（用報名姓名找）`;
-  if(!quiet && !(await showConfirm(`由小幫手把「${escHtml(r.f.reporter||'')}」的${kind==='paid'?'<b>收款確認</b>（已收到您的護持）':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}？<br><span style="font-size:13px;color:var(--muted);">會用到 LINE 官方帳號每月的免費訊息則數</span>`))) return false;
+  const r0 = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
+  if(!ev || !r0) return false;
+  const regs = sameReporterRegs(r0, kind);
+  if(!regs.length){ await showResultModal('這位還沒有已收款的報名，沒有收款確認可以傳。'); return false; }
+  const src = regs.find(x=>x.lineUserId) || regs.find(x=>x.lineMsgId) || r0;
+  const reporter = String((r0.f||{}).reporter||'');
+  const who = src.lineName ? `LINE「${src.lineName}」` : `「${reporter}」的 LINE（用報名姓名找以前私訊過小幫手的好友）`;
+  const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
+  if(!quiet && !(await showConfirm(`由小幫手把「${escHtml(reporter)}」的${kind==='paid'?'<b>收款確認</b>（已收到您的護持）':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}？<br>合併 <b>${regs.length} 筆</b>報名成一張卡片，合計 ${money(total)} 元。<br><span style="font-size:13px;color:var(--muted);">會用到 LINE 官方帳號每月的免費訊息則數</span>`))) return false;
   const url = linebotUrl(false);
-  if(!url) return false;
+  if(!url){ await showResultModal('沒有傳出去：這台電腦還沒設定小幫手網址。請再按一次，在跳出的框貼上小幫手網址（和供品贊助用的一樣）。'); return false; }
   const t0 = Date.now();
-  showToast('小幫手傳送中…', 2000);
+  const wait = document.createElement('div');
+  wait.className = 'modal-bg';
+  wait.innerHTML = `<div class="modal" style="max-width:360px;text-align:center;"><p style="margin:0;font-size:15px;">📨 小幫手傳送中… <b id="lpSec">0</b> 秒</p><p class="hint" style="margin:6px 0 0;">通常 5～15 秒</p></div>`;
+  document.body.appendChild(wait);
+  const tick = setInterval(()=>{ const e = document.getElementById('lpSec'); if(e) e.textContent = Math.round((Date.now()-t0)/1000); }, 500);
+  let out = null, err = null;
   try{
     const idToken = await auth.currentUser.getIdToken();
-    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'notify', from:'fahui', idToken, msgId: r.lineMsgId||'', lineUserId: r.lineUserId||'', name: r.f.reporter||'', card: fahuiNoticeCard(ev, r, kind)})});
-    const out = await res.json();
-    if(!out || !out.ok){ showToast('沒有傳出去：'+((out && out.error) || '小幫手沒有回應') + ((out && /action|不支援|不是啟用/.test(out.error||'')) ? '（小幫手可能還不是 v1.55）' : ''), 6000); return false; }
+    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'notify', from:'fahui', idToken, msgId: src.lineMsgId||'', lineUserId: src.lineUserId||'', name: reporter, card: fahuiNoticeCard(ev, regs, kind)})});
+    out = await res.json();
+  }catch(e){ console.error('linebot notify', e); err = e; }
+  clearInterval(tick); wait.remove();
+  const sec = Math.round((Date.now()-t0)/1000);
+  if(err){
+    if(confirm(`連不到小幫手（${sec} 秒）：可能是網址不對，或小幫手還沒更新到 v1.55。要重新輸入小幫手網址嗎？`)) linebotUrl(true);
+    return false;
+  }
+  if(!out || !out.ok){
+    const why = (out && out.error) || '小幫手沒有回應';
+    await showResultModal(`⚠️ 沒有傳出去（${sec} 秒）<br><b>${escHtml(why)}</b>${/action|不支援/.test(why)?'<br>（小幫手可能還不是 v1.55）':''}`);
+    return false;
+  }
+  const at = Date.now();
+  for(const r of regs){
     const updated = {...r};
     if(out.userId) updated.lineUserId = out.userId;
     if(out.to) updated.lineName = String(out.to).slice(0,40);
-    updated[kind==='paid' ? 'linePaidPushedAt' : 'linePushedAt'] = Date.now();
+    updated[kind==='paid' ? 'linePaidPushedAt' : 'linePushedAt'] = at;
     if(await updateReg(adminSelectedEvent, r.id, updated)) Object.assign(r, updated);
-    showToast(`已傳${kind==='paid'?'收款確認':'報名成功通知'}給 LINE「${out.to||r.lineName||''}」（${Math.round((Date.now()-t0)/1000)} 秒）`, 4000);
-    render();
-    return true;
-  }catch(e){
-    console.error('linebot notify', e);
-    if(confirm('連不到小幫手（可能是網址不對，或小幫手還沒更新）。要重新輸入小幫手網址嗎？')) linebotUrl(true);
-    return false;
   }
+  render();
+  await showResultModal(`✅ 已傳${kind==='paid'?'收款確認':'報名成功通知'}給 LINE「${escHtml(out.to||src.lineName||'')}」<br>${regs.length} 筆合併成一張卡片，合計 ${money(total)} 元（${sec} 秒）`);
+  return true;
 }
 
 async function confirmImport(){
@@ -5856,7 +5906,7 @@ function bindEvents(){
       finSyncFields(r, updated);
       render();
       // v4.73：改成已收款、這筆是從 LINE 帶入的 → 問要不要用小幫手私訊收款確認
-      if(updated.paid && r.lineUserId && !r.linePaidPushedAt) fahuiLinePush(id, 'paid');
+      if(updated.paid && (r.lineUserId || sameReporterRegs(r,'').some(x=>x.lineUserId)) && !r.linePaidPushedAt) fahuiLinePush(id, 'paid');
     };
   });
   document.querySelectorAll('[data-linepush]').forEach(el=>{ el.onclick = ()=>fahuiLinePush(el.dataset.linepush, ''); });
