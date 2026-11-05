@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.71 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.72 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.72（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 待確認：場次還在準備中時，小幫手收到的訊息標「🧪 測試（場次準備中或志工測試）」，不再只寫志工測試（配合小幫手 v1.50～v1.54：關閉的平台不收、準備中的法會直接收）</li>
+      </ul>
       <b>v4.71（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：同一欄又寫一次（例：後面再補一位陽世者「2.劉小德」、第二個住家地址），會加在後面，不會蓋掉前一個；地址之間用「；」隔開，人數照算</li>
@@ -3443,7 +3447,7 @@ function renderLineInboxCard(){
     const when = ms && !isNaN(d.getTime()) ? `${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}` : '—';
     const src = m.sourceType==='group' ? ('群組'+(m.groupName?'：'+m.groupName:'')) : (m.sourceType==='room' ? '多人聊天' : '私訊');
     const inImp = lineInboxInImport.includes(m.id);
-    const tag = (m.test ? '🧪 志工測試（請匯入準備中的場次）　' : '') + (m.kind==='audio' ? `🎤 語音${m.audioSec?' '+m.audioSec+' 秒':''}（AI 聽寫，姓名可能是同音字）` : (m.image ? '📷 照片（AI 照抄，請對照照片）' : ''));
+    const tag = (m.test ? '🧪 測試（場次準備中或志工測試，請匯入準備中的場次）　' : '') + (m.kind==='audio' ? `🎤 語音${m.audioSec?' '+m.audioSec+' 秒':''}（AI 聽寫，姓名可能是同音字）` : (m.image ? '📷 照片（AI 照抄，請對照照片）' : ''));
     html += `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;${inImp?'border-color:var(--gold);':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin:0;"><input type="checkbox" class="lin-chk" data-id="${escHtml(m.id)}" style="width:auto;min-height:0;"> ${escHtml(m.displayName||'（未知）')}</label>
