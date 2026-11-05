@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.54 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.55 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.55（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>修正：報名介紹圖片放兩張大圖就存檔失敗（超過雲端單一文件 1MB）。圖片改成一張存一份，場次資料只記位置；舊的圖片下次按「儲存」時自動搬過去。每張自動壓到 850KB 以下</li>
+      </ul>
       <b>v4.54（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>梁皇寶懺內容摘要加上參加者姓名，例「一戶祖先（主蓮位）×1：黃氏歷代祖先；已逝先人（副蓮位）×3：黃火木、黃燦崑、黃滿足(女)；陽上人：黃彥維」</li>
@@ -1869,6 +1873,40 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
    整張塞進報名資料裡，導致「我要報名」頁面每次要下載一大包資料才能顯示，變得很慢。
    壓縮成最長邊不超過1280px、JPEG品質0.8，通常可以從好幾MB壓到幾百KB內，
    畫質對手機瀏覽海報圖片來說完全足夠。 */
+/* v4.55：海報圖片改成一張存一份（kv/poster_…），場次清單只記「kv:poster_…」。
+   以前圖片直接塞在場次清單裡，兩張大圖就超過雲端單一文件 1MB 上限，存檔失敗（小朱 116 梁皇寶懺海報）。 */
+const posterCache = {};
+function posterSrc(ref){ return String(ref||'').indexOf('kv:')===0 ? (posterCache[ref]||'') : ref; }
+function posterImgTag(ref, style){
+  const src = posterSrc(ref);
+  return `<img ${src?`src="${src}"`:''} data-poster="${escHtml(ref)}" alt="海報" style="${style}${src?'':'min-height:80px;background:#F3EAD7;'}">`;
+}
+async function hydratePosters(root){
+  const imgs = Array.from((root||document).querySelectorAll('img[data-poster]')).filter(im=>!im.getAttribute('src'));
+  for(const im of imgs){
+    const ref = im.dataset.poster;
+    if(ref.indexOf('kv:')!==0) continue;
+    try{
+      if(!posterCache[ref]){ const r = await window.storage.get(ref.slice(3), STORE_SHARED); if(r) posterCache[ref] = r.value; }
+      if(posterCache[ref]){ im.src = posterCache[ref]; im.style.minHeight = ''; im.style.background = ''; }
+    }catch(e){ console.error('poster load', ref, e); }
+  }
+}
+async function storePoster(dataUrl){
+  const key = 'poster_'+uid();
+  await window.storage.set(key, dataUrl, STORE_SHARED);
+  posterCache['kv:'+key] = dataUrl;
+  return 'kv:'+key;
+}
+// 一張壓到 850KB 以下（雲端單一文件上限 1MB）：先降品質，再縮尺寸
+async function compressPoster(file){
+  let out = '';
+  for(const [dim, q] of [[1600,0.85],[1600,0.72],[1280,0.7],[1280,0.55],[1024,0.5]]){
+    out = await compressImageFile(file, dim, q);
+    if(out.length <= 850*1024) return out;
+  }
+  throw new Error('圖片壓縮後還是太大');
+}
 function compressImageFile(file, maxDim=1280, quality=0.8){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
@@ -3390,7 +3428,7 @@ function renderPublicForm(ev){
   const posterImgs = (ev.posterImages && ev.posterImages.length) ? ev.posterImages : (ev.posterImage ? [ev.posterImage] : []);
   if(posterImgs.length){
     html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">` +
-      posterImgs.map(src=>`<img src="${src}" style="width:100%;border-radius:10px;display:block;">`).join('') +
+      posterImgs.map(ref=>posterImgTag(ref, 'width:100%;border-radius:10px;display:block;')).join('') +
       `</div>`;
   }
   if(ev.date) html += `<p class="hint">日期：${ev.date}${ev.note?'　·　'+ev.note:''}</p>`;
@@ -5392,6 +5430,7 @@ function bindEvents(){
     if(btn) btn.onclick = ()=>{ regPageState.page = regPageState.page+1; renderKeepAnchor(id); };
   });
 
+  hydratePosters();   // v4.55
   const pf = document.getElementById('publicForm');
   if(pf){
     bindContactHint(pf);   // v4.48
@@ -6502,7 +6541,7 @@ function openEventInfoEditor(eventId){
     if(!existingImages.length) return '<p class="hint" style="margin:0 0 6px;">目前尚未設定圖片</p>';
     return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;">` + existingImages.map((img,i)=>`
       <div class="poster-thumb" data-idx="${i}" style="position:relative;">
-        <img src="${img}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;display:block;">
+        ${posterImgTag(img, 'width:90px;height:90px;object-fit:cover;border-radius:8px;display:block;')}
         <button type="button" class="btn btn-danger btn-sm ei_removeImg" data-idx="${i}" style="position:absolute;top:2px;right:2px;padding:2px 6px;font-size:10px;">✕</button>
       </div>`).join('') + `</div>`;
   }
@@ -6535,6 +6574,7 @@ function openEventInfoEditor(eventId){
     </div>
   </div>`;
   document.body.appendChild(bg);
+  hydratePosters(bg);   // v4.55
   function bindRemoveButtons(){
     bg.querySelectorAll('.ei_removeImg').forEach(btn=>{
       btn.onclick = ()=>{
@@ -6570,13 +6610,22 @@ function openEventInfoEditor(eventId){
         return;
       }
     }
+    const saveBtn = bg.querySelector('#ei_save');
     try{
-      const newDataUrls = await Promise.all(newFiles.map(file=>compressImageFile(file)));
-      keepImages = keepImages.concat(newDataUrls);
+      if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = '圖片上傳中…'; }
+      // v4.55：新圖片、舊的內嵌圖片都改存成獨立一份，場次清單只記位置
+      const newRefs = [];
+      for(const file of newFiles) newRefs.push(await storePoster(await compressPoster(file)));
+      const moved = [];
+      for(const img of keepImages) moved.push(String(img).indexOf('data:')===0 ? await storePoster(img) : img);
+      keepImages = moved.concat(newRefs);
     }catch(err){
-      showToast('圖片讀取失敗，請換一張圖片再試');
+      console.error('poster save', err);
+      showToast('⚠️ 圖片存檔失敗：'+(err && err.code==='permission-denied' ? '這個帳號沒有權限' : (err && err.message || '請換一張圖片再試')), 5000);
+      if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
       return;
     }
+    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
     ev.posterImages = keepImages;
     delete ev.posterImage;
 
