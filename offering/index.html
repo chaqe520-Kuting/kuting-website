@@ -2348,7 +2348,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v180";
+  var APP_VERSION = "v181";
   var APP_UPDATED = "2026-11-05";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2359,6 +2359,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v181", date: "2026-11-05", changes: [
+      "志工快速登記打姓名不再出現「📇 老信眾」帶入（那份資料是各平台合在一起，會帶到法會報名的電話、地址；小朱：不同平台不可混用）"
+    ] },
     { version: "v180", date: "2026-11-05", changes: [
       "「帳號管理」移到後台最下面，預設收合（點標題展開），比照法會報名平台"
     ] },
@@ -7532,8 +7535,9 @@ window.KutingFinMatch = function(opts){
   qaQty.addEventListener("input", updateQaPreview);
   qaName.addEventListener("input", updateQaPreview);
   // v178：打姓名帶出老信眾的電話、地址（自動備份每天從信徒查詢整理；只有啟用中的志工讀得到）
-  var gpContacts = window.KutingContacts(function(){ return fsCanEdit() ? fsDb : null; });
-  gpContacts.attach(qaName, qaName, function(c){
+  // v181（小朱）：老信眾資料是各平台合在一起（會帶到法會報名的電話、地址），不同平台不可混用 → 不再掛
+  var gpContacts = window.KutingContacts(function(){ return null; });
+  if(false) gpContacts.attach(qaName, qaName, function(c){
     var done = [];
     if(c.phone && !qaPhone.value.trim()){ qaPhone.value = c.phone; done.push("電話"); }
     if(c.addr && qaBuyunRow.style.display !== "none" && !qaBuyunAddr.value.trim()){ qaBuyunAddr.value = c.addr; done.push("補運地址"); }
