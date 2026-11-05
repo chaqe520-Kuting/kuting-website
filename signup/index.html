@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.64 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.65 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.65（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 貼上：沒寫「地址」兩個字，只要那一行有「縣、市」或「○號」就當地址，放到前一個姓名（祖先、倒房、地基主…）的地址欄</li>
+        <li>第一行寫「報名者 王小明」不再被當成標題</li>
+      </ul>
       <b>v4.64（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上：姓名或地址換行寫成兩行（例「陽世者姓名:王小明.」下一行「王小華」、地址拆兩行），會接回同一欄，人數也算對</li>
@@ -2192,7 +2197,7 @@ function parseLineBlocks(text){
       const m = line.match(ENTRY_LINE_RE);
       if(!m){
         if(entries===null){
-          const titleLike = (/報名|法會|登記|範例|梁皇|寶懺|【|〔|\[/.test(line) || /\d\s*元/.test(line)) && !/[:：]/.test(line);
+          const titleLike = !/^報名(者|人)/.test(line) && (/報名|法會|登記|範例|梁皇|寶懺|【|〔|\[/.test(line) || /\d\s*元/.test(line)) && !/[:：]/.test(line);
           if(hasNumbered || (titleLike && li===0 && lines.length>1)){ headerLines.push(line); return; }
           pushFree(line);
           return;
@@ -2496,6 +2501,8 @@ function buildMappedEntries(entries, ev){
           // 只寫「地址／住址／塔位」→ 放到前一個姓名的地址欄
           const lab = enLabel || ((rawFull.match(/^(\S{2,6})\s/)||[])[1]||'');
           if(/地址|住址|塔位|地點/.test(lab)) result = {key:pa.k, kind:'field', value: enLabel ? en.value : rawFull.slice(lab.length).trim()};
+          // v4.65：沒寫「地址」，但這行有縣市或「○號」→ 也是前一個姓名的地址
+          else if(!enLabel && ADDR_RE.test(rawFull) && rawFull.trim().length>=6 && !PHONE_RE.test(rawFull.replace(/\s/g,''))) result = {key:pa.k, kind:'field', value: rawFull.trim()};
         } else if(result.kind==='field' && result.key!==pa.k && isAddrField(fdOf(result.key)||{})){
           const pn = pairedNameField(ev, result.key);
           if(!pn || !filled(pn.k) || filled(result.key)) result.key = pa.k;
@@ -2622,7 +2629,8 @@ function autoInferFeeQuantities(ev, mappedFieldValues){
    2. 沒照格式寫的內容：電話、地址、選項、姓名用內容本身的樣子去猜欄位，猜的欄位標黃色請確認。
    3. 記住修正：沒對到的行可以手動選欄位，勾「記住」後，這個說法會加進該欄位的關鍵字，下次自動對應。 */
 const PHONE_RE = /(?:\+?886[-\s]?|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}|0\d{1,2}[-\s)）]?\d{6,8}/;
-const ADDR_RE = /(?:縣|市).{0,12}(?:鄉|鎮|市|區|村|里|路|街|段|巷|號)|(?:路|街|巷|弄).{0,6}號|(?:寺|塔|宮|堂|納骨|靈骨)/;
+// v4.65（小朱）：有「縣、市」或「○號」就當地址
+const ADDR_RE = /(?:縣|市).{0,12}(?:鄉|鎮|市|區|村|里|路|街|段|巷|號)|(?:路|街|巷|弄).{0,6}號|(?:寺|塔|宮|堂|納骨|靈骨)|[一-鿿]{1,3}[縣市](?![場長民政府議])|\d+\s*(?:之\s*\d+\s*)?號/;
 function isNameLike(v){
   const t = String(v||'').replace(/\s+/g,'');
   if(!t || /\d/.test(t)) return false;
