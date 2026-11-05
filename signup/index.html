@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.74 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.75 ・ 2026-11-05（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.75（2026-11-05）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>我要報名：志工登入後打「報名者姓名」，有匯入去年 Excel 的場次會列出這位去年報了哪些，按「帶入去年報名」自動填好報名類別、姓名、地址與份數（一筆一個牌位，不夠會自動再加一個）</li>
+        <li>老信眾「帶入」不再填到還沒選類別、看不到的欄位</li>
+      </ul>
       <b>v4.74（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 貼上／待確認帶入解析後，上方先列「📋 這次共幾筆報名、合計金額」：每筆報名者、項目、金額，以及各項目份數、單價、小計與總計；改份數會即時更新</li>
@@ -1641,8 +1646,92 @@ window.KutingContacts = function(getDb){
 };
 // v4.48：報名表打報名者姓名時帶出老信眾的電話、陽上人、地址（只有登入中的啟用志工看得到）
 const fahuiContacts = window.KutingContacts(()=>staffActive() ? db : null);
+/* v4.75（小朱）：報名表打「報名者姓名」→ 有匯入去年 Excel 的場次，從這場的去年資料找這位（跟「同去年」同一份），
+   列出去年報了哪些，按「帶入去年報名」把報名類別、姓名、地址、份數一筆一個牌位填好（只有登入中的啟用志工看得到） */
+function bindRefHint(pf, ev){
+  const rep = pf.querySelector('[name="reporter"]');
+  if(!rep || rep._refBound || !ev.sameRef) return;
+  rep._refBound = true;
+  const hint = document.createElement('div');
+  hint.className = 'ref-hint';
+  hint.style.cssText = 'display:none;margin-top:6px;padding:8px 10px;border:1px dashed var(--vermilion,#9e2b25);border-radius:8px;background:#FDF1EC;font-size:13.5px;line-height:1.7;color:#4A3A22;';
+  rep.insertAdjacentElement('afterend', hint);
+  let timer = null, cur = [];
+  const short = v=>{ v = String(v||'').replace(/\s+/g,' ').trim(); return v.length>24 ? v.slice(0,24)+'…' : v; };
+  const desc = r=>{
+    const f = r.f||{};
+    const bits = [f.regType, ...(getRepeatFields(ev).filter(x=>!/電話|手機/.test(x.label||'') && x.type!=='radio' && x.type!=='select' && !isAddrField(x) && String(f[x.k]||'').trim()).map(x=>short(f[x.k])))].filter(Boolean);
+    const fees = (ev.fees||[]).map(fl=>{ const q = Number((r.fee||{})[fl.k])||0; return q ? `${fl.label}×${q}` : ''; }).filter(Boolean);
+    return escHtml(bits.join('，')) + (fees.length ? `<span style="color:#8A7A5C;">（${escHtml(fees.join('、'))}）</span>` : '');
+  };
+  const show = list=>{
+    cur = list || [];
+    if(!cur.length){ hint.style.display = 'none'; hint.innerHTML = ''; return; }
+    hint.innerHTML = `🔁 去年（${escHtml(ev.sameRef.file||'去年 Excel')}）<b>${escHtml(rep.value.trim())}</b> 有 ${cur.length} 筆：<br>` +
+      cur.slice(0,8).map((r,i)=>`${i+1}. ${desc(r)}`).join('<br>') +
+      `<br><button type="button" class="ref-fill" style="margin-top:4px;padding:3px 12px;border:1px solid var(--vermilion,#9e2b25);border-radius:6px;background:#FFF;color:#6E1F1C;cursor:pointer;font-size:14px;">帶入去年報名</button>`;
+    hint.style.display = '';
+  };
+  rep.addEventListener('input', ()=>{
+    clearTimeout(timer);
+    const v = rep.value.replace(/\s+/g,'');
+    timer = setTimeout(async ()=>{
+      if(v.length<2){ show([]); return; }
+      const refs = refCache[ev.id] || await loadRef(ev.id);
+      if(rep.value.replace(/\s+/g,'')!==v) return;
+      show((refs||[]).filter(r=>statName(r)===v || refNameParts(r).includes(v)));
+    }, 300);
+  });
+  hint.addEventListener('click', e=>{
+    if(!e.target.closest('.ref-fill') || !cur.length) return;
+    const n = fillFromRef(pf, ev, cur);
+    hint.innerHTML = `🔁 已帶入去年 ${n} 筆（${n} 個牌位），地址、陽上人有變動請直接改，份數與金額請再核對一次`;
+  });
+}
+function fillFromRef(pf, ev, recs){
+  const wrap = document.getElementById('personBlocksWrap');
+  const addBtn = document.getElementById('addPersonBtn');
+  const setVal = (root, name, v)=>{
+    v = String(v==null?'':v);
+    if(!v.trim()) return;
+    const radio = root.querySelector(`input[type="radio"][name="${name}"][value="${CSS.escape(v)}"]`);
+    if(radio){ radio.checked = true; return; }
+    const el = root.querySelector(`[name="${name}"]`);
+    if(!el || el.type==='radio') return;
+    if(String(el.value||'').trim()) return;   // 已經有填的不蓋掉
+    el.value = v;
+  };
+  // 共用欄位（電話等）：取第一筆有填的
+  getSharedFields(ev).forEach(f=>{ const r = recs.find(x=>String((x.f||{})[f.k]||'').trim()); if(r) setVal(pf, f.k, r.f[f.k]); });
+  if(!wrap) return 0;
+  let filled = 0;
+  recs.forEach((r, i)=>{
+    let blocks = Array.from(wrap.querySelectorAll('.person-block'));
+    // 找一個還沒填的牌位，沒有就按「再加一個」
+    const isEmpty = b=>getRepeatFields(ev).every(f=>!readFieldValue(b, `pf_${b.dataset.block}_${f.k}`));
+    let blk = blocks.find(isEmpty);
+    if(!blk && addBtn){ addBtn.click(); blocks = Array.from(wrap.querySelectorAll('.person-block')); blk = blocks[blocks.length-1]; }
+    if(!blk) return;
+    const bi = blk.dataset.block;
+    const f = {...(r.f||{})};
+    inferShowIfChoice(ev, f);
+    getRepeatFields(ev).forEach(fd=>setVal(blk, `pf_${bi}_${fd.k}`, f[fd.k]));
+    applyCondVisibility(ev, pf);
+    autoFillBlockFees(ev, blk);
+    (ev.fees||[]).forEach(fl=>{
+      const q = Number((r.fee||{})[fl.k])||0;
+      const inp = blk.querySelector(`[name="pf_${bi}_fee_${fl.k}"]`);
+      if(q && inp) inp.value = q;
+    });
+    filled++;
+  });
+  applyCondVisibility(ev, pf);
+  updatePublicTotal();
+  return filled;
+}
 function bindContactHint(pf){
   if(!staffActive()) return;
+  { const ev0 = events.find(e=>e.id===publicSelectedEvent); if(ev0) bindRefHint(pf, ev0); }   // v4.75
   const ev = events.find(e=>e.id===publicSelectedEvent);
   const rep = pf.querySelector('[name="reporter"]');
   if(!ev || !rep) return;
@@ -1652,6 +1741,9 @@ function bindContactHint(pf){
     (ev.fields||[]).forEach(f=>{
       const el = pf.querySelector(`[name="${f.k}"]`) || pf.querySelector(`[name="pf_0_${f.k}"]`);
       if(!el || String(el.value||'').trim()) return;
+      // v4.75：依報名類別才顯示的欄位（還沒選類別、被藏起來）不帶入，免得填到看不到的格子
+      const condBox = el.closest('[data-cond-k]');
+      if(condBox && condBox.style.display==='none') return;
       let v = '';
       if(isPhoneField(f)) v = c.phone;
       else if(/陽上人|戶長/.test(f.label||'')) v = c.yang;
