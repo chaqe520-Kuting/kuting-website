@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>您的照片｜古亭院</title>
+<link rel="icon" href="/offering/icon-192.png">
+<style>
+:root{--red:#8b1a1a;--gold:#b8872f;--ink:#2b211a;--muted:#6b5c4d;--bg:#faf5ea;--line:#e6d9c2}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.7}
+header{background:var(--red);color:#fff;text-align:center;padding:14px 16px}
+header small{display:block;color:#e3c581;font-size:14px}
+main{max-width:720px;margin:0 auto;padding:16px}
+h2{color:var(--red);margin:8px 0 4px;font-size:20px}
+h3{margin:18px 0 6px;font-size:17px;color:var(--muted)}
+.hint{color:var(--muted);font-size:15px}
+figure{margin:0 0 16px}
+figure img{width:100%;height:auto;border-radius:8px;border:1px solid var(--line);display:block}
+.empty{text-align:center;padding:40px 8px}
+footer{text-align:center;color:var(--muted);margin:16px 0 24px;font-size:14px}
+</style>
+</head>
+<body>
+<header><small>古亭院．昇龍觀世音菩薩</small><b>您的照片</b></header>
+<main id="box"><p class="empty">照片載入中… <span id="sec">0</span> 秒</p></main>
+<footer>照片頁 v1.0 ・ 2026-11-06（法會、供品照片一起看）<br>阿彌陀佛　古亭院 合十</footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* LINE 彙整卡片的「📷 查看照片」：?f=法會亂碼1.亂碼2&g=供品亂碼。不用登入，只讀這幾個亂碼的照片（過期就讀不到）。
+   照片仍各自存在法會（kuting-9d240）與供品（kuting1027）的資料庫，這頁只是一起顯示。 */
+(function(){
+  var t0 = Date.now(), tick = setInterval(function(){ var e = document.getElementById('sec'); if(e) e.textContent = Math.round((Date.now()-t0)/1000); }, 500);
+  var q = new URLSearchParams(location.search);
+  function toks(k){ return String(q.get(k)||'').split('.').filter(function(t){ return /^[A-Za-z0-9]{10,40}$/.test(t); }).slice(0, 20); }
+  var SRC = [
+    { label:'法會', toks: toks('f'), cfg:{ apiKey:'AIzaSyBhHRRu6WNq6bcDAPyfQtFgt1YLnFJJKoM', projectId:'kuting-9d240' } },
+    { label:'供品贊助', toks: toks('g'), cfg:{ apiKey:'AIzaSyAtCbwm5KdaB-JGylrrhVjZluCvT2-MhQk', projectId:'kuting1027' } }
+  ];
+  var box = document.getElementById('box');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function fail(gone){ clearInterval(tick); box.innerHTML = '<div class="empty">' + (gone ? '這個照片連結已經過期或不存在。<br>如需照片，請與古亭院聯絡。' : '照片讀取失敗，請檢查網路後重新整理。') + '</div>'; }
+  if(typeof firebase === 'undefined' || !SRC.some(function(s){ return s.toks.length; })){ fail(!SRC.some(function(s){ return s.toks.length; })); return; }
+  var hadErr = false;
+  Promise.all(SRC.map(function(s, i){
+    if(!s.toks.length) return [];
+    var db = firebase.initializeApp(s.cfg, 'src'+i).firestore();
+    return Promise.all(s.toks.map(function(t){
+      var ref = db.collection('photoShares').doc(t);
+      return ref.get().then(function(d){
+        if(!d.exists) return null;
+        var sh = d.data();
+        return ref.collection('pics').get().then(function(snap){
+          var pics = {}; snap.forEach(function(x){ pics[x.id] = x.data(); });
+          return { src:s.label, sh:sh, list:(sh.picIds||[]).filter(function(id){ return pics[id]; }).map(function(id){ return pics[id].data; }) };
+        });
+      }).catch(function(e){ if(!(e && e.code === 'permission-denied')) hadErr = true; return null; });
+    }));
+  })).then(function(all){
+    clearInterval(tick);
+    var shares = [].concat.apply([], all).filter(function(x){ return x && x.list.length; });
+    if(!shares.length){ fail(!hadErr); return; }
+    var total = 0, exp = Infinity, name = '';
+    shares.forEach(function(x){ total += x.list.length; name = name || x.sh.name || ''; var ms = x.sh.expiresAt && x.sh.expiresAt.toMillis ? x.sh.expiresAt.toMillis() : 0; if(ms && ms < exp) exp = ms; });
+    var mobile = /Android|iPhone|iPad|iPod|Mobile|Line\//i.test(navigator.userAgent||'');
+    var ed = new Date(exp);
+    var h = '<h2>' + esc(name) + ' 師兄師姐的照片</h2><p style="margin:0;">共 ' + total + ' 張</p>' +
+      '<p class="hint">' + (mobile ? '儲存方式：用手指<b>按住照片不放</b>，選「儲存到照片」或「下載圖片」。' : '在照片上按右鍵「另存圖片」即可存到電腦。') +
+      (isFinite(exp) ? '<br>連結保存到 <b>' + (ed.getMonth()+1) + '/' + ed.getDate() + '</b>，請盡早儲存。' : '') + '</p>';
+    var last = '';
+    shares.forEach(function(x){
+      var title = x.src + '・' + (x.sh.eventName || x.sh.occName || '') + (x.sh.label ? '（' + x.sh.label + '）' : '');
+      if(title !== last){ h += '<h3>' + esc(title) + '</h3>'; last = title; }
+      x.list.forEach(function(data, i){ h += '<figure><img src="' + esc(data) + '" alt="' + esc(name + ' 照片 ' + (i+1)) + '"></figure>'; });
+    });
+    box.innerHTML = h;
+  }).catch(function(e){ console.error(e); fail(false); });
+})();
+</script>
+</body>
+</html>
