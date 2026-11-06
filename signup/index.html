@@ -1066,8 +1066,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.84 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.85 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.85（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>信徒關聯表「沒有 LINE」每格標「🏠 已歸戶：代表人○○」或「還沒歸戶」，上方列已歸戶／還沒歸戶人數</li>
+        <li>小幫手還沒更新時匯入姓名連動，改成寫清楚「這次沒有匯入」，不再顯示成功</li>
+      </ul>
       <b>v4.84（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>信徒關聯表多「📥 匯入姓名連動」：匯入一戶一個代表姓名的 Excel（代表姓名、連動的姓名），同一戶的人連到同一個 LINE，彙整卡片合成一張；匯入後自動重新產生</li>
@@ -3894,6 +3899,17 @@ window.KutingPeople = function(o){
   var HOW = {"import":"LINE 好友名單", line:"用 LINE 報名", dname:"LINE 名稱相同", staff:"志工加", notify:"傳過卡片", household:"姓名連動", "":""};
   var parts = function(w){ return String(w || "").replace(/[（(][^）)]*[）)]/g, "").split(/[、，,\/\s]+|和|與|及/).map(function(x){ return x.trim(); }).filter(Boolean); };
   function allRegs(){ var seen = {}, out = []; data.persons.forEach(function(p){ p.regs.forEach(function(r){ if(!seen[r.key]){ seen[r.key] = 1; out.push(Object.assign({ line: p.displayName || "" }, r)); } }); }); data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ if(!seen[r.key]){ seen[r.key] = 1; out.push(Object.assign({ line: "" }, r)); } }); }); return out; }
+  function hhOfName(w){
+    var m = {}; (data.households || []).forEach(function(x){ if(x.members.length > 1) x.members.forEach(function(n){ m[n] = x.rep; }); });
+    var ks = [String(w || "").replace(/\s/g, "")].concat(parts(w)), out = [];
+    ks.forEach(function(k){ if(m[k] && out.indexOf(m[k]) < 0) out.push(m[k]); });
+    return out;
+  }
+  function hhTag(w){
+    if(!(data.households || []).length) return "";
+    var r = hhOfName(w);
+    return r.length ? '<div style="font-size:15px; color:#2e7d32;">🏠 已歸戶：代表人「' + r.map(esc).join("」「") + "」</div>" : '<div style="font-size:15px; color:#b26a00;">🏠 還沒歸戶（姓名連動裡沒有這個姓名）</div>';
+  }
   function hhRegs(h, all){ return all.filter(function(r){ return parts(r.who).concat([r.who.replace(/\s/g, "")]).some(function(x){ return h.members.indexOf(x) >= 0; }); }); }
   var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
   var data = null, tab = "line", showEmpty = false, busy = false;
@@ -3946,8 +3962,12 @@ window.KutingPeople = function(o){
     } else if(tab === "none"){
       var opts = '<option value="">選 LINE…</option>' + data.lineFriends.slice().sort(function(a, b){ return (a.displayName || "").localeCompare(b.displayName || ""); }).map(function(f){ return '<option value="' + esc(f.id) + '">' + esc(f.displayName || f.id.slice(-6)) + "</option>"; }).join("");
       h += '<p style="color:#6b5c4d; font-size:15px; margin:4px 0;">這些報名找不到 LINE（現場或電話報的、還沒加小幫手）。知道是誰的 LINE 時，選好按「連到這個 LINE」。</p>';
+      if((data.households || []).length){
+        var hhN = data.unlinked.filter(function(u){ return hhOfName(u.name).length; }).length;
+        h += '<p style="margin:4px 0;">已歸戶 ' + hhN + " 位、還沒歸戶 " + (data.unlinked.length - hhN) + " 位（已歸戶但整戶都沒有 LINE 的，也會在這裡）</p>";
+      }
       h += data.unlinked.map(function(u, i){
-        return card("<b>" + esc(u.name) + '</b><div style="font-size:15px;">' + regLines(u.regs) + "<br>" + sum(u.regs) + "</div>" +
+        return card("<b>" + esc(u.name) + "</b>" + hhTag(u.name) + '<div style="font-size:15px;">' + regLines(u.regs) + "<br>" + sum(u.regs) + "</div>" +
           '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;"><select class="kp-sel" data-i="' + i + '" style="flex:1; min-width:10em; min-height:44px; font-size:16px; border:1px solid #c9a227; border-radius:8px;">' + opts + "</select>" + btn("連到這個 LINE", "link", ' data-i="' + i + '"') + "</div>", u.name);
       }).join("") || '<p style="color:#6b5c4d;">沒有。</p>';
     } else if(tab === "hh"){
@@ -4072,7 +4092,8 @@ window.KutingPeople = function(o){
           busy = true;
           var stop = timer("📥 匯入中…");
           call({ op: "hhImport", households: list, file: file.name }).then(function(out){
-            stop(); busy = false; msg("✅ 已匯入 " + out.n + " 戶（" + out.multi + " 戶有兩位以上），接著自動重新產生…"); load("build");
+            stop(); busy = false;
+            if(typeof out.n !== "number"){ msg("⚠ 小幫手還沒更新到 v1.61（合併後約 10 分鐘自動更新），這次沒有匯入，請稍後再匯入一次"); return; } msg("✅ 已匯入 " + out.n + " 戶（" + out.multi + " 戶有兩位以上），接著自動重新產生…"); load("build");
           }).catch(function(e2){ stop(); busy = false; msg("⚠ " + esc(e2.message)); });
         } catch(err){ msg("⚠ 讀不到這個 Excel：" + esc(err.message)); }
       };
