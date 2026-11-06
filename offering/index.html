@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v185";
+  var APP_VERSION = "v186";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v186", date: "2026-11-06", changes: [
+      "信徒關聯表的 Excel 改成整合版（.xlsx 三張表）：「依信徒」一位一列（LINE、法會／供品筆數與金額、已收、待收、參加場次）、「依 LINE」一個 LINE 一列、「明細」一筆一列；可篩選",
+      "志工的 LINE 只記志工自己的姓名（志工代報、轉傳的別人不再記在志工 LINE 上，彙整卡片也不會傳給志工）；姓名有 test／測試不記。需要小幫手 v1.60，請再按一次「🔄 從現有報名產生／更新」"
+    ] },
     { version: "v185", date: "2026-11-06", changes: [
       "信徒關聯表：小幫手還沒更新到 v1.59 時，改成寫清楚「請稍後再按一次」，不再出現英文錯誤"
     ] },
@@ -10240,7 +10244,7 @@ window.KutingCombo = function(o){
   });
   render();
 };
-/* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.59）。法會報名與供品贊助兩份必須相同 ----
+/* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.60）。法會報名與供品贊助兩份必須相同 ----
    從現有法會、供品報名產生「哪個 LINE ↔ 哪些報名姓名」，列出每位的報名與已收／待收，志工可加／拿掉姓名。
    只用來找收件人、合併通知，不帶入任何報名資料。 */
 window.KutingPeople = function(o){
@@ -10275,10 +10279,10 @@ window.KutingPeople = function(o){
   function render(){
     var h = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0; color:#8b1a1a;">🔗 信徒關聯表</h3>' + btn("關閉", "close") + "</div>" +
       '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">從法會、供品現有的報名整理：哪個 LINE 對到哪些報名姓名（含幫家人報的），以及各筆已收／待收。只用來找 LINE 收件人、合併通知，不會帶入報名資料。對錯的姓名請按 ✕ 拿掉，漏掉的可以加上。</p>' +
-      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("🔄 從現有報名產生／更新", "build", "", true) + (data ? btn("⬇️ 下載 Excel", "csv") : "") + '<span class="kp-msg" style="color:#6b5c4d;"></span></div>';
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("🔄 從現有報名產生／更新", "build", "", true) + (data ? btn("⬇️ 下載 Excel（一人一列）", "csv") : "") + '<span class="kp-msg" style="color:#6b5c4d;"></span></div>';
     if(!data){ box.innerHTML = h; return; }
     var withReg = data.persons.filter(function(p){ return p.regs.length; });
-    h += '<p style="margin:6px 0;">' + (data.built ? "✅ 已產生（讀了 " + data.regN + " 筆報名，" + data.sec + " 秒；新加姓名：好友名單 " + data.added["import"] + "、LINE 報名 " + data.added.line + "、LINE 名稱相同 " + data.added.dname + "）<br>" : "") +
+    h += '<p style="margin:6px 0;">' + (data.built ? "✅ 已產生（讀了 " + data.regN + " 筆報名，" + data.sec + " 秒；新加姓名：好友名單 " + data.added["import"] + "、LINE 報名 " + data.added.line + "、LINE 名稱相同 " + data.added.dname + (data.dropped ? "；志工 LINE 上代報的姓名拿掉 " + data.dropped + " 個" : "") + "）<br>" : "") +
       "LINE " + data.persons.length + " 位（有報名 " + withReg.length + " 位）・沒有 LINE 的報名姓名 " + data.unlinked.length + " 位・同名對到多個 LINE " + data.dup.length + " 個</p>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">' +
       [["line", "有 LINE（" + withReg.length + "）"], ["none", "沒有 LINE（" + data.unlinked.length + "）"], ["dup", "同名多個 LINE（" + data.dup.length + "）"]].map(function(t){ return btn(t[1], "tab", ' data-t="' + t[0] + '"', t[0] === tab); }).join("") + "</div>" +
@@ -10287,7 +10291,7 @@ window.KutingPeople = function(o){
       h += '<label style="display:block; margin:6px 0;"><input type="checkbox" class="kp-empty"' + (showEmpty ? " checked" : "") + "> 也顯示沒有報名的 LINE 好友</label>";
       h += data.persons.filter(function(p){ return showEmpty || p.regs.length; }).map(function(p){
         var i = data.persons.indexOf(p);
-        return card('<div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;"><b>LINE「' + esc(p.displayName || "（沒有名稱）") + "」</b>" + (p.friend === false ? '<span style="color:#b3261e;">已封鎖或不是好友</span>' : "") + (p.sentN ? '<span style="color:#6b5c4d;">傳過 ' + p.sentN + " 次卡片</span>" : "") + "</div>" +
+        return card('<div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;"><b>LINE「' + esc(p.displayName || "（沒有名稱）") + "」</b>" + (p.friend === false ? '<span style="color:#b3261e;">已封鎖或不是好友</span>' : "") + (p.volunteer ? '<span style="color:#8b1a1a;">志工（只記自己的姓名，代報的不算）</span>' : "") + (p.sentN ? '<span style="color:#6b5c4d;">傳過 ' + p.sentN + " 次卡片</span>" : "") + "</div>" +
           '<div style="margin:4px 0;">' + (p.names.length ? p.names.map(function(x){ return '<span style="display:inline-flex; align-items:center; gap:4px; border:1px solid #c9a227; border-radius:16px; padding:2px 4px 2px 10px; margin:2px;">' + esc(x.n) + '<small style="color:#6b5c4d;">' + esc(HOW[x.how] || x.how) + '</small><button type="button" data-k="rm" data-i="' + i + '" data-n="' + esc(x.n) + '" title="拿掉" style="min-width:36px; min-height:36px; border:0; background:none; color:#b3261e; font-size:16px; cursor:pointer;">✕</button></span>'; }).join("") : '<span style="color:#6b5c4d;">還沒有姓名</span>') + "</div>" +
           '<div style="display:flex; gap:6px; flex-wrap:wrap; margin:4px 0;"><input class="kp-add" data-i="' + i + '" placeholder="加姓名（例：王○明）" style="flex:1; min-width:10em; min-height:44px; font-size:16px; padding:4px 8px; border:1px solid #c9a227; border-radius:8px;">' + btn("＋加", "add", ' data-i="' + i + '"') + "</div>" +
           (p.regs.length ? '<div style="font-size:15px;">' + regLines(p.regs) + "<br>" + sum(p.regs) + "</div>" : ""),
@@ -10329,20 +10333,52 @@ window.KutingPeople = function(o){
       .catch(function(e){ stop(); busy = false; msg("⚠ " + esc(e.message)); });
   }
   function csv(){
-    var rows = [["類別", "LINE 名稱", "記在這個 LINE 的姓名", "平台", "場次", "報名姓名", "金額", "收款"]];
-    data.persons.forEach(function(p){
-      var nm = p.names.map(function(x){ return x.n; }).join("、");
-      if(!p.regs.length) rows.push(["有 LINE", p.displayName, nm, "", "", "", "", ""]);
-      p.regs.forEach(function(r){ rows.push(["有 LINE", p.displayName, nm, r.plat === "fh" ? "法會" : "供品", r.occ, r.who, r.amount, r.paid ? "已收款" : "待收款"]); });
-    });
-    data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ rows.push(["沒有 LINE", "", u.name, r.plat === "fh" ? "法會" : "供品", r.occ, r.who, r.amount, r.paid ? "已收款" : "待收款"]); }); });
-    data.dup.forEach(function(d){ rows.push(["同名多個 LINE", d.to.join("、"), d.name, "", "", "", "", ""]); });
-    var text = "﻿" + rows.map(function(r){ return r.map(function(c){ c = String(c == null ? "" : c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(","); }).join("\r\n");
-    var d = new Date(), roc = (d.getFullYear() - 1911) + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-    a.download = "信徒關聯表_" + roc + ".csv";
-    document.body.appendChild(a); a.click(); a.remove();
+    // v4.83／v185：整合成 Excel 三張表——依信徒（一人一列）、依 LINE（一個 LINE 一列）、明細
+    function go(){
+      var plat = function(r){ return r.plat === "fh" ? "法會" : "供品"; };
+      var who = {}, order = [], seen = {};
+      function add(r, line){
+        var k = r.who.replace(/\s/g, "");
+        if(!who[k]){ who[k] = { name: r.who, lines: [], fhN: 0, fh: 0, gpN: 0, gp: 0, paid: 0, due: 0, occ: [] }; order.push(k); }
+        var w = who[k];
+        if(line && w.lines.indexOf(line) < 0) w.lines.push(line);
+        if(seen[r.key]) return; seen[r.key] = 1;
+        if(r.plat === "fh"){ w.fhN++; w.fh += r.amount || 0; } else { w.gpN++; w.gp += r.amount || 0; }
+        if(r.paid) w.paid += r.amount || 0; else w.due += r.amount || 0;
+        var o = plat(r) + "：" + r.occ; if(w.occ.indexOf(o) < 0) w.occ.push(o);
+      }
+      data.persons.forEach(function(p){ p.regs.forEach(function(r){ add(r, p.displayName || "（沒有名稱）"); }); });
+      data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ add(r, ""); }); });
+      var dupN = {}; data.dup.forEach(function(d){ dupN[d.name] = d.to.join("、"); });
+      var s1 = [["報名姓名", "LINE", "法會筆數", "法會金額", "供品筆數", "供品金額", "合計", "已收", "待收", "參加場次"]];
+      order.sort(function(a, b){ return who[a].name.localeCompare(who[b].name, "zh-Hant"); }).forEach(function(k){
+        var w = who[k];
+        s1.push([w.name, dupN[k] ? "⚠ 同名多個 LINE：" + dupN[k] : (w.lines.join("、") || "沒有 LINE"), w.fhN, w.fh, w.gpN, w.gp, w.fh + w.gp, w.paid, w.due, w.occ.join("\n")]);
+      });
+      var s2 = [["LINE", "志工", "記在這個 LINE 的姓名", "報名姓名（實際有報名）", "法會金額", "供品金額", "合計", "待收"]];
+      data.persons.filter(function(p){ return p.regs.length; }).forEach(function(p){
+        var f = 0, g = 0, d = 0, ws = [];
+        p.regs.forEach(function(r){ if(r.plat === "fh") f += r.amount || 0; else g += r.amount || 0; if(!r.paid) d += r.amount || 0; if(ws.indexOf(r.who) < 0) ws.push(r.who); });
+        s2.push([p.displayName || "（沒有名稱）", p.volunteer ? "志工" : "", p.names.map(function(x){ return x.n; }).join("、"), ws.join("、"), f, g, f + g, d]);
+      });
+      var s3 = [["報名姓名", "LINE", "平台", "場次", "金額", "收款"]];
+      var seen3 = {};
+      data.persons.forEach(function(p){ p.regs.forEach(function(r){ s3.push([r.who, p.displayName || "", plat(r), r.occ, r.amount, r.paid ? "已收款" : "待收款"]); seen3[r.key] = 1; }); });
+      data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ if(!seen3[r.key]) s3.push([r.who, "沒有 LINE", plat(r), r.occ, r.amount, r.paid ? "已收款" : "待收款"]); }); });
+      var wb = XLSX.utils.book_new();
+      [["依信徒（一人一列）", s1, [14, 28, 8, 10, 8, 10, 10, 10, 10, 60]], ["依 LINE", s2, [16, 6, 40, 40, 10, 10, 10, 10]], ["明細", s3, [14, 16, 6, 60, 10, 8]]].forEach(function(t){
+        var ws = XLSX.utils.aoa_to_sheet(t[1]); ws["!cols"] = t[2].map(function(w){ return { wch: w }; }); ws["!autofilter"] = { ref: ws["!ref"] }; XLSX.utils.book_append_sheet(wb, ws, t[0]);
+      });
+      var d = new Date(), roc = (d.getFullYear() - 1911) + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+      XLSX.writeFile(wb, "信徒關聯表_" + roc + ".xlsx");
+      msg("✅ 已下載 Excel（依信徒 " + (s1.length - 1) + " 位）");
+    }
+    if(window.XLSX) return go();
+    msg("載入 Excel 工具中…");
+    var sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    sc.onload = go; sc.onerror = function(){ msg("⚠ Excel 工具載入失敗，請檢查網路"); };
+    document.head.appendChild(sc);
   }
   bg.addEventListener("input", function(e){ if(e.target.classList && e.target.classList.contains("kp-q")) filter(); });
   bg.addEventListener("change", function(e){ if(e.target.classList && e.target.classList.contains("kp-empty")){ showEmpty = e.target.checked; render(); } });
