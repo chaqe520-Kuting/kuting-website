@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.88 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.89 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.89（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>按「📨 LINE 報名成功」「💰 LINE 收款確認」先顯示卡片預覽（姓名、每項數量金額、合計、收款狀態），按「確認送出」才用小幫手傳</li>
+      </ul>
       <b>v4.88（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>按「📨 LINE 報名成功」「💰 LINE 收款確認」傳不出去時（例如這位沒有 LINE 好友），改產生同樣內容的報名成功／收款確認圖：姓名、每項數量金額、牌位姓名、合計、收款狀態，按「📋 複製圖片」到 LINE 貼上傳給信徒（手機也可分享到 LINE）</li>
@@ -3754,6 +3758,25 @@ function drawNoticeCanvas(card){
   ctx.fillStyle = '#6b5c4d'; ctx.font = '500 18px ' + serif; ctx.fillText((paid?'收款時間 ':'登記時間 ') + (card.time||''), W/2, y+132);
   return c;
 }
+async function showCardPreviewConfirm(card, headHtml){
+  try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
+  const url = drawNoticeCanvas(card).toDataURL('image/png');
+  return new Promise(resolve=>{
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
+      <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
+      <img src="${url}" alt="卡片預覽" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
+      <p class="hint" style="margin:8px 0 0;text-align:left;">LINE 裡看到的卡片內容和這張一樣（版面略有不同）。會用到 LINE 官方帳號每月的免費訊息則數。</p>
+      <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn btn-primary" data-cp="yes">📨 確認送出</button>
+        <button class="btn btn-ghost" data-cp="no">取消</button>
+      </div></div>`;
+    document.body.appendChild(bg);
+    bg.querySelector('[data-cp="yes"]').onclick = ()=>{ bg.remove(); resolve(true); };
+    bg.querySelector('[data-cp="no"]').onclick = ()=>{ bg.remove(); resolve(false); };
+  });
+}
 async function openNoticeImageModal(card, headHtml){
   try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
   const c = drawNoticeCanvas(card);
@@ -3798,7 +3821,8 @@ async function fahuiLinePush(regId, kind, quiet){
   const reporter = String((r0.f||{}).reporter||'');
   const who = src.lineName ? `LINE「${src.lineName}」` : `「${reporter}」的 LINE（用報名姓名找以前私訊過小幫手的好友）`;
   const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
-  if(!quiet && !(await showConfirm(`由小幫手把「${escHtml(reporter)}」的${kind==='paid'?'<b>收款確認</b>（已收到您的護持）':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}？<br>合併 <b>${regs.length} 筆</b>報名成一張卡片，合計 ${money(total)} 元。<br><span style="font-size:13px;color:var(--muted);">會用到 LINE 官方帳號每月的免費訊息則數</span>`))) return false;
+  // v4.89（小朱）：先預覽卡片內容，按「確認送出」才傳
+  if(!quiet && !(await showCardPreviewConfirm(fahuiNoticeCard(ev, regs, kind), `由小幫手把「${escHtml(reporter)}」的${kind==='paid'?'<b>收款確認</b>':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}。<br>合併 <b>${regs.length} 筆</b>報名成一張卡片，合計 ${money(total)} 元。請核對下面的卡片內容：`))) return false;
   const url = linebotUrl(false);
   if(!url){ await showResultModal('沒有傳出去：這台電腦還沒設定小幫手網址。請再按一次，在跳出的框貼上小幫手網址（和供品贊助用的一樣）。'); return false; }
   const t0 = Date.now();
