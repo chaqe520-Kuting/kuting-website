@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.86 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.87 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.87（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 小幫手「同去年」可以只改一部分（小幫手 v1.63）：帶入解析時自動套用信徒改的項目（姓名、地址、數量…），提示列出改了哪些；信徒說「不要」的那一筆自動取消勾選</li>
+      </ul>
       <b>v4.86（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>報名表每一位的「報名類別」旁多「🔁 比照上次報名」（登入的志工才看得到）：先填報名者姓名，按下去列出這位在這場去年 Excel 的每一筆（標出類別、姓名、份數），勾要的按「帶入勾選的」，第一筆填進這一位，其他的自動再加一位</li>
@@ -3317,7 +3321,23 @@ function parseAndBuildPreview(text){
    小朱 2026-11-05：只用各場自己匯入的 Excel，不拿其他法會、也不和供品贊助混用；還沒匯入就提醒先匯入。
    參考資料存在 regs，eventId 是「ref:場次ID」（不在場次清單裡，所以不會進統計、財務對照、信徒查詢同步與 Excel 匯出）。 */
 const SAME_LAST_RE = /(同|跟|和|照|如)\s*(去年|上次|上一次|上回|上一回|上一屆|之前|以前|前年|往年|往常)|(去年|上次|上一次|上回|上一屆|之前)\s*(一樣|相同)|照舊/;
-function sameLastText(b){ return [b.header||'', ...(b.rawEntries||[]).map(en=>en.raw!==undefined ? en.raw : ((en.label?en.label+'：':'')+(en.value||'')))].join(' '); }
+const SAME_EDIT_RE = /^\s*✏️?\s*修改\s*第\s*(\d+)\s*筆\s*(.+)$/;
+function sameEntryRaw(en){ return en.raw!==undefined ? en.raw : ((en.label?en.label+'：':'')+(en.value||'')); }
+function sameLastText(b){ return [b.header||'', ...(b.rawEntries||[]).map(sameEntryRaw).filter(x=>!SAME_EDIT_RE.test(x))].join(' '); }
+/* v4.87（小朱）：LINE 小幫手 v1.63 同去年「✏️ 修改」只改一部分，送來「✏️修改 第N筆 項目 → 新內容」／「✏️修改 第N筆 不要」 */
+function sameLastEdits(b){
+  const out = [];
+  (b.rawEntries||[]).map(sameEntryRaw).forEach(x=>{
+    const m = String(x||'').match(SAME_EDIT_RE);
+    if(!m) return;
+    const n = Number(m[1]), rest = m[2].trim();
+    if(/^不要$/.test(rest)){ out.push({n, drop:true}); return; }
+    const i = rest.indexOf('→');
+    if(i<0) return;
+    out.push({n, label: rest.slice(0,i).replace(/\s+/g,''), v: rest.slice(i+1).trim()});
+  });
+  return out;
+}
 function sameLastName(text, ev){
   let t = String(text||'').replace(/\s+/g,' ');
   const m = t.match(/(?:我叫|我是|名字是|名字叫|姓名)\s*[:：]?\s*([一-鿿]{2,4}?)(?=[，,。、\s跟同和照如報]|$)/);
@@ -3379,6 +3399,19 @@ function applySameAsLast(b, ev){
   (ev.fields||[]).forEach(f=>{ const v = (h.f||{})[f.k]; if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v); });
   (ev.fees||[]).forEach(fl=>{ const q = Number((h.fee||{})[fl.k])||0; if(q) fee[fl.k] = q; });
   if(!fields.reporter) fields.reporter = name;
+  // v4.87：信徒在 LINE 只改了一部分 → 這一筆照改
+  const edits = sameLastEdits(b).filter(e=>e.n===idx+1);
+  const lbl = s=>String(s||'').replace(/\s+/g,'');
+  const editDone = [];
+  let dropped = false;
+  edits.forEach(e=>{
+    if(e.drop){ dropped = true; return; }
+    const fd = (ev.fields||[]).find(f=>lbl(f.label)===e.label);
+    if(fd){ fields[fd.k] = e.v; editDone.push(e.label); return; }
+    const fl = (ev.fees||[]).find(f=>lbl(f.label)+'數量'===e.label || lbl(f.label)+'金額'===e.label || lbl(f.label)===e.label);
+    if(fl){ fee[fl.k] = Number(String(e.v).replace(/[^\d.]/g,''))||0; editDone.push(e.label); return; }
+  });
+  const editMiss = edits.filter(e=>!e.drop && !editDone.includes(e.label)).map(e=>`${e.label} → ${e.v}`);
   // v4.51：去年資料沒有類別就依填的欄位補上；Excel 沒寫數量的費用依欄位自動算
   inferShowIfChoice(ev, fields);
   const inf = autoInferFeeQuantities(ev, fields);
@@ -3393,6 +3426,9 @@ function applySameAsLast(b, ev){
   }
   const where = `「${ev.sameRef.file||'去年 Excel'}」${h.sheet?'（'+h.sheet+(h.row?' 第 '+h.row+' 列':'')+'）':''}`;
   b.sameLast = {ok:true, msg:`🔁 同去年${hits.length>1?` 第 ${idx+1}／${hits.length} 筆`:''}：已照${where}「${name}」的報名${(shortMsg||b.sameLastOf)?'帶入欄位與數量':'補上空白的欄位與數量'}，請核對（地址、陽上人有變動要改）`};
+  if(editDone.length) b.sameLast.msg += `；✏️ 信徒在 LINE 改了：${editDone.join('、')}（已照改）`;
+  if(editMiss.length){ b.sameLast.msg += `；⚠️ 對不到欄位的修改，請手動改：${editMiss.join('；')}`; b.uncertain = true; }
+  if(dropped){ b.include = false; b.sameLast.msg = `🔁 同去年 第 ${idx+1} 筆：信徒在 LINE 說這筆不要，已取消勾選（不會匯入）`; }
   return b;
 }
 // 同一位去年有好幾列：第一筆之後的每一列各變成一筆（換場次、重新帶入時重新產生）
