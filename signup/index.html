@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.95 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.96 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.96（2026-11-06）</b>：「傳給哪個 LINE」每個記住的姓名旁有 ✕，姓名不屬於這個 LINE 可以直接拿掉；志工 LINE 標「（志工）」，只留志工自己的姓名（配合小幫手 v1.67 自動清掉記錯的代報姓名）。<br>
       <b>v4.95（2026-11-06）</b>：按「📨 LINE 報名成功／收款確認」不再自動傳給幫忙報名的 LINE：預覽視窗要先選傳給哪個 LINE（從這筆傳來的 LINE、記住這個姓名的 LINE，或打名稱找其他好友；也可改產生圖片），按確認才送。<br>
       <b>v4.94（2026-11-06）</b>：LINE 報名成功圖右鍵「複製圖片」貼到 LINE 電腦版變成一長串文字 → 改用短網址顯示圖片，右鍵複製只帶圖片。<br>
       <b>v4.93（2026-11-06）</b>
@@ -3839,6 +3840,8 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
     const extraTo = new Map();     // 搜尋加進來的 LINE
     let friends = null, picked = '';
     const nk = x=>String(x||'').replace(/\s+/g,'');
+    // v4.96（小朱）：LINE 上記錯的姓名可以直接按 ✕ 拿掉
+    const chips = (id, names)=>(names||[]).length ? '記住的姓名：' + names.slice(0,12).map(n=>`<span style="display:inline-flex;align-items:center;gap:2px;margin:2px 4px 2px 0;padding:0 2px 0 8px;border:1px solid var(--line);border-radius:12px;background:#fff;">${escHtml(n)}<button type="button" data-pkrm="${escHtml(id)}" data-pkrmn="${escHtml(n)}" title="這個姓名不屬於這個 LINE，拿掉" style="border:0;background:none;color:var(--vermilion);font-weight:700;min-height:0;padding:0 6px;cursor:pointer;">✕</button></span>`).join('') : '';
     const toOpts = ()=>{
       const m = new Map();
       all.filter(x=>chosen.has(x.id) && x.lineUserId).forEach(x=>{
@@ -3853,14 +3856,14 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
         o.name = fr.displayName || o.name; o.why.push(`記住的姓名有「${reporter}」`); o.friend = fr.friend; m.set(fr.id, o);
       });
       extraTo.forEach((o,id)=>{ if(!m.has(id)) m.set(id, o); });
-      (friends||[]).forEach(fr=>{ const o = m.get(fr.id); if(o){ o.name = o.name || fr.displayName; if(o.friend==null) o.friend = fr.friend; o.names = fr.names; } });
+      (friends||[]).forEach(fr=>{ const o = m.get(fr.id); if(o){ o.name = o.name || fr.displayName; if(o.friend==null) o.friend = fr.friend; o.names = fr.names; o.staff = fr.staff; } });
       return [...m.values()];
     };
     const drawTo = ()=>{
       const opts = toOpts();
       if(picked && picked!=='img' && !opts.some(o=>o.id===picked)) picked = '';
       const radio = (v, html)=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px dotted var(--line);font-weight:400;margin:0;cursor:pointer;"><input type="radio" name="pkTo" value="${escHtml(v)}" ${picked===v?'checked':''} style="width:auto;min-height:0;margin-top:5px;flex:none;"><span>${html}</span></label>`;
-      toEl.innerHTML = opts.map(o=>radio(o.id, `LINE「<b>${escHtml(o.name||'（沒有名稱）')}</b>」${o.friend===false?' <span style="color:#b26a00;">（已封鎖或不是好友）</span>':''}<br><span class="hint" style="margin:0;">${escHtml([...(o.why||[]), (o.names&&o.names.length)?('記住的姓名：'+o.names.slice(0,6).join('、')):''].filter(Boolean).join('；'))}</span>`)).join('')
+      toEl.innerHTML = opts.map(o=>radio(o.id, `LINE「<b>${escHtml(o.name||'（沒有名稱）')}</b>」${o.friend===false?' <span style="color:#b26a00;">（已封鎖或不是好友）</span>':''}${o.staff?' <span class="hint" style="margin:0;">（志工）</span>':''}<br><span class="hint" style="margin:0;">${escHtml((o.why||[]).join('；'))}</span><div style="font-size:13px;">${chips(o.id, o.names)}</div>`)).join('')
         + (opts.length ? '' : `<div class="hint" style="margin:0 0 4px;">${friends ? `找不到「${escHtml(reporter)}」的 LINE，請在下面打名稱找，或改產生圖片自己傳。` : '正在讀 LINE 好友名單…'}</div>`)
         + radio('img', '🖼️ 不用小幫手傳，改產生報名成功圖（自己用 LINE 傳）');
       const o = opts.find(x=>x.id===picked);
@@ -3872,7 +3875,7 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
       if(!k){ toHits.innerHTML = ''; return; }
       if(!friends){ toHits.innerHTML = '<div class="hint">LINE 好友名單還沒讀到（小幫手要更新到 v1.66）</div>'; return; }
       const hits = friends.filter(fr=>nk(fr.displayName).includes(k) || (fr.names||[]).some(n=>nk(n).includes(k))).slice(0,15);
-      toHits.innerHTML = hits.length ? hits.map(fr=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dotted var(--line);font-size:14px;"><button type="button" class="btn btn-ghost btn-sm" data-pktoadd="${escHtml(fr.id)}">選這個</button><span>LINE「<b>${escHtml(fr.displayName||'（沒有名稱）')}</b>」${fr.friend===false?'（已封鎖或不是好友）':''}${(fr.names||[]).length?'　姓名：'+escHtml(fr.names.slice(0,6).join('、')):''}</span></div>`).join('') : '<div class="hint">找不到這個 LINE</div>';
+      toHits.innerHTML = hits.length ? hits.map(fr=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dotted var(--line);font-size:14px;"><button type="button" class="btn btn-ghost btn-sm" data-pktoadd="${escHtml(fr.id)}">選這個</button><span>LINE「<b>${escHtml(fr.displayName||'（沒有名稱）')}</b>」${fr.staff?'（志工）':''}${fr.friend===false?'（已封鎖或不是好友）':''}<div style="font-size:13px;">${chips(fr.id, fr.names)}</div></span></div>`).join('') : '<div class="hint">找不到這個 LINE</div>';
     };
     let toTmr = null;
     toQ.addEventListener('input', ()=>{ clearTimeout(toTmr); toTmr = setTimeout(toSearch, 250); });
@@ -3908,6 +3911,23 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
     q.addEventListener('input', ()=>{ clearTimeout(tmr); tmr = setTimeout(search, 250); });
     bg.addEventListener('change', e=>{ const id = e.target.dataset && e.target.dataset.pkid; if(!id) return; if(e.target.checked) chosen.add(id); else chosen.delete(id); refresh(); });
     bg.addEventListener('click', e=>{
+      const rm = e.target.closest('[data-pkrm]');
+      if(rm){
+        const id = rm.dataset.pkrm, n = rm.dataset.pkrmn, fr = (friends||[]).find(x=>x.id===id);
+        if(!confirm(`把「${n}」從 LINE「${(fr&&fr.displayName)||''}」拿掉？\n（這個姓名以後也不會再自動記到這個 LINE）`)) return;
+        rm.disabled = true;
+        (async ()=>{
+          try{
+            const idToken = await auth.currentUser.getIdToken();
+            const res = await fetch(linebotUrl(false), {method:'POST', body: JSON.stringify({action:'people', op:'remove', from:'fahui', idToken, userId:id, name:n})});
+            const out = await res.json();
+            if(!out || !out.ok) throw new Error((out && out.error) || '小幫手沒有回應');
+            if(fr) fr.names = (fr.names||[]).filter(x=>nk(x)!==nk(n));
+            showToast(`已把「${n}」拿掉`); drawTo(); toSearch();
+          }catch(err){ rm.disabled = false; showToast('沒有拿掉：' + (err && err.message || err), 5000); }
+        })();
+        return;
+      }
       const ta = e.target.closest('[data-pktoadd]');
       if(ta){ const fr = (friends||[]).find(x=>x.id===ta.dataset.pktoadd); if(fr){ extraTo.set(fr.id, {id:fr.id, name:fr.displayName, why:['自己選的'], friend:fr.friend}); picked = fr.id; toQ.value = ''; toHits.innerHTML = ''; drawTo(); } return; }
       const add = e.target.closest('[data-pkadd]');
