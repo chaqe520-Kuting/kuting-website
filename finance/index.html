@@ -1034,9 +1034,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.19.1';
-const APP_DATE = '2026-11-05';
+const APP_VERSION = 'v1.20.0';
+const APP_DATE = '2026-11-06';
 const CHANGELOG = [
+  { version:'v1.20.0', date:'2026-11-06', items:[
+    '「🔗 配對報名」依姓名連動（戶）列出：收入姓名是某一戶的人時，同一戶家人的報名也一起列出（標「🏠 同戶」），代表人一次付全家也能一次勾選；姓名連動在供品／法會後台「🔗 信徒關聯表」匯入',
+    '修正 v1.19.1 起法會報名在配對視窗缺場次名稱、無法標已收款的問題'
+  ]},
   { version:'v1.19.1', date:'2026-11-05', items:[
     '對照報名未收款時，不列法會報名平台準備中場次的「🧪 測試」報名'
   ]},
@@ -2829,7 +2833,8 @@ const FinLinkStatus = (function(){
           regs.forEach(d=>{
             const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
             const ev = evs[x.eventId];
-            if(ev && !r.test) list.push({ plat:'fh',   // v1.19.1：法會準備中的測試報名不列入配對 platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
+            // v1.19.1：法會準備中的測試報名不列入配對（v1.20.0 修正：註解原本把後面欄位一起蓋掉）
+            if(ev && !r.test) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
               name:String((r.f||{}).reporter||'').trim(), amount:Number(r.total)||0, paid:!!r.paid,
               what:(r.items||[]).map(it=>`${it.itemName||''}×${it.qty||''}`).join('、') });
           });
@@ -2838,7 +2843,37 @@ const FinLinkStatus = (function(){
         s.err = '';
       }catch(e){ s.err = (e && e.code==='permission-denied') ? '帳號未啟用' : '讀取失敗'; }
     }));
-    map = next; regList = list; aliasMaps = als; eventNames = [...evAll]; loaded = true; loading = false; onChange();
+    map = next; regList = list; aliasMaps = als; eventNames = [...evAll];
+    await loadHouseholds();
+    loaded = true; loading = false; onChange();
+  }
+  // v1.20.0 姓名連動（戶）：存在信徒關聯表，只有報名小幫手讀得到；用已連結的供品（或法會）志工帳號向小幫手要戶名單（只讀）
+  let hhByName = {}, hhErr = '';
+  const hhKey = n=>String(n||'').replace(/\s+/g, '');
+  async function loadHouseholds(){
+    hhByName = {}; hhErr = '';
+    let url = ''; try{ url = localStorage.getItem('gongpin_linebot_url') || ''; }catch(_){}
+    if(!url){ hhErr = '這台電腦還沒設定報名小幫手網址'; return; }
+    const p = PLATS.find(x=>st[x.key].auth.currentUser);
+    if(!p){ hhErr = '還沒連結供品／法會'; return; }
+    try{
+      const idToken = await st[p.key].auth.currentUser.getIdToken();
+      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'people', op:'households', from: p.key === 'fh' ? 'fahui' : '', idToken }) });
+      const out = await res.json();
+      if(!out || !out.ok || !Array.isArray(out.list)){ hhErr = (out && out.error) || '小幫手還沒更新到 v1.62'; return; }
+      out.list.forEach(h=>{
+        const mem = (h.members||[]).map(hhKey).filter(Boolean);
+        const g = { rep: hhKey(h.rep) || mem[0], members: mem };
+        mem.forEach(n=>{ hhByName[n] = g; });
+      });
+    }catch(e){ hhErr = '讀不到姓名連動（' + (e && e.message || e) + '）'; }
+  }
+  // 名字所在的戶（多個名字時取第一個對到的）
+  function household(name){
+    const parts = String(name||'').replace(/[（(][^）)]*[）)]/g, m=>'、'+m).split(/[、,，\/\s＆&+＋;；．·]+/).map(hhKey).filter(t=>t.length >= 2);
+    for(const t of [hhKey(name)].concat(parts)) if(hhByName[t]) return hhByName[t];
+    return null;
   }
   function tagHtml(entryId){
     const l = map[entryId];
@@ -2865,6 +2900,7 @@ const FinLinkStatus = (function(){
     regs(){ return regList; },
     events(){ return eventNames; },
     aliases(){ return aliasMaps; },
+    household, hhInfo(){ return { n: new Set(Object.values(hhByName)).size, err: hhErr }; },
     db(key){ return st[key] && st[key].auth.currentUser ? st[key].db : null; },
     autoLogin(name, pw){ signIn(name, pw).catch(()=>{}); },
     async connect(){
@@ -3013,16 +3049,21 @@ const FinPair = (function(){
   // 算出建議：姓名對上（或記住的對照）的未對應報名；活動名稱對上、金額剛好的排前面並預先勾選
   function suggest(e){
     const et = tokens(e.name), al = aliasNames(e);
+    // v1.20.0 同一戶（姓名連動）的家人報名也列出
+    const hh = FinLinkStatus.household(e.name);
     // v1.16.5 已收款的也列出來、標「✔ 已收款」不能勾，看得到這位的收款進度（小朱）；只有待收款的能勾
     const all = FinLinkStatus.regs().filter(r=>r.amount > 0);
     all.forEach(r=>{
       r._name = !!((et.length && meet(et, tokens(r.name))) || al.indexOf(r.name) >= 0);
+      const rh = hh && !r._name ? FinLinkStatus.household(r.name) : null;
+      r._hh = !!(rh && rh === hh);
       r._ev = eventHit(r.event, e);
     });
+    CUR_HH = hh;
     // v1.16.7 有活動對得上本筆收入的報名時，只列那些場次（別場已收款的不再列出，小朱：程順隆渡祖先法會）
-    const nameHits = all.filter(r=>r._name), evHits = nameHits.filter(r=>r._ev);
+    const nameHits = all.filter(r=>r._name || r._hh), evHits = nameHits.filter(r=>r._ev);
     const hits = evHits.length ? evHits : nameHits;
-    const rank = r=>(r.paid || r.linked ? 4 : 0) + (r._ev ? 0 : 2);
+    const rank = r=>(r.paid || r.linked ? 8 : 0) + (r._ev ? 0 : 2) + (r._hh ? 1 : 0);
     hits.sort((a, b)=>rank(a) - rank(b) || (a.closed === b.closed ? 0 : a.closed ? 1 : -1));
     picked = new Set();
     const open = hits.filter(r=>!r.paid && !r.linked);
@@ -3031,7 +3072,7 @@ const FinPair = (function(){
     if(sub) sub.forEach(r=>picked.add(r));
     return { all, hits };
   }
-  let ALL = [], HITS = [];
+  let ALL = [], HITS = [], CUR_HH = null;
   async function open(entryOrId){
     const e = typeof entryOrId === 'string' ? liveEntries.find(x=>x.id === entryOrId) : entryOrId;
     if(!canPair(e)) return;
@@ -3062,12 +3103,14 @@ const FinPair = (function(){
     cands = q ? ALL.filter(r=>(r.name + ' ' + r.event + ' ' + r.what).toLowerCase().indexOf(q) >= 0).slice(0, 60) : HITS.slice(0, 60);
     picked.forEach(r=>{ if(cands.indexOf(r) < 0) cands.unshift(r); });
     const nDone = cands.filter(r=>r.paid || r.linked).length;
+    const nHh = HITS.filter(r=>r._hh).length, hi = FinLinkStatus.hhInfo();
     document.getElementById('fpNote').textContent = (q ? `找到 ${cands.length} 筆` : (HITS.length ? `姓名對上 ${HITS.length} 筆` : '沒有姓名對上的報名，可以在左邊輸入姓名或場次找'))
-      + (cands.length ? `（待收款 ${cands.length - nDone}、已收款 ${nDone}）` : '');
+      + (cands.length ? `（待收款 ${cands.length - nDone}、已收款 ${nDone}）` : '')
+      + (CUR_HH ? `　🏠 ${CUR_HH.rep} 戶 ${CUR_HH.members.length} 人${nHh ? `，家人報名 ${nHh} 筆` : ''}` : (hi.err ? `　（姓名連動：${hi.err}）` : ''));
     document.getElementById('fpList').innerHTML = cands.length ? `<table><thead><tr><th></th><th>平台／場次</th><th>報名姓名</th><th>內容</th><th style="text-align:right;">金額</th></tr></thead><tbody>${
       cands.map((r, i)=>`<tr class="${r.paid || r.linked ? 'done' : (r._name && r._ev ? 'hit' : '')}"><td><input type="checkbox" data-i="${i}" ${picked.has(r) ? 'checked' : ''}${r.paid || r.linked ? ' disabled title="已收款，不用再配對"' : ''}></td>
         <td>${esc(r.platLabel)}｜${esc(r.event)}${r.closed ? ' <span class="fp-tag">已結束</span>' : ''}${r._ev ? ' <span class="fp-tag ev">活動對上</span>' : ''}</td>
-        <td>${esc(r.name || '（未填）')}${r.linked ? ' <span class="fp-tag done">✔ 已收款・已對應財務</span>' : r.paid ? ' <span class="fp-tag done">✔ 已收款</span>' : ' <span class="fp-tag due">待收款</span>'}</td>
+        <td>${esc(r.name || '（未填）')}${r._hh ? ` <span class="fp-tag paid">🏠 同戶（代表 ${esc(CUR_HH ? CUR_HH.rep : '')}）</span>` : ''}${r.linked ? ' <span class="fp-tag done">✔ 已收款・已對應財務</span>' : r.paid ? ' <span class="fp-tag done">✔ 已收款</span>' : ' <span class="fp-tag due">待收款</span>'}</td>
         <td class="muted">${esc(r.what)}</td><td class="num">${moneyPlain(r.amount)}</td></tr>`).join('')
     }</tbody></table>` : '<p class="muted">沒有姓名對上的報名，可以在上面輸入姓名或場次找。</p>';
     renderSum();
@@ -3163,7 +3206,8 @@ const FinPair = (function(){
     // 沒寫活動、項目的收入：姓名對上還沒收款的報名才算
     if(!String(e.activity||'').trim() && !String(e.item||'').trim() && e.name){
       const et = tokens(e.name);
-      return et.length > 0 && FinLinkStatus.regs().some(r=>!r.paid && !r.linked && meet(et, tokens(r.name)));
+      const hh = FinLinkStatus.household(e.name);
+      return et.length > 0 && FinLinkStatus.regs().some(r=>!r.paid && !r.linked && (meet(et, tokens(r.name)) || (hh && FinLinkStatus.household(r.name) === hh)));
     }
     return false;
   }
