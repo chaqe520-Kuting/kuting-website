@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.96 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.97 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.97（2026-11-06）</b>：電腦版報名成功圖右鍵複製貼到 LINE 變成網址 → 改直接顯示畫布圖，右鍵「複製圖片」只複製圖片。<br>
       <b>v4.96（2026-11-06）</b>：「傳給哪個 LINE」每個記住的姓名旁有 ✕，姓名不屬於這個 LINE 可以直接拿掉；志工 LINE 標「（志工）」，只留志工自己的姓名（配合小幫手 v1.67 自動清掉記錯的代報姓名）。<br>
       <b>v4.95（2026-11-06）</b>：按「📨 LINE 報名成功／收款確認」不再自動傳給幫忙報名的 LINE：預覽視窗要先選傳給哪個 LINE（從這筆傳來的 LINE、記住這個姓名的 LINE，或打名稱找其他好友；也可改產生圖片），按確認才送。<br>
       <b>v4.94（2026-11-06）</b>：LINE 報名成功圖右鍵「複製圖片」貼到 LINE 電腦版變成一長串文字 → 改用短網址顯示圖片，右鍵複製只帶圖片。<br>
@@ -3979,7 +3980,7 @@ async function openNoticeImageModal(card, headHtml){
     bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
       <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
       ${isTouch ? '' : '<div style="text-align:left;margin:0 0 10px;padding:10px 12px;border:2px solid var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:15px;line-height:1.7;color:#4A3A22;">👉 在下面的圖片上按<b>滑鼠右鍵</b>，選「<b>複製圖片</b>」，再打開 LINE 電腦版信徒的聊天視窗，在輸入框按 <b>Ctrl+V</b> 貼上送出。</div>'}
-      <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" title="按右鍵選「複製圖片」" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
+      ${isTouch ? `<img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">` : '<div data-ni-box></div>'}
       ${isTouch ? '<p class="hint" style="margin:8px 0 0;text-align:left;">按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。</p>' : ''}
       <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
         ${isTouch ? '<button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>' : ''}
@@ -3987,6 +3988,10 @@ async function openNoticeImageModal(card, headHtml){
         <button class="btn btn-ghost" data-ni="close">關閉</button>
       </div></div>`;
     document.body.appendChild(bg);
+    // v4.97（小朱）：電腦版用 <img> 時，右鍵複製會連圖片網址一起複製，LINE 電腦版就貼成網址文字
+    // → 直接顯示畫布（canvas），右鍵「複製圖片」只會複製圖片本身
+    const box = bg.querySelector('[data-ni-box]');
+    if(box){ c.title = '按右鍵選「複製圖片」'; c.style.cssText = 'width:100%;max-width:360px;height:auto;border-radius:8px;border:1px solid var(--line);display:block;margin:0 auto;'; box.appendChild(c); }
     const file = blob ? new File([blob], fname, {type:'image/png'}) : null;
     bg.addEventListener('click', async e=>{
       const b = e.target.closest('[data-ni]'); if(!b) return;
