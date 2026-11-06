@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.87 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.88 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.88（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>按「📨 LINE 報名成功」「💰 LINE 收款確認」傳不出去時（例如這位沒有 LINE 好友），改產生同樣內容的報名成功／收款確認圖：姓名、每項數量金額、牌位姓名、合計、收款狀態，按「📋 複製圖片」到 LINE 貼上傳給信徒（手機也可分享到 LINE）</li>
+      </ul>
       <b>v4.87（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 小幫手「同去年」可以只改一部分（小幫手 v1.63）：帶入解析時自動套用信徒改的項目（姓名、地址、數量…），提示列出改了哪些；信徒說「不要」的那一筆自動取消勾選</li>
@@ -3685,6 +3689,105 @@ function showResultModal(html){
     bg.querySelector('#rm_ok').onclick = ()=>{ bg.remove(); resolve(); };
   });
 }
+/* v4.88（小朱）：報名成功／收款確認圖（和小幫手卡片同內容、比照供品贊助的報名成功圖） */
+function noticeWrap(ctx, text, maxW){
+  const out = []; let line = '';
+  Array.from(String(text||'')).forEach(ch=>{ if(ctx.measureText(line+ch).width > maxW && line){ out.push(line); line = ch; } else line += ch; });
+  if(line) out.push(line);
+  return out.length ? out : [''];
+}
+function drawNoticeCanvas(card){
+  const W = 720, PAD = 48, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
+  const paid = card.kind === 'paid';
+  const m = document.createElement('canvas').getContext('2d');
+  const rows = (card.rows||[]).map(r=>{
+    m.font = '600 28px ' + serif;
+    const lines = noticeWrap(m, r.label, W - PAD*2 - 250);
+    m.font = '500 22px ' + serif;
+    const extra = r.extra ? noticeWrap(m, r.extra, W - PAD*2 - 8).slice(0,4) : [];
+    return {lines, extra, qty:r.qty||'', amount:r.amount||''};
+  });
+  const bodyH = rows.reduce((h,r)=>h + r.lines.length*38 + r.extra.length*30 + 22, 0);
+  const H = 360 + bodyH + (paid ? 185 : 150);
+  const c = document.createElement('canvas'), sc = 2;
+  c.width = W*sc; c.height = H*sc;
+  const ctx = c.getContext('2d'); ctx.scale(sc, sc);
+  ctx.fillStyle = '#faf5ea'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#b8872f'; ctx.lineWidth = 4; ctx.strokeRect(14,14,W-28,H-28);
+  ctx.lineWidth = 1.5; ctx.strokeRect(24,24,W-48,H-48);
+  ctx.fillStyle = '#9e2b25'; ctx.fillRect(24,24,W-48,120);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e3c581'; ctx.font = '700 24px ' + serif; ctx.fillText('古亭院．昇龍觀世音菩薩', W/2, 62);
+  ctx.fillStyle = '#ffffff'; ctx.font = '900 40px ' + serif; ctx.fillText(paid ? '已收到您的護持' : '報名成功', W/2, 108);
+  ctx.fillStyle = '#6b5c4d'; ctx.font = '600 24px ' + serif;
+  let y = 180;
+  noticeWrap(ctx, card.occasion||'', W-PAD*2).slice(0,2).forEach(l=>{ ctx.fillText(l, W/2, y); y += 32; });
+  const nameText = (card.name||'') + '　師兄姐';
+  let ns = 38; ctx.font = '900 '+ns+'px '+serif;
+  while(ns>22 && ctx.measureText(nameText).width > W-PAD*2){ ns -= 2; ctx.font = '900 '+ns+'px '+serif; }
+  ctx.fillStyle = '#7a231f'; ctx.fillText(nameText, W/2, y+22, W-PAD*2);
+  y += 70;
+  ctx.strokeStyle = '#e6d9c2'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  y += 30;
+  rows.forEach(r=>{
+    ctx.textAlign = 'left'; ctx.fillStyle = '#2b211a'; ctx.font = '600 28px ' + serif;
+    r.lines.forEach((l,i)=>ctx.fillText(l, PAD, y+i*38));
+    ctx.textAlign = 'right'; ctx.font = '700 26px ' + serif; ctx.fillText(r.qty, W-PAD-150, y);
+    ctx.fillStyle = '#7a231f'; ctx.fillText(r.amount, W-PAD, y);
+    y += r.lines.length*38;
+    if(r.extra.length){ ctx.textAlign = 'left'; ctx.fillStyle = '#6b5c4d'; ctx.font = '500 22px ' + serif; r.extra.forEach(l=>{ ctx.fillText(l, PAD+8, y); y += 30; }); }
+    y += 22;
+  });
+  ctx.strokeStyle = '#e6d9c2'; ctx.beginPath(); ctx.moveTo(PAD,y-8); ctx.lineTo(W-PAD,y-8); ctx.stroke();
+  ctx.textAlign = 'right'; ctx.fillStyle = '#7a231f'; ctx.font = '900 30px ' + serif; ctx.fillText('合計 ' + (card.total||''), W-PAD, y+30);
+  const st = String(card.payStatus||''); 
+  if(st){
+    ctx.font = '900 30px ' + serif;
+    const pw = ctx.measureText(st).width + 36, x = PAD, yy = y+8, h = 46, rr = 23;
+    ctx.fillStyle = /^#[0-9a-fA-F]{6}$/.test(card.payColor||'') ? card.payColor : '#b26a00';
+    ctx.beginPath(); ctx.moveTo(x+rr,yy); ctx.arcTo(x+pw,yy,x+pw,yy+h,rr); ctx.arcTo(x+pw,yy+h,x,yy+h,rr); ctx.arcTo(x,yy+h,x,yy,rr); ctx.arcTo(x,yy,x+pw,yy,rr); ctx.closePath(); ctx.fill();
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff'; ctx.fillText(st, PAD+18, y+31);
+  }
+  ctx.textAlign = 'center';
+  if(paid){ ctx.fillStyle = '#2b211a'; ctx.font = '600 22px ' + serif; ctx.fillText('以上護持款項已收到，謹此致謝', W/2, y+86); y += 34; }
+  ctx.fillStyle = '#b8872f'; ctx.font = '700 26px ' + serif; ctx.fillText('感謝護持　功德無量　🙏', W/2, y+96);
+  ctx.fillStyle = '#6b5c4d'; ctx.font = '500 18px ' + serif; ctx.fillText((paid?'收款時間 ':'登記時間 ') + (card.time||''), W/2, y+132);
+  return c;
+}
+async function openNoticeImageModal(card, headHtml){
+  try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
+  const c = drawNoticeCanvas(card);
+  const url = c.toDataURL('image/png');
+  const fname = `${card.kind==='paid'?'收款確認':'報名成功'}_${String(card.name||'').replace(/[\\/:*?"<>|\s]/g,'')}.png`;
+  let blob = null;
+  await new Promise(res=>c.toBlob(b=>{ blob = b; res(); }, 'image/png'));
+  return new Promise(resolve=>{
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
+      <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
+      <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
+      <p class="hint" style="margin:8px 0 0;text-align:left;">按「📋 複製圖片」，到 LINE 信徒的聊天視窗貼上（電腦按 Ctrl+V）就可以送出。手機也可以按「分享到 LINE」直接選信徒。</p>
+      <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>
+        <button class="btn btn-ghost" data-ni="share">分享到 LINE</button>
+        <button class="btn btn-ghost" data-ni="close">關閉</button>
+      </div></div>`;
+    document.body.appendChild(bg);
+    const file = blob ? new File([blob], fname, {type:'image/png'}) : null;
+    bg.addEventListener('click', async e=>{
+      const b = e.target.closest('[data-ni]'); if(!b) return;
+      const a = b.dataset.ni;
+      if(a==='close'){ bg.remove(); resolve(); return; }
+      if(a==='copy' || (a==='share' && !(file && navigator.canShare && navigator.canShare({files:[file]})))){
+        try{ await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]); showToast(a==='share' ? '這台電腦不能直接分享，已複製圖片，請到 LINE 貼上（Ctrl+V）' : '已複製圖片，請到 LINE 貼上（Ctrl+V）', 4000); }
+        catch(_){ showToast('這個瀏覽器不能直接複製，請在圖片上按右鍵（手機長按）選「複製圖片」', 5000); }
+        return;
+      }
+      try{ await navigator.share({files:[file], title: fname}); }catch(_){}
+    });
+  });
+}
 async function fahuiLinePush(regId, kind, quiet){
   const ev = events.find(e=>e.id===adminSelectedEvent);
   const r0 = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
@@ -3714,11 +3817,13 @@ async function fahuiLinePush(regId, kind, quiet){
   const sec = Math.round((Date.now()-t0)/1000);
   if(err){
     if(confirm(`連不到小幫手（${sec} 秒）：可能是網址不對，或小幫手還沒更新到 v1.55。要重新輸入小幫手網址嗎？`)) linebotUrl(true);
+    else await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind), `⚠️ 小幫手連不到（${sec} 秒），改用下面的圖片傳給信徒。`);   // v4.88
     return false;
   }
   if(!out || !out.ok){
     const why = (out && out.error) || '小幫手沒有回應';
-    await showResultModal(`⚠️ 沒有傳出去（${sec} 秒）<br><b>${escHtml(why)}</b>${/action|不支援/.test(why)?'<br>（小幫手可能還不是 v1.55）':''}`);
+    // v4.88（小朱）：傳不出去（例如沒有 LINE 好友）時改產生同樣內容的報名成功圖，可以下載、複製或分享到 LINE 自己傳
+    await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind), `⚠️ 小幫手沒有傳出去（${sec} 秒）：${escHtml(why)}${/action|不支援/.test(why)?'（小幫手可能還不是 v1.55）':''}<br>已改產生下面的${kind==='paid'?'收款確認':'報名成功'}圖，請存下來或分享到 LINE 傳給信徒。`);
     return false;
   }
   const at = Date.now();
