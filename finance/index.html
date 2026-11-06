@@ -568,7 +568,7 @@
         <div class="bankshot-box" id="bankshotBox">
           <div class="bankshot-head">
             <b>📷 銀行截圖快速登記</b>
-            <span class="muted" style="font-size:12.5px;">京城銀行 App 入帳／出帳截圖、信眾轉帳成功畫面 → AI 讀出 → 核對後存成銀行收支</span>
+            <span class="muted" style="font-size:12.5px;">京城銀行 App 入帳／出帳截圖、信眾轉帳成功畫面、匯給廠商的轉帳畫面 → AI 讀出 → 核對後存成銀行收支</span>
             <button class="btn secondary small" id="bankshotToggleBtn">展開 ▾</button>
           </div>
           <div id="bankPendingBar" style="display:none;"></div>
@@ -1034,9 +1034,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.0';
+const APP_VERSION = 'v1.20.1';
 const APP_DATE = '2026-11-06';
 const CHANGELOG = [
+  { version:'v1.20.1', date:'2026-11-06', items:[
+    '銀行截圖快速登記也認得「古亭院匯給廠商」的轉帳成功畫面（例如工程款）：自動當成支出，帶入收款人戶名、收款銀行、收款帳號後 5 碼與存摺摘要（當支出項目），手續費不是 0 時另列一筆「轉帳手續費」支出（需小幫手 v1.65）',
+    '古亭院自己的帳號會自動記住（存過一次就記得），之後同一個帳號轉出的截圖一定當支出、轉入的一定當收入，不會把自己的帳號當成匯款人'
+  ]},
   { version:'v1.20.0', date:'2026-11-06', items:[
     '「🔗 配對報名」依姓名連動（戶）列出：收入姓名是某一戶的人時，同一戶家人的報名也一起列出（標「🏠 同戶」），代表人一次付全家也能一次勾選；姓名連動在供品／法會後台「🔗 信徒關聯表」匯入',
     '修正 v1.19.1 起法會報名在配對視窗缺場次名稱、無法標已收款的問題'
@@ -2284,6 +2288,7 @@ async function loadCustomSuggestions(){
         customSuggestions[doc.id] = doc.data().list || [];
       }
       if(doc.id === 'acctMap') setAcctImport(doc.data());
+      if(doc.id === 'ownAccts') ownAccts = new Set((doc.data().list || []).map(String));
     });
     renderSuggestPills();
     populateAutocompleteLists();
@@ -3625,18 +3630,40 @@ const AcctTable = (function(){
   return { open };
 })();
 
+// v1.20.1 古亭院自己的帳號後 5 碼（suggestions/ownAccts），存入轉帳截圖時自動記住
+let ownAccts = new Set();
+async function learnOwnAccts(list){
+  const add = [...new Set(list.filter(a=>/^\d{5}$/.test(a) && !ownAccts.has(a)))];
+  if(!add.length || !fbDb) return;
+  add.forEach(a=>ownAccts.add(a));
+  try{ await fbDb.collection('suggestions').doc('ownAccts').set({ list:[...ownAccts], updatedBy: currentUser ? currentUser.name || '' : '', updatedAt: new Date().toISOString() }); }
+  catch(e){ console.error('ownAccts', e); }
+}
+const acct5 = v=> String(v||'').replace(/\D/g,'').slice(-5);
+// 轉帳成功畫面：用記住的古亭院帳號決定收支與對方帳號（AI 判斷錯時以這個為準）
+function fixTransferDir(raw){
+  const from = acct5(raw.fromAcct), to = acct5(raw.toAcct);
+  if(from && ownAccts.has(from) && !(to && ownAccts.has(to))) return { dir:'out', counterAcct: to || acct5(raw.counterAcct) };
+  if(to && ownAccts.has(to) && !(from && ownAccts.has(from))) return { dir:'in', counterAcct: from || acct5(raw.counterAcct) };
+  let ca = acct5(raw.counterAcct);
+  if(ca && ownAccts.has(ca)) ca = raw.dir==='out' ? to : from;   // AI 把自己的帳號當成對方
+  return { dir: raw.dir==='out' ? 'out' : 'in', counterAcct: ca || '' };
+}
+
 function addBankshotRows(found){
   // 沒有時間和餘額的交易用寬鬆的鍵，避免同一張截圖讀兩次時重複列出
   const keyOf = r=> r.ref || ['~', r.date, r.dir, r.amount, r.summary, r.counterAcct].join('|');
   const seen = new Set(bankshotRows.map(keyOf));
   found.forEach(raw=>{
+    const fx = fixTransferDir(raw);
     const r = {
       shot: raw.shot, date: normBankDate(raw.date), time: String(raw.time||'').trim(),
-      dir: raw.dir==='out' ? 'out' : 'in', amount: Math.round(Number(raw.amount)||0),
+      dir: fx.dir, amount: Math.round(Number(raw.amount)||0),
       balance: raw.balance===null || raw.balance===undefined || raw.balance==='' ? null : Math.round(Number(raw.balance)),
-      counterAcct: String(raw.counterAcct||'').replace(/\D/g,'').slice(-5),
+      counterAcct: fx.counterAcct,
       summary: String(raw.summary||'').trim(), memo: String(raw.memo||'').trim(),
       shotLabel: raw.shotLabel || '', pendingId: raw.pendingId || '',
+      counterBank: String(raw.counterBank||'').trim(), fromAcct: acct5(raw.fromAcct), toAcct: acct5(raw.toAcct),
     };
     r.ref = bankRefOf(r);
     if(seen.has(keyOf(r))) return;   // 兩張截圖重疊的同一筆
@@ -3644,8 +3671,19 @@ function addBankshotRows(found){
     r.name = String(raw.counterName||'').trim() || nameForCounterAcct(r.counterAcct);
     r.activity = '';
     r.item = r.dir==='out' ? r.summary : '';
-    r.note = [r.summary, r.memo].filter(Boolean).join(' ');
+    // v1.20.1 匯給廠商：備註寫收款銀行、戶名、帳號後 5 碼，對帳時看得到匯去哪裡
+    const payee = r.dir==='out' && (r.counterBank || r.counterAcct)
+      ? `匯給 ${[r.counterBank, r.name, r.counterAcct ? '帳號後5碼 '+r.counterAcct : ''].filter(Boolean).join(' ')}` : '';
+    r.note = [r.summary, r.memo, payee].filter(Boolean).join(' ');
     bankshotRows.push(r);
+    // 手續費另列一筆支出（同時間、餘額跟主交易那筆）
+    const fee = Math.round(Number(raw.fee)||0);
+    if(fee > 0){
+      const f = { shot:r.shot, date:r.date, time:r.time, dir:'out', amount:fee, balance:null, counterAcct:'', summary:'轉帳手續費', memo:'',
+        shotLabel:r.shotLabel, pendingId:r.pendingId, counterBank:'', fromAcct:r.dir==='out' ? r.fromAcct : '', toAcct:'',
+        name:'', activity:'', item:'轉帳手續費', note:`轉帳手續費（${moneyPlain(r.amount)} 那筆）`, ref:'' };
+      if(!seen.has(keyOf(f))){ seen.add(keyOf(f)); bankshotRows.push(f); }
+    }
   });
   // 依日期時間排序，畫面上的順序和存摺一樣；最後一筆有餘額的交易拿來對帳
   bankshotRows.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
@@ -3800,6 +3838,7 @@ async function saveBankshotRows(){
       note: (r.note||'').trim(), envelopeNo: '', counterAcct: r.counterAcct||'',
       name: (r.name||'').trim(), activity: (r.activity||'').trim(), item: (r.item||'').trim(), category: '',
       bankTime: (r.time||'').trim(), bankBalance: r.balance, bankRef: r.ref||'', source: 'bankshot',
+      counterBank: (r.counterBank||'').trim(),
       enteredBy: currentUser.name, updatedAt: now, createdAt: now, deleted: false,
     };
     try{
@@ -3812,6 +3851,8 @@ async function saveBankshotRows(){
     }
   }
   renderBankshotRows();
+  // v1.20.1 記住古亭院自己的帳號：支出的轉出帳號、收入的轉入帳號
+  learnOwnAccts(pick.filter(r=>r.saved).map(r=> r.dir==='out' ? r.fromAcct : r.toAcct).filter(Boolean));
   const m2 = document.getElementById('bankshotSaveMsg');
   if(m2) m2.textContent = `已存入 ${ok} 筆`;
   // v1.18.0 LINE 轉來的截圖：有交易存入了就標成已處理
@@ -3858,7 +3899,7 @@ function renderBankPending(){
     return `<div class="bp-item">
       ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
       ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
-      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆）`}</div>${p.kind==='error'
+      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆${rows.length-ins.length ? `、支出 ${rows.length-ins.length} 筆` : ''}）`}</div>${p.kind==='error'
         ? `<span style="color:var(--temple-red);font-weight:600;">⚠ 小幫手 AI 讀取失敗</span><br><span class="muted" style="font-size:12px;">${escHtml(p.error||'')}</span>${p.image ? '<br>請按「重新讀取」用網頁再讀一次' : (p.text ? '<br>請照文字手動登記' : '<br>截圖太大沒存到，請從群組存圖後上傳')}`
         : (brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>')}</div>
       <div class="bp-btns">${p.kind==='error'
