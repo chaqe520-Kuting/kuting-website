@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v186";
+  var APP_VERSION = "v187";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v187", date: "2026-11-06", changes: [
+      "信徒關聯表多「📥 匯入姓名連動」：匯入一戶一個代表姓名的 Excel（代表姓名、連動的姓名），同一戶的人連到同一個 LINE，彙整卡片合成一張；匯入後自動重新產生",
+      "多一頁「姓名連動」列出每戶成員、LINE、合計與待收；Excel 多「依戶（姓名連動）」表，「依信徒」多「所屬戶」欄。需要小幫手 v1.61"
+    ] },
     { version: "v186", date: "2026-11-06", changes: [
       "信徒關聯表的 Excel 改成整合版（.xlsx 三張表）：「依信徒」一位一列（LINE、法會／供品筆數與金額、已收、待收、參加場次）、「依 LINE」一個 LINE 一列、「明細」一筆一列；可篩選",
       "志工的 LINE 只記志工自己的姓名（志工代報、轉傳的別人不再記在志工 LINE 上，彙整卡片也不會傳給志工）；姓名有 test／測試不記。需要小幫手 v1.60，請再按一次「🔄 從現有報名產生／更新」"
@@ -10244,11 +10248,14 @@ window.KutingCombo = function(o){
   });
   render();
 };
-/* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.60）。法會報名與供品贊助兩份必須相同 ----
+/* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.61）。法會報名與供品贊助兩份必須相同 ----
    從現有法會、供品報名產生「哪個 LINE ↔ 哪些報名姓名」，列出每位的報名與已收／待收，志工可加／拿掉姓名。
    只用來找收件人、合併通知，不帶入任何報名資料。 */
 window.KutingPeople = function(o){
-  var HOW = {"import":"LINE 好友名單", line:"用 LINE 報名", dname:"LINE 名稱相同", staff:"志工加", notify:"傳過卡片", "":""};
+  var HOW = {"import":"LINE 好友名單", line:"用 LINE 報名", dname:"LINE 名稱相同", staff:"志工加", notify:"傳過卡片", household:"姓名連動", "":""};
+  var parts = function(w){ return String(w || "").replace(/[（(][^）)]*[）)]/g, "").split(/[、，,\/\s]+|和|與|及/).map(function(x){ return x.trim(); }).filter(Boolean); };
+  function allRegs(){ var seen = {}, out = []; data.persons.forEach(function(p){ p.regs.forEach(function(r){ if(!seen[r.key]){ seen[r.key] = 1; out.push(Object.assign({ line: p.displayName || "" }, r)); } }); }); data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ if(!seen[r.key]){ seen[r.key] = 1; out.push(Object.assign({ line: "" }, r)); } }); }); return out; }
+  function hhRegs(h, all){ return all.filter(function(r){ return parts(r.who).concat([r.who.replace(/\s/g, "")]).some(function(x){ return h.members.indexOf(x) >= 0; }); }); }
   var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
   var data = null, tab = "line", showEmpty = false, busy = false;
   var bg = document.createElement("div");
@@ -10279,13 +10286,13 @@ window.KutingPeople = function(o){
   function render(){
     var h = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0; color:#8b1a1a;">🔗 信徒關聯表</h3>' + btn("關閉", "close") + "</div>" +
       '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">從法會、供品現有的報名整理：哪個 LINE 對到哪些報名姓名（含幫家人報的），以及各筆已收／待收。只用來找 LINE 收件人、合併通知，不會帶入報名資料。對錯的姓名請按 ✕ 拿掉，漏掉的可以加上。</p>' +
-      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("🔄 從現有報名產生／更新", "build", "", true) + (data ? btn("⬇️ 下載 Excel（一人一列）", "csv") : "") + '<span class="kp-msg" style="color:#6b5c4d;"></span></div>';
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("🔄 從現有報名產生／更新", "build", "", true) + (data ? btn("⬇️ 下載 Excel（一人一列）", "csv") + btn("📥 匯入姓名連動", "hhimp") : "") + '<input type="file" class="kp-file" accept=".xlsx,.xls" style="display:none;">' + '<span class="kp-msg" style="color:#6b5c4d;"></span></div>';
     if(!data){ box.innerHTML = h; return; }
     var withReg = data.persons.filter(function(p){ return p.regs.length; });
-    h += '<p style="margin:6px 0;">' + (data.built ? "✅ 已產生（讀了 " + data.regN + " 筆報名，" + data.sec + " 秒；新加姓名：好友名單 " + data.added["import"] + "、LINE 報名 " + data.added.line + "、LINE 名稱相同 " + data.added.dname + (data.dropped ? "；志工 LINE 上代報的姓名拿掉 " + data.dropped + " 個" : "") + "）<br>" : "") +
+    h += '<p style="margin:6px 0;">' + (data.built ? "✅ 已產生（讀了 " + data.regN + " 筆報名，" + data.sec + " 秒；新加姓名：好友名單 " + data.added["import"] + "、LINE 報名 " + data.added.line + "、LINE 名稱相同 " + data.added.dname + (data.added.household ? "、姓名連動 " + data.added.household : "") + (data.dropped ? "；志工 LINE 上代報的姓名拿掉 " + data.dropped + " 個" : "") + "）<br>" : "") +
       "LINE " + data.persons.length + " 位（有報名 " + withReg.length + " 位）・沒有 LINE 的報名姓名 " + data.unlinked.length + " 位・同名對到多個 LINE " + data.dup.length + " 個</p>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">' +
-      [["line", "有 LINE（" + withReg.length + "）"], ["none", "沒有 LINE（" + data.unlinked.length + "）"], ["dup", "同名多個 LINE（" + data.dup.length + "）"]].map(function(t){ return btn(t[1], "tab", ' data-t="' + t[0] + '"', t[0] === tab); }).join("") + "</div>" +
+      [["line", "有 LINE（" + withReg.length + "）"], ["none", "沒有 LINE（" + data.unlinked.length + "）"], ["dup", "同名多個 LINE（" + data.dup.length + "）"], ["hh", "姓名連動（" + (data.households || []).filter(function(x){ return x.members.length > 1; }).length + " 戶）"]].map(function(t){ return btn(t[1], "tab", ' data-t="' + t[0] + '"', t[0] === tab); }).join("") + "</div>" +
       '<input class="kp-q" type="search" placeholder="搜尋姓名或 LINE 名稱" style="width:100%; box-sizing:border-box; min-height:44px; font-size:16px; padding:6px 10px; border:1px solid #c9a227; border-radius:8px; margin:4px 0;">';
     if(tab === "line"){
       h += '<label style="display:block; margin:6px 0;"><input type="checkbox" class="kp-empty"' + (showEmpty ? " checked" : "") + "> 也顯示沒有報名的 LINE 好友</label>";
@@ -10303,6 +10310,16 @@ window.KutingPeople = function(o){
       h += data.unlinked.map(function(u, i){
         return card("<b>" + esc(u.name) + '</b><div style="font-size:15px;">' + regLines(u.regs) + "<br>" + sum(u.regs) + "</div>" +
           '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;"><select class="kp-sel" data-i="' + i + '" style="flex:1; min-width:10em; min-height:44px; font-size:16px; border:1px solid #c9a227; border-radius:8px;">' + opts + "</select>" + btn("連到這個 LINE", "link", ' data-i="' + i + '"') + "</div>", u.name);
+      }).join("") || '<p style="color:#6b5c4d;">沒有。</p>';
+    } else if(tab === "hh"){
+      var hhs = (data.households || []).filter(function(x){ return x.members.length > 1; }), all = allRegs();
+      h += '<p style="color:#6b5c4d; font-size:15px; margin:4px 0;">一戶一個代表姓名：同一戶的人會連到同一個 LINE（代表有 LINE 用代表的，否則用戶裡唯一的 LINE），彙整卡片合成一張。' + (data.hhInfo && data.hhInfo.at ? "目前用的是 " + esc(data.hhInfo.by) + " 在 " + new Date(data.hhInfo.at).toLocaleString("zh-TW") + " 匯入的「" + esc(data.hhInfo.file) + "」。" : "還沒有匯入，請按「📥 匯入姓名連動」選 Excel（欄位：代表姓名、連動的姓名）。") + "</p>";
+      (data.hhConflict || []).forEach(function(c){ h += card('<b style="color:#b3261e;">⚠ ' + esc(c.rep) + " 這戶有兩個以上 LINE：「" + c.to.map(esc).join("」、「") + "」，沒有自動連，請到「有 LINE」把錯的拿掉</b>", c.rep); });
+      h += hhs.map(function(x){
+        var rs = hhRegs(x, all), lines = [];
+        rs.forEach(function(r){ if(r.line && lines.indexOf(r.line) < 0) lines.push(r.line); });
+        return card("<b>" + esc(x.rep) + "</b>（" + x.members.length + " 位）" + (lines.length ? "　LINE「" + lines.map(esc).join("」、「") + "」" : '　<span style="color:#b26a00;">沒有 LINE</span>') +
+          '<div style="font-size:15px; color:#6b5c4d;">' + x.members.map(esc).join("、") + "</div>" + (rs.length ? '<div style="font-size:15px;">' + sum(rs) + "（" + rs.length + " 筆）</div>" : ""), x.members.join(" "));
       }).join("") || '<p style="color:#6b5c4d;">沒有。</p>';
     } else {
       h += '<p style="color:#6b5c4d; font-size:15px; margin:4px 0;">同一個姓名記在兩個以上 LINE，彙整卡片不會自動傳，請到「有 LINE」把對錯的那邊按 ✕。</p>';
@@ -10350,10 +10367,11 @@ window.KutingPeople = function(o){
       data.persons.forEach(function(p){ p.regs.forEach(function(r){ add(r, p.displayName || "（沒有名稱）"); }); });
       data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ add(r, ""); }); });
       var dupN = {}; data.dup.forEach(function(d){ dupN[d.name] = d.to.join("、"); });
-      var s1 = [["報名姓名", "LINE", "法會筆數", "法會金額", "供品筆數", "供品金額", "合計", "已收", "待收", "參加場次"]];
+      var hhOf = {}; (data.households || []).forEach(function(x){ if(x.members.length > 1) x.members.forEach(function(m){ hhOf[m] = x.rep; }); });
+      var s1 = [["報名姓名", "LINE", "所屬戶（代表）", "法會筆數", "法會金額", "供品筆數", "供品金額", "合計", "已收", "待收", "參加場次"]];
       order.sort(function(a, b){ return who[a].name.localeCompare(who[b].name, "zh-Hant"); }).forEach(function(k){
         var w = who[k];
-        s1.push([w.name, dupN[k] ? "⚠ 同名多個 LINE：" + dupN[k] : (w.lines.join("、") || "沒有 LINE"), w.fhN, w.fh, w.gpN, w.gp, w.fh + w.gp, w.paid, w.due, w.occ.join("\n")]);
+        s1.push([w.name, dupN[k] ? "⚠ 同名多個 LINE：" + dupN[k] : (w.lines.join("、") || "沒有 LINE"), hhOf[k] || parts(w.name).map(function(x){ return hhOf[x]; }).filter(Boolean)[0] || "", w.fhN, w.fh, w.gpN, w.gp, w.fh + w.gp, w.paid, w.due, w.occ.join("\n")]);
       });
       var s2 = [["LINE", "志工", "記在這個 LINE 的姓名", "報名姓名（實際有報名）", "法會金額", "供品金額", "合計", "待收"]];
       data.persons.filter(function(p){ return p.regs.length; }).forEach(function(p){
@@ -10361,12 +10379,18 @@ window.KutingPeople = function(o){
         p.regs.forEach(function(r){ if(r.plat === "fh") f += r.amount || 0; else g += r.amount || 0; if(!r.paid) d += r.amount || 0; if(ws.indexOf(r.who) < 0) ws.push(r.who); });
         s2.push([p.displayName || "（沒有名稱）", p.volunteer ? "志工" : "", p.names.map(function(x){ return x.n; }).join("、"), ws.join("、"), f, g, f + g, d]);
       });
+      var s4 = [["代表姓名", "連動的姓名", "人數", "LINE", "法會金額", "供品金額", "合計", "待收"]], allR = allRegs();
+      (data.households || []).filter(function(x){ return x.members.length > 1; }).forEach(function(x){
+        var rs = hhRegs(x, allR), f = 0, g = 0, d = 0, ls = [];
+        rs.forEach(function(r){ if(r.plat === "fh") f += r.amount || 0; else g += r.amount || 0; if(!r.paid) d += r.amount || 0; if(r.line && ls.indexOf(r.line) < 0) ls.push(r.line); });
+        s4.push([x.rep, x.members.join("、"), x.members.length, ls.join("、") || "沒有 LINE", f, g, f + g, d]);
+      });
       var s3 = [["報名姓名", "LINE", "平台", "場次", "金額", "收款"]];
       var seen3 = {};
       data.persons.forEach(function(p){ p.regs.forEach(function(r){ s3.push([r.who, p.displayName || "", plat(r), r.occ, r.amount, r.paid ? "已收款" : "待收款"]); seen3[r.key] = 1; }); });
       data.unlinked.forEach(function(u){ u.regs.forEach(function(r){ if(!seen3[r.key]) s3.push([r.who, "沒有 LINE", plat(r), r.occ, r.amount, r.paid ? "已收款" : "待收款"]); }); });
       var wb = XLSX.utils.book_new();
-      [["依信徒（一人一列）", s1, [14, 28, 8, 10, 8, 10, 10, 10, 10, 60]], ["依 LINE", s2, [16, 6, 40, 40, 10, 10, 10, 10]], ["明細", s3, [14, 16, 6, 60, 10, 8]]].forEach(function(t){
+      [["依信徒（一人一列）", s1, [14, 28, 12, 8, 10, 8, 10, 10, 10, 10, 60]], ["依戶（姓名連動）", s4, [12, 70, 6, 24, 10, 10, 10, 10]], ["依 LINE", s2, [16, 6, 40, 40, 10, 10, 10, 10]], ["明細", s3, [14, 16, 6, 60, 10, 8]]].forEach(function(t){
         var ws = XLSX.utils.aoa_to_sheet(t[1]); ws["!cols"] = t[2].map(function(w){ return { wch: w }; }); ws["!autofilter"] = { ref: ws["!ref"] }; XLSX.utils.book_append_sheet(wb, ws, t[0]);
       });
       var d = new Date(), roc = (d.getFullYear() - 1911) + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
@@ -10381,7 +10405,46 @@ window.KutingPeople = function(o){
     document.head.appendChild(sc);
   }
   bg.addEventListener("input", function(e){ if(e.target.classList && e.target.classList.contains("kp-q")) filter(); });
-  bg.addEventListener("change", function(e){ if(e.target.classList && e.target.classList.contains("kp-empty")){ showEmpty = e.target.checked; render(); } });
+  bg.addEventListener("change", function(e){
+    if(e.target.classList && e.target.classList.contains("kp-empty")){ showEmpty = e.target.checked; render(); }
+    if(e.target.classList && e.target.classList.contains("kp-file") && e.target.files[0]) hhImport(e.target.files[0]);
+  });
+  // v4.84／v187 姓名連動匯入：Excel 第一張表，欄位「代表姓名」「連動的姓名」（用「、」分隔，第一位＝代表）
+  function hhImport(file){
+    function go(){
+      var rd = new FileReader();
+      rd.onload = function(){
+        try {
+          var wb = XLSX.read(new Uint8Array(rd.result), { type: "array" });
+          var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+          var hi = -1, ci = -1, mi = -1;
+          for(var i = 0; i < Math.min(rows.length, 10) && hi < 0; i++){
+            rows[i].forEach(function(c, j){ c = String(c); if(ci < 0 && /代表/.test(c)) ci = j; if(mi < 0 && /連動/.test(c)) mi = j; });
+            if(ci >= 0 && mi >= 0) hi = i; else { ci = -1; mi = -1; }
+          }
+          if(hi < 0){ msg("⚠ 找不到「代表姓名」「連動的姓名」欄位"); return; }
+          var list = [];
+          rows.slice(hi + 1).forEach(function(r){
+            var rep = String(r[ci] || "").replace(/\s/g, ""), mem = parts(r[mi]).map(function(x){ return x.replace(/\s/g, ""); });
+            if(rep.length >= 2) list.push({ rep: rep, members: [rep].concat(mem.filter(function(x){ return x !== rep; })) });
+          });
+          var multi = list.filter(function(x){ return x.members.length > 1; });
+          if(!confirm("匯入姓名連動「" + file.name + "」？\n\n共 " + list.length + " 戶，其中 " + multi.length + " 戶有兩位以上。\n會取代目前的姓名連動（舊的會留一份紀錄），不會改任何報名。")) return;
+          busy = true;
+          var stop = timer("📥 匯入中…");
+          call({ op: "hhImport", households: list, file: file.name }).then(function(out){
+            stop(); busy = false; msg("✅ 已匯入 " + out.n + " 戶（" + out.multi + " 戶有兩位以上），接著自動重新產生…"); load("build");
+          }).catch(function(e2){ stop(); busy = false; msg("⚠ " + esc(e2.message)); });
+        } catch(err){ msg("⚠ 讀不到這個 Excel：" + esc(err.message)); }
+      };
+      rd.readAsArrayBuffer(file);
+    }
+    if(window.XLSX) return go();
+    var sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    sc.onload = go; sc.onerror = function(){ msg("⚠ Excel 工具載入失敗，請檢查網路"); };
+    document.head.appendChild(sc);
+  }
   bg.addEventListener("click", function(e){
     var b = e.target.closest ? e.target.closest("button[data-k]") : null;
     if(e.target === bg){ if(!busy) bg.remove(); return; }
@@ -10391,6 +10454,7 @@ window.KutingPeople = function(o){
     if(busy) return;
     if(k === "build"){ if(confirm("從現有法會、供品報名產生信徒關聯表？\n\n只會把姓名記到對應的 LINE，不會改任何報名。你拿掉過的姓名不會被加回。")) load("build"); return; }
     if(k === "csv"){ csv(); return; }
+    if(k === "hhimp"){ var fi = box.querySelector(".kp-file"); if(fi){ fi.value = ""; fi.click(); } return; }
     if(k === "tab"){ tab = b.getAttribute("data-t"); render(); return; }
     var i = +b.getAttribute("data-i");
     if(k === "rm"){
