@@ -1066,8 +1066,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.81 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.82 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.82（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>信徒關聯表：小幫手還沒更新到 v1.59 時，改成寫清楚「請稍後再按一次」，不再出現英文錯誤</li>
+      </ul>
       <b>v4.81（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「📨 LINE 彙整通知」視窗多「🔗 信徒關聯表」：按「🔄 從現有報名產生／更新」，從法會、供品現有報名整理出每個 LINE 對到哪些報名姓名（含幫家人報的）與各筆已收／待收</li>
@@ -3893,6 +3897,7 @@ window.KutingPeople = function(o){
       return fetch(url, { method: "POST", body: JSON.stringify(Object.assign({ action: "people", from: o.from, idToken: idToken }, extra)) });
     }).then(function(r){ return r.json(); }).then(function(out){
       if(!out || !out.ok) throw new Error((out && out.error) || "小幫手沒有回應（可能還不是 v1.59）");
+      if((extra.op === "list" || extra.op === "build") && !Array.isArray(out.persons)) throw new Error("小幫手還沒更新到 v1.59（合併後約 10 分鐘自動更新），請稍後再按一次");
       return out;
     });
   }
