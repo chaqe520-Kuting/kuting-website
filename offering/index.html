@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v184";
+  var APP_VERSION = "v185";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v185", date: "2026-11-06", changes: [
+      "信徒關聯表：小幫手還沒更新到 v1.59 時，改成寫清楚「請稍後再按一次」，不再出現英文錯誤"
+    ] },
     { version: "v184", date: "2026-11-06", changes: [
       "「📨 LINE 彙整通知」視窗多「🔗 信徒關聯表」：按「🔄 從現有報名產生／更新」，從法會、供品現有報名整理出每個 LINE 對到哪些報名姓名（含幫家人報的）與各筆已收／待收",
       "分三頁：有 LINE、沒有 LINE 的報名姓名（可選 LINE 連起來）、同名對到多個 LINE；對錯的姓名按 ✕ 拿掉（不會再自動加回），漏掉的可以加；可下載 Excel",
@@ -10257,6 +10260,7 @@ window.KutingPeople = function(o){
       return fetch(url, { method: "POST", body: JSON.stringify(Object.assign({ action: "people", from: o.from, idToken: idToken }, extra)) });
     }).then(function(r){ return r.json(); }).then(function(out){
       if(!out || !out.ok) throw new Error((out && out.error) || "小幫手沒有回應（可能還不是 v1.59）");
+      if((extra.op === "list" || extra.op === "build") && !Array.isArray(out.persons)) throw new Error("小幫手還沒更新到 v1.59（合併後約 10 分鐘自動更新），請稍後再按一次");
       return out;
     });
   }
