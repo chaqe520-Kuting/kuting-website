@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.93 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.94 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.94（2026-11-06）</b>：LINE 報名成功圖右鍵「複製圖片」貼到 LINE 電腦版變成一長串文字 → 改用短網址顯示圖片，右鍵複製只帶圖片。<br>
       <b>v4.93（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>LINE 報名成功／收款確認的卡片和圖改成詳細版（小朱）：每一筆列「第 N 筆」、各欄位（報名者、類別、姓名、地址…）、費用、小計，最下面合計與收款狀態，報名者可以完整核對。LINE 卡片的詳細版面需要小幫手 v1.64</li>
@@ -3880,10 +3881,12 @@ async function showCardPreviewConfirm(card, headHtml){
 async function openNoticeImageModal(card, headHtml){
   try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
   const c = drawNoticeCanvas(card);
-  const url = c.toDataURL('image/png');
   const fname = `${card.kind==='paid'?'收款確認':'報名成功'}_${String(card.name||'').replace(/[\\/:*?"<>|\s]/g,'')}.png`;
   let blob = null;
   await new Promise(res=>c.toBlob(b=>{ blob = b; res(); }, 'image/png'));
+  // v4.94（小朱）：圖若用 data: 網址，右鍵複製時剪貼簿會夾帶一大串文字，詳細版圖較大，LINE 電腦版會貼成亂碼文字
+  // → 改用短的 blob: 網址，右鍵複製只帶圖片
+  const url = blob ? URL.createObjectURL(blob) : c.toDataURL('image/png');
   // v4.90（小朱）：電腦的分享視窗選 LINE 不能選聊天對象 → 電腦只留複製（比照供品贊助），手機才有分享
   const isTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   return new Promise(resolve=>{
@@ -3904,7 +3907,7 @@ async function openNoticeImageModal(card, headHtml){
     bg.addEventListener('click', async e=>{
       const b = e.target.closest('[data-ni]'); if(!b) return;
       const a = b.dataset.ni;
-      if(a==='close'){ bg.remove(); resolve(); return; }
+      if(a==='close'){ bg.remove(); if(blob) setTimeout(()=>URL.revokeObjectURL(url), 1000); resolve(); return; }
       if(a==='copy' || (a==='share' && !(file && navigator.canShare && navigator.canShare({files:[file]})))){
         try{
           if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)) throw new Error('no clipboard');
