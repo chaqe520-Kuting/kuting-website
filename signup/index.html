@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.92 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.93 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.93（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>LINE 報名成功／收款確認的卡片和圖改成詳細版（小朱）：每一筆列「第 N 筆」、各欄位（報名者、類別、姓名、地址…）、費用、小計，最下面合計與收款狀態，報名者可以完整核對。LINE 卡片的詳細版面需要小幫手 v1.64</li>
+      </ul>
       <b>v4.92（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>報名成功圖（電腦）：按鈕複製的圖片 LINE 電腦版貼不上，拿掉「📋 複製圖片」按鈕，改在圖片上方用醒目框寫「在圖片上按滑鼠右鍵 → 複製圖片 → 到 LINE 按 Ctrl+V」（小朱實測右鍵複製可以貼）；手機照舊有分享與複製</li>
@@ -3660,29 +3664,36 @@ function importLineSource(b){
   return hit.length===1 ? hit[0] : null;
 }
 // v4.79（小朱）：同一位報名者的報名合併成一張卡片，只傳給報名者
-function regRowsForCard(ev, r){
+// v4.92（小朱）：卡片／圖改成每一筆列出詳細報名資料（比照「已選報名資料」：第 N 筆、各欄位、費用、小計）
+//   row.type：head（第 N 筆）、field（欄位名稱＋內容）、fee（費用）、sub（小計）；舊版小幫手只看 label／qty／amount／extra 也看得懂
+function regRowsForCard(ev, r, idx){
   const rows = [];
   const nt = n=>'NT$'+(Number(n)||0).toLocaleString();
+  rows.push({type:'head', label:`第 ${idx+1} 筆`, qty:'', amount:''});
+  (ev.fields||[]).forEach(f=>{
+    if(f.adminOnly) return;
+    const v = String((r.f||{})[f.k]==null ? '' : r.f[f.k]).trim();
+    if(!v) return;
+    const lb = String(f.label||f.k).trim();
+    rows.push({type:'field', flabel:lb, value:v.slice(0,200), label:'', qty:'', amount:'', extra:(lb+'：'+v).slice(0,118)});
+  });
   if(ev.mode==='items'){
-    (r.items||[]).forEach(it=>rows.push({label:it.itemName||'', qty:'×'+(it.qty||0), amount:nt((it.qty||0)*(it.price||0))}));
+    (r.items||[]).forEach(it=>rows.push({type:'fee', label:it.itemName||'', qty:'×'+(it.qty||0), amount:nt((it.qty||0)*(it.price||0))}));
   } else {
     (ev.fees||[]).forEach(fl=>{
       const q = Number((r.fee||{})[fl.k])||0;
       if(!q) return;
-      rows.push(fl.mode==='amount' ? {label:fl.label, qty:'', amount:nt(q)} : {label:fl.label, qty:'×'+q, amount:nt(q*(Number(fl.price)||0))});
+      rows.push(fl.mode==='amount' ? {type:'fee', label:fl.label, qty:'', amount:nt(q)} : {type:'fee', label:fl.label, qty:'×'+q, amount:nt(q*(Number(fl.price)||0))});
     });
   }
-  if(!rows.length) rows.push({label:'法會報名', qty:'', amount:nt(r.total)});
-  // 參加者姓名（例：「個人／公司（主牌位）×1：朱○仁」去掉項目名稱，只留姓名）
-  const sum = String(regSummaryText(ev, r)||'').split('；').map(x=>x.replace(/^[^：；]*×\d+：/,'')).join('；');
-  if(sum) rows[rows.length-1].extra = sum.slice(0,110);
+  rows.push({type:'sub', label:'小計' + (r.paid ? '（已收款）' : ''), qty:'', amount:nt(r.total)});
   return rows;
 }
 function fahuiNoticeCard(ev, regs, kind, nameOverride){
   regs = Array.isArray(regs) ? regs : [regs];
   let rows = [];
-  regs.forEach(r=>{ rows = rows.concat(regRowsForCard(ev, r)); });
-  if(rows.length>20){ const more = rows.length-19; rows = rows.slice(0,19).concat([{label:`…另有 ${more} 項`, qty:'', amount:''}]); }
+  regs.forEach((r,i)=>{ rows = rows.concat(regRowsForCard(ev, r, i)); });
+  if(rows.length>40){ const more = rows.length-39; rows = rows.slice(0,39).concat([{type:'head', label:`…另有 ${more} 項，請看報名表`, qty:'', amount:''}]); }
   const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
   const allPaid = regs.every(r=>r.paid), somePaid = regs.some(r=>r.paid);
   const d = new Date();
@@ -3717,13 +3728,17 @@ function drawNoticeCanvas(card){
   const paid = card.kind === 'paid';
   const m = document.createElement('canvas').getContext('2d');
   const rows = (card.rows||[]).map(r=>{
+    const t = r.type || 'fee';
+    if(t==='field'){ m.font = '500 24px ' + serif; return {t, flabel:r.flabel||'', lines:noticeWrap(m, r.value||'', W-PAD*2-16).slice(0,6)}; }
+    if(t==='head'){ m.font = '700 26px ' + serif; return {t, lines:[r.label||'']}; }
     m.font = '600 28px ' + serif;
     const lines = noticeWrap(m, r.label, W - PAD*2 - 250);
     m.font = '500 22px ' + serif;
-    const extra = r.extra ? noticeWrap(m, r.extra, W - PAD*2 - 8).slice(0,4) : [];
-    return {lines, extra, qty:r.qty||'', amount:r.amount||''};
+    const extra = (t==='fee' && r.extra) ? noticeWrap(m, r.extra, W - PAD*2 - 8).slice(0,4) : [];
+    return {t, lines, extra, qty:r.qty||'', amount:r.amount||''};
   });
-  const bodyH = rows.reduce((h,r)=>h + r.lines.length*38 + r.extra.length*30 + 22, 0);
+  const rowH = r=> r.t==='field' ? 26 + r.lines.length*32 + 10 : r.t==='head' ? 54 : r.t==='sub' ? 62 : r.lines.length*38 + (r.extra||[]).length*30 + 22 + (r.t==='fee' ? 12 : 0);
+  const bodyH = rows.reduce((h,r)=>h + rowH(r), 0);
   const H = 360 + bodyH + (paid ? 185 : 150);
   const c = document.createElement('canvas'), sc = 2;
   c.width = W*sc; c.height = H*sc;
@@ -3746,12 +3761,26 @@ function drawNoticeCanvas(card){
   ctx.strokeStyle = '#e6d9c2'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
   y += 30;
   rows.forEach(r=>{
+    if(r.t==='head'){
+      ctx.textAlign = 'left'; ctx.fillStyle = '#9e2b25'; ctx.font = '700 26px ' + serif; ctx.fillText(r.lines[0], PAD, y+6); y += 54; return;
+    }
+    if(r.t==='field'){
+      ctx.textAlign = 'left'; ctx.fillStyle = '#8a7a5c'; ctx.font = '500 20px ' + serif; ctx.fillText(r.flabel, PAD+8, y);
+      y += 30; ctx.fillStyle = '#2b211a'; ctx.font = '500 24px ' + serif;
+      r.lines.forEach(l=>{ ctx.fillText(l, PAD+8, y); y += 32; }); y += 6; return;
+    }
+    if(r.t==='sub'){
+      ctx.strokeStyle = '#e6d9c2'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(PAD, y-14); ctx.lineTo(W-PAD, y-14); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.fillStyle = '#2b211a'; ctx.font = '700 26px ' + serif; ctx.fillText(r.lines[0], PAD, y+10);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#7a231f'; ctx.fillText(r.amount, W-PAD, y+10); y += 62; return;
+    }
+    if(r.t==='fee') y += 12;
     ctx.textAlign = 'left'; ctx.fillStyle = '#2b211a'; ctx.font = '600 28px ' + serif;
     r.lines.forEach((l,i)=>ctx.fillText(l, PAD, y+i*38));
     ctx.textAlign = 'right'; ctx.font = '700 26px ' + serif; ctx.fillText(r.qty, W-PAD-150, y);
     ctx.fillStyle = '#7a231f'; ctx.fillText(r.amount, W-PAD, y);
     y += r.lines.length*38;
-    if(r.extra.length){ ctx.textAlign = 'left'; ctx.fillStyle = '#6b5c4d'; ctx.font = '500 22px ' + serif; r.extra.forEach(l=>{ ctx.fillText(l, PAD+8, y); y += 30; }); }
+    if((r.extra||[]).length){ ctx.textAlign = 'left'; ctx.fillStyle = '#6b5c4d'; ctx.font = '500 22px ' + serif; r.extra.forEach(l=>{ ctx.fillText(l, PAD+8, y); y += 30; }); }
     y += 22;
   });
   ctx.strokeStyle = '#e6d9c2'; ctx.beginPath(); ctx.moveTo(PAD,y-8); ctx.lineTo(W-PAD,y-8); ctx.stroke();
