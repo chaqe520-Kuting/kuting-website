@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.90 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.91 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.91（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>「📨 LINE 報名成功」「💰 LINE 收款確認」預覽視窗可以勾選要合併的報名：預設勾這位的報名，也能打姓名把其他報名人的報名「＋加入」，合併成一張卡片（姓名用按的那位、金額合計）傳給同一位；傳不出去時的報名成功圖也是合併後的內容</li>
+      </ul>
       <b>v4.90（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>報名成功圖：電腦拿掉「分享到 LINE」（Windows 分享選 LINE 不能選聊天對象），只留「📋 複製圖片」，複製成功按鈕變「✅ 已複製」並提示到 LINE 輸入框按 Ctrl+V；手機才有分享。複製失敗會寫原因</li>
@@ -3670,7 +3674,7 @@ function regRowsForCard(ev, r){
   if(sum) rows[rows.length-1].extra = sum.slice(0,110);
   return rows;
 }
-function fahuiNoticeCard(ev, regs, kind){
+function fahuiNoticeCard(ev, regs, kind, nameOverride){
   regs = Array.isArray(regs) ? regs : [regs];
   let rows = [];
   regs.forEach(r=>{ rows = rows.concat(regRowsForCard(ev, r)); });
@@ -3678,7 +3682,7 @@ function fahuiNoticeCard(ev, regs, kind){
   const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
   const allPaid = regs.every(r=>r.paid), somePaid = regs.some(r=>r.paid);
   const d = new Date();
-  return {kind: kind==='paid'?'paid':'', name: String((regs[0].f||{}).reporter||'').slice(0,30), occasion: ev.name, rows,
+  return {kind: kind==='paid'?'paid':'', name: String(nameOverride || (regs[0].f||{}).reporter||'').slice(0,30), occasion: ev.name, rows,
     total: 'NT$'+total.toLocaleString(), payStatus: allPaid?'已收款':(somePaid?'部分收款':'待收款'), payColor: allPaid?'#2e7d32':(somePaid?'#1565c0':'#b26a00'),
     time: `${d.getFullYear()-1911}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
 }
@@ -3762,6 +3766,65 @@ function drawNoticeCanvas(card){
   ctx.fillStyle = '#6b5c4d'; ctx.font = '500 18px ' + serif; ctx.fillText((paid?'收款時間 ':'登記時間 ') + (card.time||''), W/2, y+132);
   return c;
 }
+// v4.91：勾選要合併的報名 → 即時預覽卡片 → 確認送出；回傳勾選的報名（取消回 null）
+async function pickRegsForCard(ev, r0, initial, kind, reporter){
+  try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
+  const all = (regsCache[adminSelectedEvent]||[]).filter(x=>kind!=='paid' || x.paid);
+  const chosen = new Set(initial.map(x=>x.id));
+  const shown = new Set(initial.map(x=>x.id));
+  const nameOf = r=>String((r.f||{}).reporter||'');
+  const sumOf = r=>String(regSummaryText(ev, r)||'');
+  return new Promise(resolve=>{
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal" style="max-width:560px;">
+      <div style="font-size:15px;line-height:1.7;margin:0 0 8px;">由小幫手把${kind==='paid'?'<b>收款確認</b>':'<b>報名成功通知</b>'}私訊給「<b>${escHtml(reporter)}</b>」。勾選要合併成一張卡片的報名（可以加入其他報名人的）：</div>
+      <div id="pkList" style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:#fff;"></div>
+      <div style="display:flex;gap:8px;margin:8px 0;align-items:center;">
+        <input type="text" id="pkQ" placeholder="加入其他報名：打姓名找（報名人或牌位姓名）" style="flex:1;">
+      </div>
+      <div id="pkHits"></div>
+      <div id="pkSum" style="font-weight:700;color:var(--vermilion);margin:6px 0;"></div>
+      <div style="text-align:center;"><img id="pkImg" alt="卡片預覽" style="width:100%;max-width:340px;border-radius:8px;border:1px solid var(--line);"></div>
+      <p class="hint" style="margin:6px 0 0;">LINE 裡看到的卡片內容和這張一樣（版面略有不同）。會用到 LINE 官方帳號每月的免費訊息則數。</p>
+      <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn btn-primary" data-pk="yes">📨 確認送出</button>
+        <button class="btn btn-ghost" data-pk="no">取消</button>
+      </div></div>`;
+    document.body.appendChild(bg);
+    const listEl = bg.querySelector('#pkList'), hitsEl = bg.querySelector('#pkHits'), q = bg.querySelector('#pkQ');
+    const row = r=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px dotted var(--line);font-weight:400;margin:0;cursor:pointer;">
+        <input type="checkbox" data-pkid="${escHtml(r.id)}" ${chosen.has(r.id)?'checked':''} style="width:auto;min-height:0;margin-top:5px;flex:none;">
+        <span><b>${escHtml(nameOf(r))}</b>　${escHtml(sumOf(r).slice(0,80))}　<span style="color:var(--vermilion);">${money(r.total)} 元</span>${r.paid?' <span style="color:#2e7d32;">已收款</span>':''}</span></label>`;
+    const refresh = ()=>{
+      listEl.innerHTML = all.filter(x=>shown.has(x.id)).map(row).join('') || '<p class="hint">還沒有勾選任何報名</p>';
+      const regs = all.filter(x=>chosen.has(x.id));
+      bg.querySelector('#pkSum').textContent = `已勾 ${regs.length} 筆，合計 ${money(regs.reduce((a,r)=>a+(Number(r.total)||0),0))} 元`;
+      const img = bg.querySelector('#pkImg');
+      if(regs.length){ img.style.display = ''; img.src = drawNoticeCanvas(fahuiNoticeCard(ev, regs, kind, reporter)).toDataURL('image/png'); }
+      else img.style.display = 'none';
+    };
+    const search = ()=>{
+      const k = q.value.replace(/\s+/g,'');
+      if(k.length<1){ hitsEl.innerHTML = ''; return; }
+      const hits = all.filter(x=>!shown.has(x.id) && (nameOf(x).replace(/\s+/g,'').includes(k) || sumOf(x).replace(/\s+/g,'').includes(k))).slice(0,20);
+      hitsEl.innerHTML = hits.length ? `<div class="hint" style="margin:0 0 4px;">找到 ${hits.length} 筆，按「＋加入」：</div>` + hits.map(x=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dotted var(--line);font-size:14px;"><button type="button" class="btn btn-ghost btn-sm" data-pkadd="${escHtml(x.id)}">＋加入</button><span><b>${escHtml(nameOf(x))}</b>　${escHtml(sumOf(x).slice(0,60))}　${money(x.total)} 元</span></div>`).join('') : '<div class="hint">找不到這個姓名的其他報名</div>';
+    };
+    let tmr = null;
+    q.addEventListener('input', ()=>{ clearTimeout(tmr); tmr = setTimeout(search, 250); });
+    bg.addEventListener('change', e=>{ const id = e.target.dataset && e.target.dataset.pkid; if(!id) return; if(e.target.checked) chosen.add(id); else chosen.delete(id); refresh(); });
+    bg.addEventListener('click', e=>{
+      const add = e.target.closest('[data-pkadd]');
+      if(add){ shown.add(add.dataset.pkadd); chosen.add(add.dataset.pkadd); refresh(); search(); return; }
+      const b = e.target.closest('[data-pk]'); if(!b) return;
+      if(b.dataset.pk==='no'){ bg.remove(); resolve(null); return; }
+      const regs = all.filter(x=>chosen.has(x.id));
+      if(!regs.length){ showToast('請至少勾一筆報名'); return; }
+      bg.remove(); resolve(regs);
+    });
+    refresh();
+  });
+}
 async function showCardPreviewConfirm(card, headHtml){
   try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
   const url = drawNoticeCanvas(card).toDataURL('image/png');
@@ -3829,14 +3892,18 @@ async function fahuiLinePush(regId, kind, quiet){
   const ev = events.find(e=>e.id===adminSelectedEvent);
   const r0 = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
   if(!ev || !r0) return false;
-  const regs = sameReporterRegs(r0, kind);
+  let regs = sameReporterRegs(r0, kind);
   if(!regs.length){ await showResultModal('這位還沒有已收款的報名，沒有收款確認可以傳。'); return false; }
-  const src = regs.find(x=>x.lineUserId) || regs.find(x=>x.lineMsgId) || r0;
   const reporter = String((r0.f||{}).reporter||'');
+  // v4.91（小朱）：預覽時可以勾選要合併的報名（也可加入其他報名人的），合成一張卡片傳給這一位
+  if(!quiet){
+    const picked = await pickRegsForCard(ev, r0, regs, kind, reporter);
+    if(!picked) return false;
+    regs = picked;
+  }
+  const src = regs.find(x=>x.id===r0.id && (x.lineUserId||x.lineMsgId)) || regs.find(x=>regReporterKey(x)===regReporterKey(r0) && x.lineUserId) || regs.find(x=>regReporterKey(x)===regReporterKey(r0) && x.lineMsgId) || r0;
   const who = src.lineName ? `LINE「${src.lineName}」` : `「${reporter}」的 LINE（用報名姓名找以前私訊過小幫手的好友）`;
   const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
-  // v4.89（小朱）：先預覽卡片內容，按「確認送出」才傳
-  if(!quiet && !(await showCardPreviewConfirm(fahuiNoticeCard(ev, regs, kind), `由小幫手把「${escHtml(reporter)}」的${kind==='paid'?'<b>收款確認</b>':'<b>報名成功通知</b>'}私訊給 ${escHtml(who)}。<br>合併 <b>${regs.length} 筆</b>報名成一張卡片，合計 ${money(total)} 元。請核對下面的卡片內容：`))) return false;
   const url = linebotUrl(false);
   if(!url){ await showResultModal('沒有傳出去：這台電腦還沒設定小幫手網址。請再按一次，在跳出的框貼上小幫手網址（和供品贊助用的一樣）。'); return false; }
   const t0 = Date.now();
@@ -3848,20 +3915,20 @@ async function fahuiLinePush(regId, kind, quiet){
   let out = null, err = null;
   try{
     const idToken = await auth.currentUser.getIdToken();
-    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'notify', from:'fahui', idToken, msgId: src.lineMsgId||'', lineUserId: src.lineUserId||'', name: reporter, card: fahuiNoticeCard(ev, regs, kind)})});
+    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'notify', from:'fahui', idToken, msgId: src.lineMsgId||'', lineUserId: src.lineUserId||'', name: reporter, card: fahuiNoticeCard(ev, regs, kind, reporter)})});
     out = await res.json();
   }catch(e){ console.error('linebot notify', e); err = e; }
   clearInterval(tick); wait.remove();
   const sec = Math.round((Date.now()-t0)/1000);
   if(err){
     if(confirm(`連不到小幫手（${sec} 秒）：可能是網址不對，或小幫手還沒更新到 v1.55。要重新輸入小幫手網址嗎？`)) linebotUrl(true);
-    else await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind), `⚠️ 小幫手連不到（${sec} 秒），改用下面的圖片傳給信徒。`);   // v4.88
+    else await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind, reporter), `⚠️ 小幫手連不到（${sec} 秒），改用下面的圖片傳給信徒。`);   // v4.88
     return false;
   }
   if(!out || !out.ok){
     const why = (out && out.error) || '小幫手沒有回應';
     // v4.88（小朱）：傳不出去（例如沒有 LINE 好友）時改產生同樣內容的報名成功圖，可以下載、複製或分享到 LINE 自己傳
-    await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind), `⚠️ 小幫手沒有傳出去（${sec} 秒）：${escHtml(why)}${/action|不支援/.test(why)?'（小幫手可能還不是 v1.55）':''}<br>已改產生下面的${kind==='paid'?'收款確認':'報名成功'}圖，請存下來或分享到 LINE 傳給信徒。`);
+    await openNoticeImageModal(fahuiNoticeCard(ev, regs, kind, reporter), `⚠️ 小幫手沒有傳出去（${sec} 秒）：${escHtml(why)}${/action|不支援/.test(why)?'（小幫手可能還不是 v1.55）':''}<br>已改產生下面的${kind==='paid'?'收款確認':'報名成功'}圖，請存下來或分享到 LINE 傳給信徒。`);
     return false;
   }
   const at = Date.now();
