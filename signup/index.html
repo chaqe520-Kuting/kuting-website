@@ -1075,7 +1075,7 @@ window.KutingFinMatch = function(opts){
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
       <b>v4.88（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
-        <li>按「📨 LINE 報名成功」「💰 LINE 收款確認」傳不出去時（例如這位沒有 LINE 好友），改產生同樣內容的報名成功／收款確認圖：姓名、每項數量金額、牌位姓名、合計、收款狀態，可分享到 LINE、複製或下載自己傳給信徒</li>
+        <li>按「📨 LINE 報名成功」「💰 LINE 收款確認」傳不出去時（例如這位沒有 LINE 好友），改產生同樣內容的報名成功／收款確認圖：姓名、每項數量金額、牌位姓名、合計、收款狀態，按「📋 複製圖片」到 LINE 貼上傳給信徒（手機也可分享到 LINE）</li>
       </ul>
       <b>v4.87（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
@@ -3767,11 +3767,10 @@ async function openNoticeImageModal(card, headHtml){
     bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
       <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
       <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
-      <p class="hint" style="margin:8px 0 0;text-align:left;">手機按「分享到 LINE」選 LINE 再點信徒；電腦按「複製圖片」後到 LINE 電腦版信徒的聊天視窗按 Ctrl+V 貼上。</p>
+      <p class="hint" style="margin:8px 0 0;text-align:left;">按「📋 複製圖片」，到 LINE 信徒的聊天視窗貼上（電腦按 Ctrl+V）就可以送出。手機也可以按「分享到 LINE」直接選信徒。</p>
       <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
-        <button class="btn btn-primary" data-ni="share">分享到 LINE</button>
-        <button class="btn btn-ghost" data-ni="copy">複製圖片</button>
-        <button class="btn btn-ghost" data-ni="dl">下載圖片</button>
+        <button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>
+        <button class="btn btn-ghost" data-ni="share">分享到 LINE</button>
         <button class="btn btn-ghost" data-ni="close">關閉</button>
       </div></div>`;
     document.body.appendChild(bg);
@@ -3780,10 +3779,9 @@ async function openNoticeImageModal(card, headHtml){
       const b = e.target.closest('[data-ni]'); if(!b) return;
       const a = b.dataset.ni;
       if(a==='close'){ bg.remove(); resolve(); return; }
-      if(a==='dl'){ const l = document.createElement('a'); l.href = url; l.download = fname; document.body.appendChild(l); l.click(); l.remove(); return; }
       if(a==='copy' || (a==='share' && !(file && navigator.canShare && navigator.canShare({files:[file]})))){
         try{ await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]); showToast(a==='share' ? '這台電腦不能直接分享，已複製圖片，請到 LINE 貼上（Ctrl+V）' : '已複製圖片，請到 LINE 貼上（Ctrl+V）', 4000); }
-        catch(_){ showToast('這個瀏覽器不能複製圖片，請按「下載圖片」', 4000); }
+        catch(_){ showToast('這個瀏覽器不能直接複製，請在圖片上按右鍵（手機長按）選「複製圖片」', 5000); }
         return;
       }
       try{ await navigator.share({files:[file], title: fname}); }catch(_){}
