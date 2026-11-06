@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.99 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.00 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.00（2026-11-06）</b>：LINE 電腦版貼不上複製的報名成功圖 → 電腦版加「直接把圖拖進 LINE 聊天視窗」（以圖片檔送進 LINE，不經剪貼簿），另有「💾 存成圖片檔」備用。<br>
       <b>v4.99（2026-11-06）</b>：LINE 報名成功／收款確認的圖和卡片不再省略（原本超過 40 列會出現「…另有 N 項，請看報名表」），每一筆都完整列出；LINE 卡片太長時分成好幾張左右滑（要小幫手 v1.68）。<br>
       <b>v4.98（2026-11-06）</b>：報名成功圖比照供品贊助：電腦版按「📋 複製圖片」再到 LINE 按 Ctrl+V（右鍵複製會貼成網址，不再使用）；很長的圖複製時等比例縮到 3000 像素高。<br>
       <b>v4.97（2026-11-06）</b>：電腦版報名成功圖右鍵複製貼到 LINE 變成網址 → 改直接顯示畫布圖，右鍵「複製圖片」只複製圖片。<br>
@@ -3988,19 +3989,44 @@ async function openNoticeImageModal(card, headHtml){
     bg.className = 'modal-bg';
     bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
       <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
-      <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
-      <p class="hint" style="margin:8px 0 0;text-align:left;">${isTouch ? '按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。' : '按「📋 複製圖片」，到 LINE 電腦版打開信徒的聊天視窗，點一下輸入框再按 <b>Ctrl+V</b> 貼上送出。'}</p>
+      ${isTouch ? '' : `<div style="text-align:left;margin:0 0 10px;padding:10px 12px;border:2px solid var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:15px;line-height:1.7;color:#4A3A22;">
+        <b>👉 方法一（建議）：直接拖進 LINE</b><br>把 LINE 電腦版信徒的聊天視窗開在旁邊，用滑鼠<b>按住下面的圖</b>，拖到 LINE 聊天視窗裡放開，LINE 就會送出圖片。<br>
+        <b>方法二：</b>按「📋 複製圖片」，到 LINE 按 Ctrl+V。<br>
+        <b>方法三：</b>按「💾 存成圖片檔」，到 LINE 聊天視窗按「傳送圖片」選這個檔案。</div>`}
+      <img src="${url}" data-ni-img draggable="true" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" title="${isTouch?'':'按住拖到 LINE 聊天視窗'}" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);${isTouch?'':'cursor:grab;'}">
+      ${isTouch ? '<p class="hint" style="margin:8px 0 0;text-align:left;">按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。</p>' : ''}
       <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
         <button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>
+        ${isTouch ? '' : '<button class="btn btn-ghost" data-ni="save">💾 存成圖片檔</button>'}
         ${isTouch ? '<button class="btn btn-ghost" data-ni="share">分享到 LINE</button>' : ''}
         <button class="btn btn-ghost" data-ni="close">關閉</button>
       </div></div>`;
     document.body.appendChild(bg);
     const file = blob ? new File([blob], fname, {type:'image/png'}) : null;
+    // v5.00（小朱）：LINE 電腦版貼不上網頁複製的圖 → 拖曳時只帶「圖片檔」（Chrome／Edge 的 DownloadURL），
+    // 放進 LINE 聊天視窗就像拖一個 PNG 檔進去；不帶網址文字，LINE 才不會貼成網址
+    const imgEl = bg.querySelector('[data-ni-img]');
+    if(imgEl && !isTouch){
+      imgEl.addEventListener('dragstart', e=>{
+        try{
+          e.dataTransfer.clearData();
+          e.dataTransfer.setData('DownloadURL', `image/png:${fname}:${url}`);
+          e.dataTransfer.effectAllowed = 'copy';
+        }catch(err){ console.error('drag image', err); }
+      });
+    }
     bg.addEventListener('click', async e=>{
       const b = e.target.closest('[data-ni]'); if(!b) return;
       const a = b.dataset.ni;
       if(a==='close'){ bg.remove(); resolve(); return; }
+      if(a==='save'){
+        const ou = blob ? URL.createObjectURL(blob) : url;
+        const dl = document.createElement('a'); dl.href = ou; dl.download = fname;
+        document.body.appendChild(dl); dl.click(); dl.remove();
+        if(blob) setTimeout(()=>URL.revokeObjectURL(ou), 4000);
+        showToast('已存成圖片檔（在「下載」資料夾）。到 LINE 聊天視窗按「傳送圖片」選這個檔案，或把檔案拖進聊天視窗', 6000);
+        return;
+      }
       if(a==='copy' || (a==='share' && !(file && navigator.canShare && navigator.canShare({files:[file]})))){
         try{
           if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)) throw new Error('no clipboard');
