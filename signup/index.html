@@ -941,6 +941,11 @@ window.KutingFinMatch = function(opts){
   .radio-group{display:flex;flex-wrap:wrap;gap:8px;}
   .radio-group label{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:500;cursor:pointer;margin:0;}
   .radio-group input{width:auto;min-height:0;margin:0;}
+  .ref-pick-btn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;color:#6E1F1C;font-weight:600;font-size:16px;cursor:pointer;width:auto;}
+  .ref-pick-btn.on{background:var(--vermilion,#9e2b25);color:#fff;}
+  .ref-pick-panel{margin-top:8px;padding:10px 12px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:14px;line-height:1.7;color:#4A3A22;}
+  .ref-pick-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dotted #E3C9B8;font-weight:400;cursor:pointer;margin:0;}
+  .ref-pick-row input{width:auto;min-height:0;margin-top:5px;flex:none;}
   .cfg-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px dashed var(--line);}
   .cfg-row input[type=text]{flex:1;min-width:120px;}
   .tpl-list{list-style:none;padding:0;margin:0 0 10px;}
@@ -1066,8 +1071,13 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.85 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.86 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.86（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>報名表每一位的「報名類別」旁多「🔁 比照上次報名」（登入的志工才看得到）：先填報名者姓名，按下去列出這位在這場去年 Excel 的每一筆（標出類別、姓名、份數），勾要的按「帶入勾選的」，第一筆填進這一位，其他的自動再加一位</li>
+        <li>只用這場自己「📥 匯入去年 Excel」的資料，不用其他法會、供品或老信眾</li>
+      </ul>
       <b>v4.85（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>信徒關聯表「沒有 LINE」每格標「🏠 已歸戶：代表人○○」或「還沒歸戶」，上方列已歸戶／還沒歸戶人數</li>
@@ -1736,7 +1746,97 @@ function bindRefHint(pf, ev){
     hint.innerHTML = `🔁 已帶入去年 ${n} 筆（${n} 個牌位），地址、陽上人有變動請直接改，份數與金額請再核對一次`;
   });
 }
-function fillFromRef(pf, ev, recs){
+/* v4.86（小朱）：「比照上次報名」— 填好報名者姓名，在第 N 位的報名類別旁按「🔁 比照上次報名」，
+   列出這位在這場「📥 匯入去年 Excel」裡的每一筆（跟同去年同一份，不用其他場次、不用供品、不用老信眾），
+   勾要的筆數按「帶入」：第一筆填進這一位，其他的自動再加一位填好 */
+function refPickFieldKey(ev){
+  const parents = new Set([...(ev.fields||[]), ...(ev.fees||[])].filter(x=>x.showIf && x.showIf.k).map(x=>x.showIf.k));
+  const rf = getRepeatFields(ev);
+  const f = rf.find(x=>x.type==='radio' && parents.has(x.k)) || rf.find(x=>x.type==='radio');
+  return f ? f.k : '';
+}
+function refPickBtnHtml(bi){
+  return `<button type="button" class="ref-pick-btn" data-refpick="${bi}" title="依報名者姓名帶出這場去年的報名">🔁 比照上次報名</button>`;
+}
+function refPickPanelHtml(bi){
+  return `<div class="ref-pick-panel" data-refpanel="${bi}" style="display:none;"></div>`;
+}
+function bindRefPick(pf, ev){
+  if(!pf || pf._refPickBound || !staffActive()) return;
+  pf._refPickBound = true;
+  const short = v=>{ v = String(v||'').replace(/\s+/g,' ').trim(); return v.length>30 ? v.slice(0,30)+'…' : v; };
+  const desc = r=>{
+    const f = r.f||{};
+    const bits = getRepeatFields(ev).filter(x=>!/電話|手機/.test(x.label||'') && x.type!=='radio' && x.type!=='select' && String(f[x.k]||'').trim()).map(x=>`${x.label}：${short(f[x.k])}`);
+    const fees = (ev.fees||[]).map(fl=>{ const q = Number((r.fee||{})[fl.k])||0; return q ? `${fl.label}×${q}` : ''; }).filter(Boolean);
+    const cat = f.regType || (refPickFieldKey(ev) ? f[refPickFieldKey(ev)] : '') || '';
+    return (cat ? `<b style="color:var(--vermilion);">【${escHtml(cat)}】</b>` : '') + escHtml(bits.join('，')) +
+      (fees.length ? `<span style="color:#8A7A5C;">（${escHtml(fees.join('、'))}）</span>` : '');
+  };
+  pf.addEventListener('change', e=>{ if(e.target.closest('.ref-pick-panel')) e.stopPropagation(); }, true);
+  pf.addEventListener('click', async e=>{
+    const btn = e.target.closest('[data-refpick]');
+    if(btn){
+      e.preventDefault();
+      const bi = btn.dataset.refpick;
+      const panel = pf.querySelector(`[data-refpanel="${bi}"]`);
+      if(!panel) return;
+      if(panel.style.display!=='none' && panel.dataset.open==='1'){ panel.style.display = 'none'; panel.dataset.open = ''; btn.classList.remove('on'); return; }
+      panel.dataset.open = '1'; btn.classList.add('on'); panel.style.display = '';
+      const rep = pf.querySelector('[name="reporter"]');
+      const name = rep ? rep.value.replace(/\s+/g,'') : '';
+      if(!ev.sameRef){
+        panel.innerHTML = `這場還沒有去年的資料可以比照。請管理者到後台「法會場次管理」選這場，按「📥 匯入去年 Excel」（只用這場自己的去年資料，不會拿其他法會或供品的）。`;
+        return;
+      }
+      if(name.length<2){
+        panel.innerHTML = `請先在上面「報名者姓名」填好姓名，再按一次「🔁 比照上次報名」。`;
+        if(rep) rep.focus({preventScroll:true});
+        return;
+      }
+      const t0 = Date.now();
+      panel.innerHTML = `正在讀取去年資料（${escHtml(ev.sameRef.file||'去年 Excel')}）…`;
+      let refs = refCache[ev.id];
+      if(!refs){
+        const tick = setInterval(()=>{ panel.innerHTML = `正在讀取去年資料（${escHtml(ev.sameRef.file||'去年 Excel')}）… ${Math.round((Date.now()-t0)/1000)} 秒`; }, 1000);
+        try{ refs = await loadRef(ev.id); } finally { clearInterval(tick); }
+      }
+      const list = (refs||[]).filter(r=>statName(r)===name || refNameParts(r).includes(name));
+      panel._list = list;
+      if(!list.length){
+        panel.innerHTML = `去年（${escHtml(ev.sameRef.file||'去年 Excel')}）沒有找到「${escHtml(name)}」的報名。請確認姓名有沒有打錯，或照信徒說的內容手動填。`;
+        return;
+      }
+      panel.innerHTML = `<div style="margin-bottom:6px;">🔁 <b>${escHtml(name)}</b> 去年（${escHtml(ev.sameRef.file||'去年 Excel')}）有 ${list.length} 筆，勾要比照的：</div>` +
+        list.map((r,i)=>`<label class="ref-pick-row"><input type="checkbox" data-refi="${i}"> <span>${i+1}. ${desc(r)}</span></label>`).join('') +
+        `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">` +
+        `<button type="button" class="btn btn-ghost btn-sm" data-refall>全選</button>` +
+        `<button type="button" class="btn btn-primary btn-sm" data-refgo>帶入勾選的</button></div>`;
+      return;
+    }
+    const panel = e.target.closest('.ref-pick-panel');
+    if(!panel) return;
+    if(e.target.closest('[data-refall]')){
+      e.preventDefault();
+      const boxes = Array.from(panel.querySelectorAll('[data-refi]'));
+      const all = boxes.every(b=>b.checked);
+      boxes.forEach(b=>{ b.checked = !all; });
+      return;
+    }
+    if(e.target.closest('[data-refgo]')){
+      e.preventDefault();
+      const picked = Array.from(panel.querySelectorAll('[data-refi]:checked')).map(b=>(panel._list||[])[Number(b.dataset.refi)]).filter(Boolean);
+      if(!picked.length){ showToast('請先勾要比照的報名'); return; }
+      const blk = panel.closest('.person-block');
+      const n = fillFromRef(pf, ev, picked, blk);
+      panel.innerHTML = `✅ 已比照去年帶入 ${n} 筆（${n} 個牌位）。地址、陽上人有變動請直接改，份數與金額請再核對一次。`;
+      const b = pf.querySelector(`[data-refpick="${panel.dataset.refpanel}"]`);
+      if(b) b.classList.remove('on');
+      panel.dataset.open = '';
+    }
+  });
+}
+function fillFromRef(pf, ev, recs, firstBlk){
   const wrap = document.getElementById('personBlocksWrap');
   const addBtn = document.getElementById('addPersonBtn');
   const setVal = (root, name, v)=>{
@@ -1757,7 +1857,7 @@ function fillFromRef(pf, ev, recs){
     let blocks = Array.from(wrap.querySelectorAll('.person-block'));
     // 找一個還沒填的牌位，沒有就按「再加一個」
     const isEmpty = b=>getRepeatFields(ev).every(f=>!readFieldValue(b, `pf_${b.dataset.block}_${f.k}`));
-    let blk = blocks.find(isEmpty);
+    let blk = (i===0 && firstBlk && isEmpty(firstBlk)) ? firstBlk : blocks.find(isEmpty);
     if(!blk && addBtn){ addBtn.click(); blocks = Array.from(wrap.querySelectorAll('.person-block')); blk = blocks[blocks.length-1]; }
     if(!blk) return;
     const bi = blk.dataset.block;
@@ -1779,7 +1879,7 @@ function fillFromRef(pf, ev, recs){
 }
 function bindContactHint(pf){
   if(!staffActive()) return;
-  { const ev0 = events.find(e=>e.id===publicSelectedEvent); if(ev0) bindRefHint(pf, ev0); }   // v4.75
+  { const ev0 = events.find(e=>e.id===publicSelectedEvent); if(ev0){ bindRefHint(pf, ev0); bindRefPick(pf, ev0); } }   // v4.75、v4.86
   const ev = events.find(e=>e.id===publicSelectedEvent);
   const rep = pf.querySelector('[name="reporter"]');
   if(!ev || !rep) return;
@@ -4373,8 +4473,14 @@ function renderPersonBlockHtml(ev, blockIdx){
     <div style="font-weight:700;font-size:13px;color:var(--vermilion);">第 ${blockIdx+1} 位</div>
     <button type="button" class="btn btn-danger btn-sm person-remove-btn" data-block="${blockIdx}" style="display:none;">移除此位</button>
   </div>`;
+  // v4.86（小朱）：報名類別旁多一個「🔁 比照上次報名」（只有登入中的啟用志工看得到）
+  const pickK = refPickFieldKey(ev);
+  if(staffActive() && !pickK) html += `<div class="field">${refPickBtnHtml(blockIdx)}${refPickPanelHtml(blockIdx)}</div>`;
   repeatFields.forEach(f=>{
-    html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${renderFieldInput(f, `pf_${blockIdx}_${f.k}`)}${condEmptyHint(ev, f)}</div>`;
+    let inp = renderFieldInput(f, `pf_${blockIdx}_${f.k}`);
+    let panel = '';
+    if(staffActive() && f.k===pickK){ inp = inp.replace(/<\/div>$/, refPickBtnHtml(blockIdx) + '</div>'); panel = refPickPanelHtml(blockIdx); }
+    html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${inp}${panel}${condEmptyHint(ev, f)}</div>`;
   });
   if((ev.fees||[]).length){
     html += `<label>費用項目</label>`;
