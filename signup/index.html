@@ -1066,8 +1066,14 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.79 ・ 2026-11-05（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.80 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.80（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>場次按鈕多「📨 LINE 彙整通知」：同一位信徒（含他幫家人報的姓名）在法會＋供品的報名合成一張卡片，由小幫手私訊；三種：🙏 報名成功（附匯款方式）、📷 照片已上傳（一個連結看法會＋供品照片）、💰 收款確認（新收的加 🆕）</li>
+        <li>可以一位一位先預覽再傳，也可以「一鍵全部」：先列出會傳／不會傳的人和原因、本月 LINE 剩餘則數，確認後分批傳，顯示進度與失敗原因</li>
+        <li>需要小幫手 v1.57；只用來找收件人、合併通知，不會把供品資料帶進法會</li>
+      </ul>
       <b>v4.79（2026-11-05）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「📨 LINE 報名成功」「💰 LINE 收款確認」：同一位報名者的所有報名合併成一張卡片，只傳給報名者（確認視窗會寫合併幾筆、合計多少）</li>
@@ -3743,6 +3749,123 @@ function lineInboxParse(ids){
 }
 // 小幫手網址：跟供品贊助共用（同一個網站 kuting.tw，存在這台電腦的瀏覽器）
 const LINEBOT_URL_KEY = 'gongpin_linebot_url';
+/* ---- LINE 彙整通知（小朱 11-06；需小幫手 v1.57）。法會報名與供品贊助兩份必須相同 ----
+   同一位信徒（含他幫家人報的姓名）在法會＋供品的報名合成一張卡片，由小幫手私訊：
+   🙏 報名成功（橘，附匯款方式）／📷 照片已上傳（藍，一個連結看兩邊照片）／💰 已收到您的護持（綠，新收的加 🆕）。
+   一位一位：先預覽再傳。一鍵全部：先列會傳／不會傳與本月 LINE 剩餘則數，確認後分批傳，顯示進度與失敗原因。
+   關聯表只用來找收件人、合併通知，不帶入任何報名資料。 */
+window.KutingCombo = function(o){
+  var STAGES = [["reg","🙏 報名成功"],["photo","📷 照片已上傳"],["paid","💰 收款確認"]];
+  var SKIP = {noline:"沒有 LINE", dup:"同名對到兩個以上 LINE", noreg:"沒有報名", nophoto:"還沒有照片連結", nopaid:"還沒有已收款", sent:"已經傳過", bad:"收件人格式不對"};
+  var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+  var stage = "reg", people = [], st = {}, busy = false;
+  var bg = document.createElement("div");
+  bg.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.45); z-index:9999; overflow:auto; padding:16px; box-sizing:border-box;";
+  bg.innerHTML = '<div class="kc-box" style="background:#fffaf0; color:#2b211a; border-radius:12px; max-width:760px; margin:0 auto; padding:16px; font-size:16px; line-height:1.6; border-top:6px solid #8b1a1a;"></div>';
+  document.body.appendChild(bg);
+  var box = bg.querySelector(".kc-box");
+  function btn(label, k, extra, primary){ return '<button type="button" data-k="' + k + '"' + (extra || "") + ' style="min-height:44px; padding:6px 14px; border-radius:8px; font-size:16px; cursor:pointer; border:1px solid ' + (primary ? '#8b1a1a; background:#8b1a1a; color:#fff;' : '#c9a227; background:#fff; color:#8b1a1a;') + '">' + label + '</button>'; }
+  function call(list, send, skipSent){
+    var url = o.botUrl();
+    if(!url) return Promise.reject(new Error("這台電腦還沒設定小幫手網址"));
+    return o.idToken().then(function(idToken){
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "combo", from: o.from, idToken: idToken, stage: stage, people: list,
+        fahuiEventId: o.eventId || "", gpOccId: o.occId || "", send: !!send, skipSent: !!skipSent }) });
+    }).then(function(r){ return r.json(); }).then(function(out){
+      if(!out || !out.ok) throw new Error((out && out.error) || "小幫手沒有回應（可能還不是 v1.57）");
+      return out.results || [];
+    });
+  }
+  function rowsHtml(x){
+    if(!x || !x.rows) return "";
+    var last = "";
+    return '<div style="margin:6px 0 0 4px; font-size:15px;">' + (x.to ? "傳給 LINE「" + esc(x.to) + "」" + (x.names && x.names.length > 1 ? "（" + esc(x.names.join("、")) + " 合一張）" : "") + "<br>" : "") +
+      x.rows.map(function(r){ var h = (r.who !== last ? "<b>【" + esc(r.who) + "】</b><br>" : ""); last = r.who;
+        return h + "　" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() + '　<span style="color:' + (r.paid ? "#2e7d32" : "#b26a00") + ';">' + (r.paid ? "已收款" : "待收款") + "</span>"; }).join("<br>") +
+      (stage === "photo" ? "<br>📷 照片 " + (x.photoN || 0) + " 張" : "") + "</div>";
+  }
+  function render(){
+    people = o.names();
+    var h = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0; color:#8b1a1a;">📨 LINE 彙整通知</h3>' + btn("關閉", "close") + "</div>" +
+      '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">同一位在法會＋供品的報名合成一張卡片，由小幫手私訊。幫家人報的姓名也會合在同一張。</p>' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">' + STAGES.map(function(s){ return btn(s[1], "stage", ' data-s="' + s[0] + '"', s[0] === stage); }).join("") + "</div>" +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("📨 一鍵全部（" + people.length + " 位）", "all", "", true) + '<span class="kc-msg" style="color:#6b5c4d;"></span></div>' +
+      '<div class="kc-list">' + people.map(function(p, i){
+        var s = st[stage + ":" + p.name] || {};
+        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" +
+          btn("預覽", "pv", ' data-i="' + i + '"') + btn(s.sent ? "再傳一次" : "傳送", "send", ' data-i="' + i + '"' + (s.ok || s.sent ? "" : " disabled"), !!s.ok && !s.sent) +
+          '<span style="font-size:15px; color:' + (s.sent ? "#2e7d32" : s.error ? "#b3261e" : "#6b5c4d") + ';">' + (s.sent ? "✅ 已傳" : s.busy ? "處理中…" : s.error ? "⚠ " + esc(s.error) : s.ok ? "可以傳" : "") + "</span></div>" + (s.ok || s.sent ? rowsHtml(s) : "") + "</div>";
+      }).join("") + (people.length ? "" : '<p style="color:#6b5c4d;">這場還沒有報名。</p>') + "</div>";
+    box.innerHTML = h;
+  }
+  function msg(t){ var m = box.querySelector(".kc-msg"); if(m) m.innerHTML = t; }
+  function timer(label){ var t0 = Date.now(); var id = setInterval(function(){ msg(label + " " + Math.round((Date.now() - t0) / 1000) + " 秒"); }, 500); return function(){ clearInterval(id); return Math.round((Date.now() - t0) / 1000); }; }
+  function one(i, send){
+    var p = people[i]; if(!p || busy) return;
+    var key = stage + ":" + p.name;
+    if(send && !confirm("由小幫手把「" + p.name + "」的" + STAGES.filter(function(s){ return s[0] === stage; })[0][1] + "卡片私訊給" + ((st[key] && st[key].to) ? "LINE「" + st[key].to + "」" : "這位") + "？")) return;
+    busy = true; st[key] = { busy: true }; render();
+    var stop = timer(send ? "📨 傳送中…" : "讀取中…");
+    call([p], send, false).then(function(res){
+      var sec = stop(); busy = false; st[key] = res[0] || { error: "沒有回應" }; render();
+      msg(st[key].sent ? "✅ 已傳給 LINE「" + esc(st[key].to) + "」（" + sec + " 秒）" : st[key].error ? "⚠ " + esc(st[key].error) + "（" + sec + " 秒）" : "預覽好了（" + sec + " 秒）");
+    }).catch(function(e){ stop(); busy = false; st[key] = { error: e.message }; render(); msg("⚠ " + esc(e.message)); });
+  }
+  function chunks(arr, n){ var out = []; for(var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
+  function all(){
+    if(busy || !people.length) return;
+    busy = true;
+    var stop = timer("讀取全部報名中…（人多時約 1～3 分鐘）");
+    var res = [];
+    var chain = Promise.resolve();
+    chunks(people, 40).forEach(function(c){ chain = chain.then(function(){ return call(c, false, true).then(function(r){ res = res.concat(r); }); }); });
+    chain.then(function(){
+      return o.idToken().then(function(idToken){
+        return fetch(o.botUrl(), { method: "POST", body: JSON.stringify({ action: "quota", from: o.from, idToken: idToken }) });
+      }).then(function(r){ return r.json(); }).then(function(q){ return q && q.ok ? q : null; }).catch(function(){ return null; });
+    }).then(function(q){
+      stop(); busy = false;
+      res.forEach(function(x){ st[stage + ":" + x.name] = x; });
+      render();
+      var go = res.filter(function(x){ return x.ok; });
+      // 同一個 LINE 只傳一次
+      var seen = {}; go = go.filter(function(x){ if(seen[x.toId]) return false; seen[x.toId] = 1; return true; });
+      var skip = res.filter(function(x){ return !x.ok; });
+      var why = {};
+      skip.forEach(function(x){ var k = SKIP[x.skip] || x.error || "其他"; (why[k] = why[k] || []).push(x.name); });
+      var left = q && q.limit != null ? q.limit - q.used : null;
+      var txt = "✅ 會傳 " + go.length + " 位（同一個 LINE 合成一張）\n" + Object.keys(why).map(function(k){ return "⚠ 不會傳（" + k + "）" + why[k].length + " 位：" + why[k].slice(0, 15).join("、") + (why[k].length > 15 ? "…" : ""); }).join("\n") +
+        (left != null ? "\n\n本月 LINE 免費則數還剩 " + left + " 則" + (left < go.length ? "（不夠！只會傳前 " + left + " 位）" : "") : "");
+      if(!go.length){ alert(txt + "\n\n沒有要傳的。"); msg(""); return; }
+      if(!confirm(txt + "\n\n確定傳送 " + go.length + " 位？")) { msg("已取消，沒有傳送"); return; }
+      if(left != null && left < go.length) go = go.slice(0, Math.max(0, left));
+      busy = true;
+      var done = 0, fail = 0, t0 = Date.now();
+      var c2 = Promise.resolve();
+      chunks(go.map(function(x){ return { name: x.name, lineUserId: x.toId }; }), 15).forEach(function(c){
+        c2 = c2.then(function(){
+          msg("📨 傳送中… " + done + "／" + go.length + " 位，" + Math.round((Date.now() - t0) / 1000) + " 秒");
+          return call(c, true, true).then(function(r){ r.forEach(function(x){ st[stage + ":" + x.name] = x; if(x.sent) done++; else fail++; }); })
+            .catch(function(e){ fail += c.length; c.forEach(function(x){ st[stage + ":" + x.name] = { error: e.message }; }); });
+        });
+      });
+      return c2.then(function(){ busy = false; render(); msg("完成：已傳 " + done + " 位" + (fail ? "，失敗 " + fail + " 位（原因寫在名字旁）" : "") + "（" + Math.round((Date.now() - t0) / 1000) + " 秒）"); });
+    }).catch(function(e){ stop(); busy = false; msg("⚠ " + esc(e.message)); });
+  }
+  bg.addEventListener("click", function(e){
+    var b = e.target.closest ? e.target.closest("button[data-k]") : null;
+    if(e.target === bg){ if(!busy) bg.remove(); return; }
+    if(!b) return;
+    var k = b.getAttribute("data-k");
+    if(k === "close"){ if(busy && !confirm("還在處理中，確定關閉？")) return; bg.remove(); return; }
+    if(busy) return;
+    if(k === "stage"){ stage = b.getAttribute("data-s"); render(); return; }
+    if(k === "pv") one(+b.getAttribute("data-i"), false);
+    if(k === "send") one(+b.getAttribute("data-i"), true);
+    if(k === "all") all();
+  });
+  render();
+};
 function linebotUrl(ask){
   let url = '';
   try{ url = localStorage.getItem(LINEBOT_URL_KEY) || ''; }catch(e){}
@@ -4531,6 +4654,7 @@ function renderEventManager(){
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
       <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
       <button class="btn btn-ghost btn-sm" id="lineFmtBtn">💬 LINE 報名格式</button>
+      <button class="btn btn-ghost btn-sm" id="comboBtn">📨 LINE 彙整通知</button>
       <button class="btn btn-ghost btn-sm" id="exportBtn">匯出 Excel</button>
       <button class="btn btn-ghost btn-sm" id="printA3Btn">🖨️ 列印報名表（A3）</button>
       <button class="btn btn-ghost btn-sm" id="exportCfgBtn">⚙️ 匯出設定</button>
@@ -5885,6 +6009,24 @@ function bindEvents(){
     events = events.filter(e=>e.id!==adminSelectedEvent);
     adminSelectedEvent = events[0]?.id || null;
     await saveEvents(); render();
+  };
+  const comboBtn = document.getElementById('comboBtn');   // v4.80 LINE 彙整通知（需小幫手 v1.57）
+  if(comboBtn) comboBtn.onclick = ()=>{
+    const ev = events.find(e=>e.id===adminSelectedEvent);
+    if(!ev) return;
+    if(!linebotUrl(false)){ showToast('請先設定小幫手網址（按任一筆「📨 LINE 報名成功」會提示貼上）', 3500); return; }
+    window.KutingCombo({ from:'fahui', eventId: ev.id, botUrl: ()=>linebotUrl(false), idToken: ()=>auth.currentUser.getIdToken(),
+      names: ()=>{
+        const by = new Map();
+        (regsCache[ev.id]||[]).filter(r=>!r.deleted && (ev.draft || !r.test)).forEach(r=>{
+          const n = String((r.f||{}).reporter||'').replace(/\s+/g,'');
+          if(!n) return;
+          const x = by.get(n) || {name:n, lineUserId:''};
+          if(!x.lineUserId && r.lineUserId) x.lineUserId = r.lineUserId;
+          by.set(n, x);
+        });
+        return [...by.values()];
+      } });
   };
   const exportBtn = document.getElementById('exportBtn');
   if(exportBtn) exportBtn.onclick = ()=>exportExcel(adminSelectedEvent);
