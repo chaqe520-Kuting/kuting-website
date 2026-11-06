@@ -1071,8 +1071,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.91 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.92 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.92（2026-11-06）</b>
+      <ul style="margin:2px 0 8px;padding-left:20px;">
+        <li>報名成功圖（電腦）：按鈕複製的圖片 LINE 電腦版貼不上，拿掉「📋 複製圖片」按鈕，改在圖片上方用醒目框寫「在圖片上按滑鼠右鍵 → 複製圖片 → 到 LINE 按 Ctrl+V」（小朱實測右鍵複製可以貼）；手機照舊有分享與複製</li>
+      </ul>
       <b>v4.91（2026-11-06）</b>
       <ul style="margin:2px 0 8px;padding-left:20px;">
         <li>「📨 LINE 報名成功」「💰 LINE 收款確認」預覽視窗可以勾選要合併的報名：預設勾這位的報名，也能打姓名把其他報名人的報名「＋加入」，合併成一張卡片（姓名用按的那位、金額合計）傳給同一位；傳不出去時的報名成功圖也是合併後的內容</li>
@@ -3858,10 +3862,11 @@ async function openNoticeImageModal(card, headHtml){
     bg.className = 'modal-bg';
     bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
       <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
-      <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
-      <p class="hint" style="margin:8px 0 0;text-align:left;">${isTouch ? '按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。' : '按「📋 複製圖片」，打開 LINE 電腦版信徒的聊天視窗，在輸入框按 Ctrl+V 貼上再送出。（也可以在圖片上按右鍵選「複製圖片」）'}</p>
+      ${isTouch ? '' : '<div style="text-align:left;margin:0 0 10px;padding:10px 12px;border:2px solid var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:15px;line-height:1.7;color:#4A3A22;">👉 在下面的圖片上按<b>滑鼠右鍵</b>，選「<b>複製圖片</b>」，再打開 LINE 電腦版信徒的聊天視窗，在輸入框按 <b>Ctrl+V</b> 貼上送出。</div>'}
+      <img src="${url}" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" title="按右鍵選「複製圖片」" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);">
+      ${isTouch ? '<p class="hint" style="margin:8px 0 0;text-align:left;">按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。</p>' : ''}
       <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
-        <button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>
+        ${isTouch ? '<button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>' : ''}
         ${isTouch ? '<button class="btn btn-ghost" data-ni="share">分享到 LINE</button>' : ''}
         <button class="btn btn-ghost" data-ni="close">關閉</button>
       </div></div>`;
