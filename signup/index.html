@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.00 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.01 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.01（2026-11-06）</b>：電腦版報名成功圖改以「💾 存成圖片檔」為主（小朱實測：這台 LINE 電腦版貼上、拖曳都不行，用 LINE「傳送檔案／圖片」選檔案可以），視窗寫明三個步驟。<br>
       <b>v5.00（2026-11-06）</b>：LINE 電腦版貼不上複製的報名成功圖 → 電腦版加「直接把圖拖進 LINE 聊天視窗」（以圖片檔送進 LINE，不經剪貼簿），另有「💾 存成圖片檔」備用。<br>
       <b>v4.99（2026-11-06）</b>：LINE 報名成功／收款確認的圖和卡片不再省略（原本超過 40 列會出現「…另有 N 項，請看報名表」），每一筆都完整列出；LINE 卡片太長時分成好幾張左右滑（要小幫手 v1.68）。<br>
       <b>v4.98（2026-11-06）</b>：報名成功圖比照供品贊助：電腦版按「📋 複製圖片」再到 LINE 按 Ctrl+V（右鍵複製會貼成網址，不再使用）；很長的圖複製時等比例縮到 3000 像素高。<br>
@@ -3969,7 +3970,7 @@ async function showCardPreviewConfirm(card, headHtml){
 async function openNoticeImageModal(card, headHtml){
   try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
   const c = drawNoticeCanvas(card);
-  const fname = `${card.kind==='paid'?'收款確認':'報名成功'}_${String(card.name||'').replace(/[\\/:*?"<>|\s]/g,'')}.png`;
+  const fname = `${card.kind==='paid'?'收款確認':'報名成功'}_${String(card.name||'').replace(/[\\/:*?"<>|\s]/g,'').replace(/[：、，,]/g,'_')}.png`;
   // v4.98（小朱）：比照供品贊助——電腦版按「📋 複製圖片」（剪貼簿只放圖片），到 LINE 電腦版按 Ctrl+V；
   // 右鍵複製會連網址一起帶，LINE 電腦版會貼成網址文字，所以不再教右鍵。
   // 詳細版的圖很長，太大的圖 LINE 可能貼不進去 → 很長時複製用的圖縮成 1 倍大小
@@ -3990,14 +3991,12 @@ async function openNoticeImageModal(card, headHtml){
     bg.innerHTML = `<div class="modal" style="max-width:460px;text-align:center;">
       <div style="text-align:left;margin:0 0 12px;font-size:15px;line-height:1.7;">${headHtml||''}</div>
       ${isTouch ? '' : `<div style="text-align:left;margin:0 0 10px;padding:10px 12px;border:2px solid var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:15px;line-height:1.7;color:#4A3A22;">
-        <b>👉 方法一（建議）：直接拖進 LINE</b><br>把 LINE 電腦版信徒的聊天視窗開在旁邊，用滑鼠<b>按住下面的圖</b>，拖到 LINE 聊天視窗裡放開，LINE 就會送出圖片。<br>
-        <b>方法二：</b>按「📋 複製圖片」，到 LINE 按 Ctrl+V。<br>
-        <b>方法三：</b>按「💾 存成圖片檔」，到 LINE 聊天視窗按「傳送圖片」選這個檔案。</div>`}
-      <img src="${url}" data-ni-img draggable="true" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" title="${isTouch?'':'按住拖到 LINE 聊天視窗'}" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);${isTouch?'':'cursor:grab;'}">
+        <b>👉 傳給信徒的步驟：</b><br>① 按下面的「<b>💾 存成圖片檔</b>」（存到「下載」資料夾）<br>② 打開 LINE 電腦版信徒的聊天視窗，按下方的<b>「傳送檔案／圖片」圖示</b><br>③ 從「下載」資料夾選「${escHtml(fname)}」送出</div>`}
+      <img src="${url}" data-ni-img draggable="true" alt="${escHtml(card.name||'')} 的${card.kind==='paid'?'收款確認':'報名成功'}圖" style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);${isTouch?'':'cursor:grab;'}">
       ${isTouch ? '<p class="hint" style="margin:8px 0 0;text-align:left;">按「分享到 LINE」選 LINE 再點信徒；或按「📋 複製圖片」到 LINE 聊天視窗長按貼上。</p>' : ''}
       <div class="row-actions" style="justify-content:center;flex-wrap:wrap;margin-top:12px;">
-        <button class="btn btn-primary" data-ni="copy">📋 複製圖片</button>
-        ${isTouch ? '' : '<button class="btn btn-ghost" data-ni="save">💾 存成圖片檔</button>'}
+        ${isTouch ? '' : '<button class="btn btn-primary" data-ni="save">💾 存成圖片檔</button>'}
+        <button class="btn ${isTouch?'btn-primary':'btn-ghost'}" data-ni="copy">📋 複製圖片</button>
         ${isTouch ? '<button class="btn btn-ghost" data-ni="share">分享到 LINE</button>' : ''}
         <button class="btn btn-ghost" data-ni="close">關閉</button>
       </div></div>`;
@@ -4024,7 +4023,7 @@ async function openNoticeImageModal(card, headHtml){
         const dl = document.createElement('a'); dl.href = ou; dl.download = fname;
         document.body.appendChild(dl); dl.click(); dl.remove();
         if(blob) setTimeout(()=>URL.revokeObjectURL(ou), 4000);
-        showToast('已存成圖片檔（在「下載」資料夾）。到 LINE 聊天視窗按「傳送圖片」選這個檔案，或把檔案拖進聊天視窗', 6000);
+        showToast(`已存成「${fname}」（在「下載」資料夾）。到 LINE 信徒的聊天視窗按「傳送檔案／圖片」選這個檔案送出`, 7000);
         return;
       }
       if(a==='copy' || (a==='share' && !(file && navigator.canShare && navigator.canShare({files:[file]})))){
