@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v4.98 ・ 2026-11-06（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v4.99 ・ 2026-11-06（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v4.99（2026-11-06）</b>：LINE 報名成功／收款確認的圖和卡片不再省略（原本超過 40 列會出現「…另有 N 項，請看報名表」），每一筆都完整列出；LINE 卡片太長時分成好幾張左右滑（要小幫手 v1.68）。<br>
       <b>v4.98（2026-11-06）</b>：報名成功圖比照供品贊助：電腦版按「📋 複製圖片」再到 LINE 按 Ctrl+V（右鍵複製會貼成網址，不再使用）；很長的圖複製時等比例縮到 3000 像素高。<br>
       <b>v4.97（2026-11-06）</b>：電腦版報名成功圖右鍵複製貼到 LINE 變成網址 → 改直接顯示畫布圖，右鍵「複製圖片」只複製圖片。<br>
       <b>v4.96（2026-11-06）</b>：「傳給哪個 LINE」每個記住的姓名旁有 ✕，姓名不屬於這個 LINE 可以直接拿掉；志工 LINE 標「（志工）」，只留志工自己的姓名（配合小幫手 v1.67 自動清掉記錯的代報姓名）。<br>
@@ -3698,7 +3699,7 @@ function fahuiNoticeCard(ev, regs, kind, nameOverride){
   regs = Array.isArray(regs) ? regs : [regs];
   let rows = [];
   regs.forEach((r,i)=>{ rows = rows.concat(regRowsForCard(ev, r, i)); });
-  if(rows.length>40){ const more = rows.length-39; rows = rows.slice(0,39).concat([{type:'head', label:`…另有 ${more} 項，請看報名表`, qty:'', amount:''}]); }
+  // v4.99（小朱）：不再省略，每一筆都完整列出（小幫手 v1.68 起長的會分成好幾張左右滑的卡片）
   const total = regs.reduce((a,r)=>a+(Number(r.total)||0),0);
   const allPaid = regs.every(r=>r.paid), somePaid = regs.some(r=>r.paid);
   const d = new Date();
@@ -3734,7 +3735,7 @@ function drawNoticeCanvas(card){
   const m = document.createElement('canvas').getContext('2d');
   const rows = (card.rows||[]).map(r=>{
     const t = r.type || 'fee';
-    if(t==='field'){ m.font = '500 24px ' + serif; return {t, flabel:r.flabel||'', lines:noticeWrap(m, r.value||'', W-PAD*2-16).slice(0,6)}; }
+    if(t==='field'){ m.font = '500 24px ' + serif; return {t, flabel:r.flabel||'', lines:noticeWrap(m, r.value||'', W-PAD*2-16)}; }
     if(t==='head'){ m.font = '700 26px ' + serif; return {t, lines:[r.label||'']}; }
     m.font = '600 28px ' + serif;
     const lines = noticeWrap(m, r.label, W - PAD*2 - 250);
@@ -3745,7 +3746,7 @@ function drawNoticeCanvas(card){
   const rowH = r=> r.t==='field' ? 26 + r.lines.length*32 + 10 : r.t==='head' ? 54 : r.t==='sub' ? 62 : r.lines.length*38 + (r.extra||[]).length*30 + 22 + (r.t==='fee' ? 12 : 0);
   const bodyH = rows.reduce((h,r)=>h + rowH(r), 0);
   const H = 360 + bodyH + (paid ? 185 : 150);
-  const c = document.createElement('canvas'), sc = 2;
+  const c = document.createElement('canvas'), sc = H*2 > 30000 ? Math.max(1, 30000/H) : 2;   // v4.99 很長的圖也畫得出來（瀏覽器畫布高度上限）
   c.width = W*sc; c.height = H*sc;
   const ctx = c.getContext('2d'); ctx.scale(sc, sc);
   ctx.fillStyle = '#faf5ea'; ctx.fillRect(0,0,W,H);
@@ -3970,12 +3971,12 @@ async function openNoticeImageModal(card, headHtml){
   const fname = `${card.kind==='paid'?'收款確認':'報名成功'}_${String(card.name||'').replace(/[\\/:*?"<>|\s]/g,'')}.png`;
   // v4.98（小朱）：比照供品贊助——電腦版按「📋 複製圖片」（剪貼簿只放圖片），到 LINE 電腦版按 Ctrl+V；
   // 右鍵複製會連網址一起帶，LINE 電腦版會貼成網址文字，所以不再教右鍵。
-  // 詳細版的圖很長，太大的圖 LINE 可能貼不進去 → 複製用的圖高度最多約 3000 像素（等比例縮小）
+  // 詳細版的圖很長，太大的圖 LINE 可能貼不進去 → 很長時複製用的圖縮成 1 倍大小
   let cc = c;
-  if(c.height > 3000){
-    const k = 3000 / c.height;
+  if(c.height > 4000 && c.width > 720){
+    const k = 720 / c.width;   // v4.99：太長時縮成 1 倍大小（不再縮更小，字才看得清楚）
     cc = document.createElement('canvas');
-    cc.width = Math.round(c.width*k); cc.height = 3000;
+    cc.width = Math.round(c.width*k); cc.height = Math.round(c.height*k);
     const x = cc.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, cc.width, cc.height);
   }
   const url = c.toDataURL('image/png');
