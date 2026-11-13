@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.04 ・ 2026-11-13（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.05 ・ 2026-11-13（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.05（2026-11-13）</b>：「傳給哪個 LINE？」只列真正加了小幫手好友的人；只在有小幫手的群組發過言、沒加好友（或已封鎖）的不再出現（小朱：會誤判；要小幫手 v1.75）。<br>
       <b>v5.04（2026-11-13）</b>：LINE 彙整通知：找不到 LINE 的那一位，名單上直接有「🖼️ 產生圖片」按鈕（同名對到好幾個 LINE 的是「選收件人」），打開這位的收款確認預覽，可選 LINE 或產生圖片。<br>
       <b>v5.03（2026-11-13）</b>：LINE 彙整通知和供品贊助 v190 共用程式同步（名單可顯示同一筆報名的家人姓名；法會報名畫面不變）。<br>
       <b>v5.02（2026-11-13）</b>：收款確認集中由管理者傳（小朱）：出納、會計在財務記帳配對報名就會標已收款；「📨 LINE 彙整通知 → 💰 收款確認 → 一鍵全部」先列確認名單（每位信徒 → 傳給哪個 LINE、哪幾筆、紅包袋或匯款），可以取消勾選，按「傳送」才送出；沒有 LINE 或同名對到好幾個 LINE 的可按「單筆處理」選收件人或產生圖片。收款確認卡片／圖標「已收款（紅包袋）」或「（匯款）」；單筆傳過收款確認的不會再重傳（要小幫手 v1.73）。<br>
@@ -3869,7 +3870,9 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
       });
       extraTo.forEach((o,id)=>{ if(!m.has(id)) m.set(id, o); });
       (friends||[]).forEach(fr=>{ const o = m.get(fr.id); if(o){ o.name = o.name || fr.displayName; if(o.friend==null) o.friend = fr.friend; o.names = fr.names; o.staff = fr.staff; } });
-      return [...m.values()];
+      // v5.05（小朱 11-13）：不是小幫手好友的（只在群組發言、已封鎖）不列；小幫手 v1.75 起好友名單只回真正的好友
+      const ok = id=>!friends || !friends.length || friends.some(fr=>fr.id===id && fr.friend!==false);
+      return [...m.values()].filter(o=>o.friend!==false && ok(o.id));
     };
     const drawTo = ()=>{
       const opts = toOpts();
@@ -3886,7 +3889,7 @@ async function pickRegsForCard(ev, r0, initial, kind, reporter){
       const k = nk(toQ.value);
       if(!k){ toHits.innerHTML = ''; return; }
       if(!friends){ toHits.innerHTML = '<div class="hint">LINE 好友名單還沒讀到（小幫手要更新到 v1.66）</div>'; return; }
-      const hits = friends.filter(fr=>nk(fr.displayName).includes(k) || (fr.names||[]).some(n=>nk(n).includes(k))).slice(0,15);
+      const hits = friends.filter(fr=>fr.friend!==false && (nk(fr.displayName).includes(k) || (fr.names||[]).some(n=>nk(n).includes(k)))).slice(0,15);
       toHits.innerHTML = hits.length ? hits.map(fr=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dotted var(--line);font-size:14px;"><button type="button" class="btn btn-ghost btn-sm" data-pktoadd="${escHtml(fr.id)}">選這個</button><span>LINE「<b>${escHtml(fr.displayName||'（沒有名稱）')}</b>」${fr.staff?'（志工）':''}${fr.friend===false?'（已封鎖或不是好友）':''}<div style="font-size:13px;">${chips(fr.id, fr.names)}</div></span></div>`).join('') : '<div class="hint">找不到這個 LINE</div>';
     };
     let toTmr = null;
