@@ -1034,9 +1034,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.1';
-const APP_DATE = '2026-11-06';
+const APP_VERSION = 'v1.20.2';
+const APP_DATE = '2026-11-13';
 const CHANGELOG = [
+  { version:'v1.20.2', date:'2026-11-13', items:[
+    '「📥 LINE 轉來的銀行截圖」：會計群組裡同一個人在截圖前後 5 分鐘內打的文字（例如「雅惠師姐小孩點燈」），會跟著截圖一起送來，顯示「💬 留言」，按「帶入」時自動填進「項目／摘要」欄，存入前請登記者確認（需小幫手 v1.72）',
+    '小幫手 AI 讀不出來的截圖按「重新讀取」時，留言也一起帶入項目／摘要'
+  ]},
   { version:'v1.20.1', date:'2026-11-06', items:[
     '銀行截圖快速登記也認得「古亭院匯給廠商」的轉帳成功畫面（例如工程款）：自動當成支出，帶入收款人戶名、收款銀行、收款帳號後 5 碼與存摺摘要（當支出項目），手續費不是 0 時另列一筆「轉帳手續費」支出（需小幫手 v1.65）',
     '古亭院自己的帳號會自動記住（存過一次就記得），之後同一個帳號轉出的截圖一定當支出、轉入的一定當收入，不會把自己的帳號當成匯款人'
@@ -3396,7 +3400,7 @@ async function readBankshots(){
         continue;
       }
       if(out.kind === 'other' && !(out.rows||[]).length){ failed++; alert(`第 ${i+1} 張看起來不是銀行交易畫面`); continue; }
-      (out.rows||[]).forEach(r=>found.push(Object.assign({ shot:i+1 }, r)));
+      (out.rows||[]).forEach(r=>found.push(Object.assign({ shot:i+1, lineNote: bankshotImages[i].lineNote || '' }, r)));
     }
   } finally {
     btn.disabled = false;
@@ -3662,7 +3666,7 @@ function addBankshotRows(found){
       balance: raw.balance===null || raw.balance===undefined || raw.balance==='' ? null : Math.round(Number(raw.balance)),
       counterAcct: fx.counterAcct,
       summary: String(raw.summary||'').trim(), memo: String(raw.memo||'').trim(),
-      shotLabel: raw.shotLabel || '', pendingId: raw.pendingId || '',
+      shotLabel: raw.shotLabel || '', pendingId: raw.pendingId || '', lineNote: String(raw.lineNote||'').trim(),
       counterBank: String(raw.counterBank||'').trim(), fromAcct: acct5(raw.fromAcct), toAcct: acct5(raw.toAcct),
     };
     r.ref = bankRefOf(r);
@@ -3671,6 +3675,7 @@ function addBankshotRows(found){
     r.name = String(raw.counterName||'').trim() || nameForCounterAcct(r.counterAcct);
     r.activity = '';
     r.item = r.dir==='out' ? r.summary : '';
+    if(r.lineNote) r.item = r.lineNote;   // v1.20.2 會計群組截圖前後打的文字＝項目／摘要，登記者確認
     // v1.20.1 匯給廠商：備註寫收款銀行、戶名、帳號後 5 碼，對帳時看得到匯去哪裡
     const payee = r.dir==='out' && (r.counterBank || r.counterAcct)
       ? `匯給 ${[r.counterBank, r.name, r.counterAcct ? '帳號後5碼 '+r.counterAcct : ''].filter(Boolean).join(' ')}` : '';
@@ -3689,7 +3694,8 @@ function addBankshotRows(found){
   bankshotRows.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
   const lastWithBal = bankshotRows.filter(r=>r.balance!==null).pop();
   bankshotLastBalance = lastWithBal ? lastWithBal.balance : null;
-  bankshotRows.forEach(r=>{ if(!r.saved){ r.status = bankshotStatus(r); r.checked = r.status.level==='ok'; } });
+  bankshotRows.forEach(r=>{ if(!r.saved){ r.status = bankshotStatus(r); r.checked = r.status.level==='ok';
+    if(r.lineNote && r.status.level==='ok') r.status = { level:'ok', text:'新的交易（項目／摘要取自 LINE 留言，請確認）' }; } });
   renderBankshotRows();
 }
 
@@ -3899,7 +3905,7 @@ function renderBankPending(){
     return `<div class="bp-item">
       ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
       ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
-      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆${rows.length-ins.length ? `、支出 ${rows.length-ins.length} 筆` : ''}）`}</div>${p.kind==='error'
+      <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆${rows.length-ins.length ? `、支出 ${rows.length-ins.length} 筆` : ''}）`}</div>${p.note ? `<div style="font-size:13px;">💬 留言：<b>${escHtml(p.note)}</b>（帶入時填進項目／摘要）</div>` : ''}${p.kind==='error'
         ? `<span style="color:var(--temple-red);font-weight:600;">⚠ 小幫手 AI 讀取失敗</span><br><span class="muted" style="font-size:12px;">${escHtml(p.error||'')}</span>${p.image ? '<br>請按「重新讀取」用網頁再讀一次' : (p.text ? '<br>請照文字手動登記' : '<br>截圖太大沒存到，請從群組存圖後上傳')}`
         : (brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>')}</div>
       <div class="bp-btns">${p.kind==='error'
@@ -3923,7 +3929,9 @@ async function retryBankPending(id){
     const blob = await (await fetch(p.image)).blob();
     const body = document.getElementById('bankshotBody');
     if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
+    const before = bankshotImages.length;
     await addBankshotFiles([new File([blob], 'LINE 截圖', { type: blob.type || 'image/jpeg' })]);
+    if(p.note && bankshotImages.length > before) bankshotImages[bankshotImages.length-1].lineNote = p.note;   // v1.20.2
     bankPendingLoaded.add(id);
     renderBankPending();
     await markBankPending(id, 'done');
@@ -3936,7 +3944,7 @@ function loadBankPending(id){
   const body = document.getElementById('bankshotBody');
   if(body.style.display === 'none') document.getElementById('bankshotToggleBtn').click();
   const label = (p.text && !p.image ? 'LINE 打字 ' : 'LINE ') + (p.from || '轉傳');
-  addBankshotRows((p.rows||[]).map(r=>Object.assign({}, r, { shot:0, shotLabel:label, pendingId:p.id })));
+  addBankshotRows((p.rows||[]).map(r=>Object.assign({}, r, { shot:0, shotLabel:label, pendingId:p.id, lineNote:p.note||'' })));
   bankPendingLoaded.add(id);
   renderBankPending();
   document.getElementById('bankshotMsg').textContent = `已帶入 LINE 轉來的 ${(p.rows||[]).length} 筆，請核對後按「存入勾選的交易」`;
