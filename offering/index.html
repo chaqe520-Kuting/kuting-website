@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v192";
+  var APP_VERSION = "v193";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v193", date: "2026-11-13", changes: [
+      "報名成功圖／收款確認圖：好幾位合成一張時，依信徒姓名分段，每位寫【姓名】和小計，底下列他贊助的供品，看得出誰贊助哪一項（小朱）；小幫手私訊的卡片也一樣分段"
+    ] },
     { version: "v192", date: "2026-11-13", changes: [
       "LINE 彙整通知依信徒關聯表的「姓名連動」合併：同一戶只列一位（🏠 代表人，旁邊寫同戶家人），卡片列出整戶在法會＋供品的報名；代表找不到 LINE 時用家人的 LINE；「產生圖片」也是整戶一張（要小幫手 v1.76）"
     ] },
@@ -9871,14 +9874,27 @@ window.KutingFinMatch = function(opts){
     var W = 720, PAD = 48, serif = '"Noto Serif TC","PingFang TC","Microsoft JhengHei",serif';
     var measure = document.createElement("canvas").getContext("2d");
     measure.font = "600 28px " + serif;
-    var rows = group.regs.map(function(reg){
-      var cat = findCatalog(reg.catId, occ);
-      var label = reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : "");
-      var extra = reg.buyunName ? "補運：" + reg.buyunName : "";
-      return { lines: wrapCanvasText(measure, label, W - PAD * 2 - 250), qty: regQtyText(reg, cat, "隨喜"), amount: reg.amount, extra: extra };
+    // v193（小朱 11-13）：好幾位合成一張時，依信徒姓名分段（【姓名】下面列他贊助的供品），看得出誰贊助哪一項
+    var nk = function(x){ return String(x || "").replace(/\s+/g, ""); };
+    var order = [], byName = {};
+    group.regs.forEach(function(reg){ var k = nk(reg.name) || "（未填姓名）"; if(!byName[k]){ byName[k] = []; order.push(k); } byName[k].push(reg); });
+    var split = order.length > 1;
+    var rows = [];
+    order.forEach(function(k){
+      var regsK = byName[k];
+      if(split){
+        var sub = regsK.reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0);
+        rows.push({ head: true, lines: wrapCanvasText(measure, "【" + (regsK[0].name || k) + "】", W - PAD * 2 - 200), amount: sub });
+      }
+      regsK.forEach(function(reg){
+        var cat = findCatalog(reg.catId, occ);
+        var label = reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : "");
+        var extra = reg.buyunName ? "補運：" + reg.buyunName : "";
+        rows.push({ lines: wrapCanvasText(measure, label, W - PAD * 2 - 250 - (split ? 24 : 0)), qty: regQtyText(reg, cat, "隨喜"), amount: reg.amount, extra: extra, ind: split ? 24 : 0 });
+      });
     });
     var total = group.regs.reduce(function(s, r){ return s + (Number(r.amount) || 0); }, 0);
-    var bodyH = rows.reduce(function(h, r){ return h + r.lines.length * 38 + (r.extra ? 32 : 0) + 22; }, 0);
+    var bodyH = rows.reduce(function(h, r){ return h + r.lines.length * 38 + (r.extra ? 32 : 0) + (r.head ? 10 : 22); }, 0);
     var H = 360 + bodyH + 190;
 
     var c = document.createElement("canvas");
@@ -9914,14 +9930,23 @@ window.KutingFinMatch = function(opts){
 
     ctx.textBaseline = "middle";
     rows.forEach(function(r){
+      if(r.head){
+        ctx.textAlign = "left"; ctx.fillStyle = "#7a231f"; ctx.font = "900 28px " + serif;
+        r.lines.forEach(function(l, i){ ctx.fillText(l, PAD, y + i * 38); });
+        ctx.textAlign = "right"; ctx.font = "700 22px " + serif; ctx.fillStyle = "#6b5c4d";
+        ctx.fillText("小計 " + fmt(r.amount), W - PAD, y);
+        y += r.lines.length * 38 + 10;
+        return;
+      }
+      var X = PAD + (r.ind || 0);
       ctx.textAlign = "left"; ctx.fillStyle = "#2b211a"; ctx.font = "600 28px " + serif;
-      r.lines.forEach(function(l, i){ ctx.fillText(l, PAD, y + i * 38); });
+      r.lines.forEach(function(l, i){ ctx.fillText(l, X, y + i * 38); });
       ctx.textAlign = "right"; ctx.font = "700 26px " + serif;
       ctx.fillText(r.qty, W - PAD - 130, y);
       ctx.fillStyle = "#7a231f";
       ctx.fillText(fmt(r.amount), W - PAD, y);
       y += r.lines.length * 38;
-      if(r.extra){ ctx.textAlign = "left"; ctx.fillStyle = "#6b5c4d"; ctx.font = "500 22px " + serif; ctx.fillText(r.extra, PAD + 8, y); y += 32; }
+      if(r.extra){ ctx.textAlign = "left"; ctx.fillStyle = "#6b5c4d"; ctx.font = "500 22px " + serif; ctx.fillText(r.extra, X + 8, y); y += 32; }
       y += 22;
     });
 
@@ -10629,11 +10654,20 @@ window.KutingPeople = function(o){
     var total = g.regs.reduce(function(s, r){ return s + (Number(r.amount) || 0); }, 0);
     return {
       name: g.name, occasion: occ.label || "",
-      rows: g.regs.map(function(reg){
-        var cat = findCatalog(reg.catId, occ);
-        return { label: reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : ""), qty: regQtyText(reg, cat, "隨喜"),
-          amount: fmt(reg.amount), extra: reg.buyunName ? "補運：" + reg.buyunName : "" };
-      }),
+      // v193：好幾位合成一張時，LINE 卡片也依信徒姓名分段（【姓名】小計）
+      rows: (function(){
+        var nk = function(x){ return String(x || "").replace(/\s+/g, ""); }, order = [], by = {}, out = [];
+        g.regs.forEach(function(reg){ var k = nk(reg.name) || "（未填姓名）"; if(!by[k]){ by[k] = []; order.push(k); } by[k].push(reg); });
+        order.forEach(function(k){
+          if(order.length > 1) out.push({ type: "head", label: "【" + (by[k][0].name || k) + "】 小計 " + fmt(by[k].reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0)), qty: "", amount: "" });
+          by[k].forEach(function(reg){
+            var cat = findCatalog(reg.catId, occ);
+            out.push({ label: reg.label + (reg.dedicateTo ? "（" + reg.dedicateTo + "）" : ""), qty: regQtyText(reg, cat, "隨喜"),
+              amount: fmt(reg.amount), extra: reg.buyunName ? "補運：" + reg.buyunName : "" });
+          });
+        });
+        return out;
+      })(),
       total: fmt(total), time: formatRegTime(g.regs[0].time),
       // v114 — 小幫手私訊卡片也顯示收款狀態（需小幫手 v1.11）
       payStatus: regNoticePayState(g).text, payColor: regNoticePayState(g).bg
