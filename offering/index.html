@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v190";
+  var APP_VERSION = "v191";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v191", date: "2026-11-13", changes: [
+      "LINE 彙整通知：找不到 LINE 的那一位，名單上直接有「🖼️ 產生圖片」按鈕（同名對到好幾個 LINE 的是「選收件人」），會打開這一戶（含同筆家人）的報名成功圖，已收款的標已收款，可複製／下載用 LINE 傳"
+    ] },
     { version: "v190", date: "2026-11-13", changes: [
       "LINE 彙整通知：一筆報名寫全家姓名（例如「王○明、林○華」）時，有共同姓名的報名合成一位（以第一個姓名當代表、名單只列一次），和法會報名一樣一位一張；代表找不到 LINE 時用家人的 LINE（要小幫手 v1.74）"
     ] },
@@ -9972,9 +9975,10 @@ window.KutingFinMatch = function(opts){
     }).join("");
   }
 
-  function openRegNotice(regs){
+  function openRegNotice(regs, oneName){
     var occ = current();
-    var groups = regNoticeGroups(regs);
+    // v191：彙整通知的「產生圖片」把同一戶（同筆家人）合成一張
+    var groups = oneName ? [{ name: oneName, regs: regs.filter(Boolean) }] : regNoticeGroups(regs);
     if(!groups.length) return;
     var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
     ready.then(function(){
@@ -10189,6 +10193,7 @@ window.KutingCombo = function(o){
         var s = st[stage + ":" + p.name] || {};
         return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（同筆：' + esc(p.alt.join("、")) + "）</span>" : "") +
           btn("預覽", "pv", ' data-i="' + i + '"') + btn(s.sent ? "再傳一次" : "傳送", "send", ' data-i="' + i + '"' + (s.ok || s.sent ? "" : " disabled"), !!s.ok && !s.sent) +
+          (o.single && stage !== "photo" && (s.skip === "noline" || s.skip === "dup") ? btn(s.skip === "noline" ? "🖼️ 產生圖片" : "選收件人", "one", ' data-i="' + i + '"') : "") +
           '<span style="font-size:15px; color:' + (s.sent ? "#2e7d32" : s.error ? "#b3261e" : "#6b5c4d") + ';">' + (s.sent ? "✅ 已傳" : s.busy ? "處理中…" : s.error ? "⚠ " + esc(s.error) : s.ok ? "可以傳" : "") + "</span></div>" + (s.ok || s.sent ? rowsHtml(s) : "") + "</div>";
       }).join("") + (people.length ? "" : '<p style="color:#6b5c4d;">這場還沒有報名。</p>') + "</div>";
     box.innerHTML = h;
@@ -10252,7 +10257,7 @@ window.KutingCombo = function(o){
         if(k === "rvone"){
           var nm = b.getAttribute("data-n");
           rv.style.display = "none"; bg.style.display = "none";
-          Promise.resolve().then(function(){ return o.single(nm, stage); }).catch(function(err){ alert(err && err.message || err); })
+          Promise.resolve().then(function(){ var pp = people.filter(function(p){ return p.name === nm; })[0]; return o.single(nm, stage, (pp && pp.alt) || []); }).catch(function(err){ alert(err && err.message || err); })
             .then(function(){ rv.style.display = ""; bg.style.display = ""; });
         }
       });
@@ -10314,6 +10319,7 @@ window.KutingCombo = function(o){
     if(k === "people"){ window.KutingPeople(o); return; }
     if(busy) return;
     if(k === "stage"){ stage = b.getAttribute("data-s"); render(); return; }
+    if(k === "one"){ var pp = people[+b.getAttribute("data-i")]; if(pp){ bg.style.display = "none"; Promise.resolve().then(function(){ return o.single(pp.name, stage, pp.alt || []); }).catch(function(err){ alert(err && err.message || err); }).then(function(){ bg.style.display = ""; }); } return; }
     if(k === "pv") one(+b.getAttribute("data-i"), false);
     if(k === "send") one(+b.getAttribute("data-i"), true);
     if(k === "all") all();
@@ -13218,12 +13224,12 @@ window.KutingPeople = function(o){
         return out;
       },
       // v189（小朱 11-13）：確認名單裡沒有 LINE／同名多個 LINE 的，開這裡的報名成功圖（已收款會標已收款），可選 LINE 好友或傳圖片；關掉後回到名單
-      single: function(name, stage){
+      single: function(name, stage, alt){
         var nk = function(x){ return String(x || "").replace(/\s+/g, ""); };
-        var inName = function(full){ return nk(full) === nk(name) || String(full || "").replace(/[（(][^）)]*[）)]/g, "").split(/[、,，.．\/\s]+|和|與|及/).some(function(x){ return nk(x) === nk(name); }); };   // v190 全家一筆
+        var inName = function(full){ return nk(full) === nk(name) || String(full || "").replace(/[（(][^）)]*[）)]/g, "").split(/[、,，.．\/\s]+|和|與|及/).some(function(x){ return nk(x) === nk(name) || (alt || []).some(function(y){ return nk(y) === nk(x); }); }); };   // v190 全家一筆（v191 含同筆家人）
         var regs = (current().registrations || []).filter(function(r){ return !r.deleted && !(r.test && occ.status === "open") && inName(r.name) && (stage !== "paid" || r.paid); });
         if(!regs.length){ alert("這場找不到「" + name + "」" + (stage === "paid" ? "已收款的" : "") + "報名（可能是法會報名的，請到法會報名後台處理）"); return; }
-        openRegNotice(regs);
+        openRegNotice(regs, regs.length > 1 ? [name].concat(alt || []).join("、") : "");
         return new Promise(function(resolve){
           var seen = false, t = setInterval(function(){
             var on = regNoticeOverlay.style.display === "flex";
