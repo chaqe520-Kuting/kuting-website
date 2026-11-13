@@ -1074,6 +1074,7 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="ghost-btn" id="regMergedPreviewBtn" disabled>合併預覽已選取（<span id="regSelectedCount">0</span>）</button>
           <button class="ghost-btn" id="regNoticeBtn" disabled>📷 報名成功圖</button>
+          <button class="ghost-btn" id="regPaidMergeBtn" disabled title="勾選的已收款報名合成一張收款通知（依姓名分段）">💰 合併收款通知（<span id="regSelectedCountPm">0</span>）</button>
           <button class="ghost-btn" id="regPhotoBtn" disabled>🖼 贊助照片傳送</button>
           <button class="ghost-btn" id="regComboBtn">📨 LINE 彙整通知</button>
           <button class="ghost-btn" id="regBulkPaidBtn" disabled>標記已收款（<span id="regSelectedCountPaid">0</span>）</button>
@@ -2349,7 +2350,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v194";
+  var APP_VERSION = "v195";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2361,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v195", date: "2026-11-13", changes: [
+      "登記清單「💰 收款通知」自動合併同筆家人＋信徒關聯表姓名連動同一戶的已收款報名，合成一張（依姓名分段）",
+      "勾選好幾筆後按「💰 合併收款通知」，勾的人（含同戶家人）合成一張收款通知",
+      "合併卡片找 LINE 時，代表人沒有就用卡片上其他家人的姓名找（只找小幫手好友）"
+    ] },
     { version: "v194", date: "2026-11-13", changes: [
       "登記清單比照法會報名：已收款的每筆下面多「💰 收款通知」鈕，打開這位的報名成功圖（同姓名的已收款合成一張），可小幫手私訊收款確認或傳圖片；傳過的變成綠色「✓ 已傳收款」（滑鼠移上去看是 LINE 小幫手還是圖片、什麼時候傳的），可以再傳一次（小朱）",
       "LINE 彙整通知傳出的收款確認也會記成已傳（要小幫手 v1.77）"
@@ -9510,6 +9516,8 @@ window.KutingFinMatch = function(opts){
     document.getElementById("regSelectedCountPaid").textContent = count;
     document.getElementById("regMergedPreviewBtn").disabled = count < 1;
     document.getElementById("regNoticeBtn").disabled = count < 1;
+    document.getElementById("regSelectedCountPm").textContent = count;
+    document.getElementById("regPaidMergeBtn").disabled = count < 1;
     document.getElementById("regPhotoBtn").disabled = count < 1;
     document.getElementById("regBulkPaidBtn").disabled = count < 1;
     var bulkDeleteBtn = document.getElementById("regBulkDeleteBtn");
@@ -9629,9 +9637,8 @@ window.KutingFinMatch = function(opts){
     if(act === "preview"){
       openRegPreview(id);
     } else if(act === "paidnotice"){
-      // v194：同一位（同姓名）已收款的報名合成一張，打開報名成功圖（可小幫手私訊收款確認或傳圖片）
-      var nk = function(x){ return String(x || "").replace(/\s+/g, ""); };
-      openRegNotice(current().registrations.filter(function(r){ return !r.deleted && r.paid && nk(r.name) === nk(reg.name); }));
+      // v195（小朱 11-13）：同姓名＋同筆家人＋信徒關聯表姓名連動同一戶的已收款報名，合成一張（依姓名分段）
+      openRegPaidFamily(reg, btn);
     } else if(act === "photos"){
       openRegPhoto([reg]);
     } else if(act === "paid"){
@@ -10014,6 +10021,72 @@ window.KutingFinMatch = function(opts){
     }).join("");
   }
 
+  // v195（小朱 11-13）：登記清單的收款通知可依「勾選的姓名」或「信徒關聯表姓名連動（同一戶）」合成一張
+  var regHhList = null;
+  function regHhLoad(){
+    if(regHhList) return Promise.resolve(regHhList);
+    var url = linebotUrl(false);
+    if(!url || !fsAuth || !fsAuth.currentUser) return Promise.resolve(null);
+    var timer = new Promise(function(res){ setTimeout(function(){ res(null); }, 8000); });
+    var load = fsAuth.currentUser.getIdToken().then(function(idToken){
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "people", op: "households", from: "gp", idToken: idToken }) });
+    }).then(function(r){ return r.json(); }).then(function(out){
+      if(out && out.ok && Array.isArray(out.list)){ regHhList = out.list; return regHhList; }
+      return null;
+    }).catch(function(){ return null; });
+    return Promise.race([load, timer]);
+  }
+  function regNameParts(n){
+    return String(n || "").split(/[、，,\/／;；]+/).map(function(x){ return x.replace(/\s+/g, ""); }).filter(Boolean);
+  }
+  // 從 seed 報名出發：同姓名、同筆家人、同戶家人的已收款報名一直往外找，回傳 { regs, rep }
+  function regPaidFamily(seedRegs, hh){
+    var all = current().registrations.filter(function(r){ return !r.deleted && r.paid; });
+    var names = {}, picked = {}, rep = "";
+    var hhs = (hh || []).filter(function(h){ return (h.members || []).length > 1; });
+    seedRegs.forEach(function(r){ regNameParts(r.name).forEach(function(n){ names[n] = 1; }); });
+    var grew = true;
+    while(grew){
+      grew = false;
+      hhs.forEach(function(h){
+        if(h._in || !h.members.some(function(m){ return names[m]; })) return;
+        h._in = true; grew = true; if(!rep) rep = h.rep;
+        h.members.forEach(function(m){ names[m] = 1; });
+      });
+      all.forEach(function(r){
+        if(picked[r.id]) return;
+        var parts = regNameParts(r.name);
+        if(!parts.some(function(n){ return names[n]; })) return;
+        picked[r.id] = true; grew = true;
+        parts.forEach(function(n){ names[n] = 1; });
+      });
+    }
+    hhs.forEach(function(h){ delete h._in; });
+    return { regs: all.filter(function(r){ return picked[r.id]; }), rep: rep };
+  }
+  function openRegPaidFamily(seedRegs, btn, merge){
+    if(!Array.isArray(seedRegs)) seedRegs = [seedRegs];
+    var old = btn ? btn.textContent : "";
+    if(btn){ btn.disabled = true; btn.textContent = "讀取姓名連動…"; }
+    regHhLoad().then(function(hh){
+      if(btn){ btn.disabled = false; btn.textContent = old; }
+      var regs, name;
+      if(merge){
+        // 勾選合併：勾的已收款報名＋她們的同戶家人
+        var fam = regPaidFamily(seedRegs.filter(function(r){ return r.paid; }), hh);
+        regs = fam.regs; name = fam.rep || (seedRegs.filter(function(r){ return r.paid; })[0] || {}).name || "";
+      } else {
+        var f = regPaidFamily(seedRegs, hh);
+        regs = f.regs; name = f.rep || seedRegs[0].name;
+      }
+      if(!regs.length){ showToast("勾選的報名都還沒收款，請先標記已收款"); return; }
+      var people = {}; regs.forEach(function(r){ people[String(r.name || "").replace(/\s+/g, "")] = 1; });
+      var n = Object.keys(people).length;
+      showToast((hh ? "" : "姓名連動讀不到，先依姓名合併；") + "合成一張：" + n + " 位、" + regs.length + " 筆" + (merge && seedRegs.some(function(r){ return !r.paid; }) ? "（未收款的不列入）" : ""));
+      openRegNotice(regs, name);
+    });
+  }
+
   function openRegNotice(regs, oneName){
     var occ = current();
     // v191：彙整通知的「產生圖片」把同一戶（同筆家人）合成一張
@@ -10094,7 +10167,11 @@ window.KutingFinMatch = function(opts){
         cards.forEach(function(c){
           var nm = String(c.name || "").trim();
           var pick = null, how = "";
-          var named = users.filter(function(u){ return (u.names || []).indexOf(nm) >= 0; })[0];
+          // v195：合併卡片依代表人→卡片上每位姓名依序找已記住的 LINE 好友（不找非好友）
+          var cand = [nm];
+          ((c.group && c.group.regs) || []).forEach(function(r){ [String(r.name || "").trim()].concat(regNameParts(r.name)).forEach(function(x){ if(x && cand.indexOf(x) < 0) cand.push(x); }); });
+          var named = null;
+          cand.some(function(x){ named = users.filter(function(u){ return u.friend !== false && (u.names || []).indexOf(x) >= 0; })[0]; return !!named; });
           var msg = c.lineMsgId ? byId[c.lineMsgId] : null;
           if(named){ pick = { id: named.id, name: named.displayName }; how = "names"; }
           else if(msg && msg.userId){ pick = { id: msg.userId, name: msg.displayName }; how = "msg"; }
@@ -10902,6 +10979,10 @@ window.KutingPeople = function(o){
   }
   document.getElementById("regNoticeDownloadAllBtn").addEventListener("click", function(){ regNoticeDownloadAll(); });
 
+  document.getElementById("regPaidMergeBtn").addEventListener("click", function(){
+    var regs = current().registrations.filter(function(r){ return selectedRegIds[r.id] && !r.deleted; });
+    if(regs.length) openRegPaidFamily(regs, this, true);
+  });
   document.getElementById("regNoticeBtn").addEventListener("click", function(){
     var occ = current();
     var regs = occ.registrations.filter(function(r){ return selectedRegIds[r.id]; });
