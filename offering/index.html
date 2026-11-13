@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v188";
+  var APP_VERSION = "v189";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v189", date: "2026-11-13", changes: [
+      "收款確認集中由管理者傳（小朱）：出納、會計在財務記帳配對報名就會標已收款；「📨 LINE 彙整通知 → 💰 收款確認 → 一鍵全部」先列確認名單（每位信徒 → 傳給哪個 LINE、哪幾筆、紅包袋或匯款），可以取消勾選，按「傳送」才送出",
+      "確認名單裡沒有 LINE 或同名對到好幾個 LINE 的，可按「單筆處理」打開這位的報名成功圖（選 LINE 好友傳收款確認，或複製／下載圖片自己傳）",
+      "LINE 彙整卡片的已收款標「紅包袋已收」或「匯款已收」（要小幫手 v1.73）"
+    ] },
     { version: "v188", date: "2026-11-06", changes: [
       "信徒關聯表「沒有 LINE」每格標「🏠 已歸戶：代表人○○」或「還沒歸戶」，上方列已歸戶／還沒歸戶人數",
       "小幫手還沒更新時匯入姓名連動，改成寫清楚「這次沒有匯入」，不再顯示成功"
@@ -10138,7 +10143,9 @@ window.KutingFinMatch = function(opts){
    同一位信徒（含他幫家人報的姓名）在法會＋供品的報名合成一張卡片，由小幫手私訊：
    🙏 報名成功（橘，附匯款方式）／📷 照片已上傳（藍，一個連結看兩邊照片）／💰 已收到您的護持（綠，新收的加 🆕）。
    一位一位：先預覽再傳。一鍵全部：先列會傳／不會傳與本月 LINE 剩餘則數，確認後分批傳，顯示進度與失敗原因。
-   關聯表只用來找收件人、合併通知，不帶入任何報名資料。 */
+   關聯表只用來找收件人、合併通知，不帶入任何報名資料。
+   v5.02／v189（小朱 11-13）：一鍵全部先列確認名單（每位 → 傳給哪個 LINE、哪幾筆、紅包袋或匯款），可取消勾選，按「傳送」才送；
+   不會傳的（沒有 LINE、同名多個 LINE）可按「單筆處理」用這個平台的預覽選收件人或產生圖片（o.single）。 */
 window.KutingCombo = function(o){
   var STAGES = [["reg","🙏 報名成功"],["photo","📷 照片已上傳"],["paid","💰 收款確認"]];
   var SKIP = {noline:"沒有 LINE", dup:"同名對到兩個以上 LINE", noreg:"沒有報名", nophoto:"還沒有照片連結", nopaid:"還沒有已收款", sent:"已經傳過", bad:"收件人格式不對"};
@@ -10166,7 +10173,7 @@ window.KutingCombo = function(o){
     var last = "";
     return '<div style="margin:6px 0 0 4px; font-size:15px;">' + (x.to ? "傳給 LINE「" + esc(x.to) + "」" + (x.names && x.names.length > 1 ? "（" + esc(x.names.join("、")) + " 合一張）" : "") + "<br>" : "") +
       x.rows.map(function(r){ var h = (r.who !== last ? "<b>【" + esc(r.who) + "】</b><br>" : ""); last = r.who;
-        return h + "　" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() + '　<span style="color:' + (r.paid ? "#2e7d32" : "#b26a00") + ';">' + (r.paid ? "已收款" : "待收款") + "</span>"; }).join("<br>") +
+        return h + "　" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() + '　<span style="color:' + (r.paid ? "#2e7d32" : "#b26a00") + ';">' + (r.paid ? (r.how ? esc(r.how) + "已收" : "已收款") : "待收款") + "</span>"; }).join("<br>") +
       (stage === "photo" ? "<br>📷 照片 " + (x.photoN || 0) + " 張" : "") + "</div>";
   }
   function render(){
@@ -10196,6 +10203,60 @@ window.KutingCombo = function(o){
       msg(st[key].sent ? "✅ 已傳給 LINE「" + esc(st[key].to) + "」（" + sec + " 秒）" : st[key].error ? "⚠ " + esc(st[key].error) + "（" + sec + " 秒）" : "預覽好了（" + sec + " 秒）");
     }).catch(function(e){ stop(); busy = false; st[key] = { error: e.message }; render(); msg("⚠ " + esc(e.message)); });
   }
+  // v5.02／v189（小朱 11-13）：確認名單，勾選的才傳（個資：不可誤傳給別人）。回傳勾選的 go（取消回 null）
+  function review(go, skip, left){
+    return new Promise(function(resolve){
+      var rv = document.createElement("div");
+      rv.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.5); z-index:10001; overflow:auto; padding:16px; box-sizing:border-box;";
+      var stName = STAGES.filter(function(s){ return s[0] === stage; })[0][1];
+      var chk = go.map(function(){ return true; });
+      function shownRows(x){ return stage === "paid" ? (x.rows || []).filter(function(r){ return r.paid; }) : (x.rows || []); }
+      function draw(){
+        var n = chk.filter(Boolean).length;
+        var h = '<div style="background:#fffaf0; color:#2b211a; border-radius:12px; max-width:760px; margin:0 auto; padding:16px; font-size:16px; line-height:1.6; border-top:6px solid #8b1a1a;">' +
+          '<h3 style="margin:0 0 4px; color:#8b1a1a;">請確認名單：' + esc(stName) + '</h3>' +
+          '<p style="margin:0 0 8px; color:#6b5c4d; font-size:15px;">請逐位核對「信徒 → 傳給哪個 LINE」，不對的取消勾選。按下面的「傳送」才會送出。' + (left != null ? "本月 LINE 免費則數還剩 " + left + " 則。" : "") + "</p>" +
+          '<div style="margin:0 0 8px;">' + btn("全部勾選", "rvall") + " " + btn("全部取消", "rvnone") + "</div>" +
+          go.map(function(x, i){
+            var rs = shownRows(x), sum = rs.reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0);
+            return '<label style="display:flex; gap:10px; align-items:flex-start; border-top:1px solid #eadfc8; padding:8px 0; cursor:pointer; font-weight:400;">' +
+              '<input type="checkbox" data-rv="' + i + '"' + (chk[i] ? " checked" : "") + ' style="width:22px; height:22px; margin-top:4px; flex:none;">' +
+              '<span style="flex:1;"><b>' + esc((x.names || [x.name]).join("、")) + '</b> → LINE「<b style="color:#8b1a1a;">' + esc(x.to || "") + "</b>」<br>" +
+              rs.map(function(r){ return '<span style="font-size:15px;">　' + esc(r.who) + "｜" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() +
+                (stage === "paid" ? '　<span style="color:#2e7d32;">' + (r.how ? esc(r.how) : "已收款") + "</span>" : "") + "</span>"; }).join("<br>") +
+              '<br><span style="font-size:15px; color:#8b1a1a;">合計 ' + sum.toLocaleString() + " 元</span></span></label>";
+          }).join("") +
+          (skip.length ? '<h4 style="margin:14px 0 4px; color:#b26a00;">⚠ 不會傳 ' + skip.length + " 位</h4>" + skip.map(function(x){
+            var can = o.single && stage !== "photo" && (x.skip === "noline" || x.skip === "dup");
+            return '<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-top:1px dotted #eadfc8; padding:6px 0; font-size:15px;"><b>' + esc(x.name) + "</b><span style=\"color:#6b5c4d;\">" + esc(SKIP[x.skip] || x.error || "其他") + "</span>" +
+              (can ? btn(x.skip === "noline" ? "🖼️ 單筆處理（產生圖片）" : "單筆處理（選收件人）", "rvone", ' data-n="' + esc(x.name) + '"') : "") + "</div>";
+          }).join("") : "") +
+          '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px;">' + btn("📨 傳送勾選的 " + n + " 位", "rvgo", n ? "" : " disabled", true) + btn("取消", "rvno") + "</div></div>";
+        rv.innerHTML = h;
+      }
+      rv.addEventListener("change", function(e){ var i = e.target.getAttribute && e.target.getAttribute("data-rv"); if(i == null) return; chk[+i] = e.target.checked; draw(); });
+      rv.addEventListener("click", function(e){
+        var b = e.target.closest ? e.target.closest("button[data-k]") : null; if(!b) return;
+        var k = b.getAttribute("data-k");
+        if(k === "rvall" || k === "rvnone"){ chk = chk.map(function(){ return k === "rvall"; }); draw(); return; }
+        if(k === "rvno"){ rv.remove(); resolve(null); return; }
+        if(k === "rvgo"){
+          var sel = go.filter(function(x, i){ return chk[i]; });
+          if(!sel.length) return;
+          if(!confirm("確定由小幫手傳送 " + sel.length + " 位？\n" + sel.slice(0, 20).map(function(x){ return (x.names || [x.name]).join("、") + " → LINE「" + (x.to || "") + "」"; }).join("\n") + (sel.length > 20 ? "\n…" : ""))) return;
+          rv.remove(); resolve(sel); return;
+        }
+        if(k === "rvone"){
+          var nm = b.getAttribute("data-n");
+          rv.style.display = "none"; bg.style.display = "none";
+          Promise.resolve().then(function(){ return o.single(nm, stage); }).catch(function(err){ alert(err && err.message || err); })
+            .then(function(){ rv.style.display = ""; bg.style.display = ""; });
+        }
+      });
+      document.body.appendChild(rv);
+      draw();
+    });
+  }
   function chunks(arr, n){ var out = []; for(var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
   function all(){
     if(busy || !people.length) return;
@@ -10219,11 +10280,14 @@ window.KutingCombo = function(o){
       var why = {};
       skip.forEach(function(x){ var k = SKIP[x.skip] || x.error || "其他"; (why[k] = why[k] || []).push(x.name); });
       var left = q && q.limit != null ? q.limit - q.used : null;
-      var txt = "✅ 會傳 " + go.length + " 位（同一個 LINE 合成一張）\n" + Object.keys(why).map(function(k){ return "⚠ 不會傳（" + k + "）" + why[k].length + " 位：" + why[k].slice(0, 15).join("、") + (why[k].length > 15 ? "…" : ""); }).join("\n") +
-        (left != null ? "\n\n本月 LINE 免費則數還剩 " + left + " 則" + (left < go.length ? "（不夠！只會傳前 " + left + " 位）" : "") : "");
-      if(!go.length){ alert(txt + "\n\n沒有要傳的。"); msg(""); return; }
-      if(!confirm(txt + "\n\n確定傳送 " + go.length + " 位？")) { msg("已取消，沒有傳送"); return; }
-      if(left != null && left < go.length) go = go.slice(0, Math.max(0, left));
+      var txt = "✅ 會傳 " + go.length + " 位（同一個 LINE 合成一張）\n" + Object.keys(why).map(function(k){ return "⚠ 不會傳（" + k + "）" + why[k].length + " 位：" + why[k].slice(0, 15).join("、") + (why[k].length > 15 ? "…" : ""); }).join("\n");
+      // v5.02／v189：先列確認名單（不會傳的也列，可單筆處理），勾選後按傳送才送
+      var skipOne = skip.filter(function(x){ return x.skip !== "sent" && x.skip !== "noreg" && x.skip !== "nopaid" && x.skip !== "nophoto"; });
+      if(!go.length && !skipOne.length){ alert(txt + "\n\n沒有要傳的。"); msg(""); return; }
+      return review(go, skipOne, left).then(function(sel){
+      if(!sel || !sel.length){ msg("已取消，沒有傳送"); return; }
+      go = sel;
+      if(left != null && left < go.length){ alert("本月 LINE 免費則數只剩 " + left + " 則，只會傳前 " + Math.max(0, left) + " 位。"); go = go.slice(0, Math.max(0, left)); }
       busy = true;
       var done = 0, fail = 0, t0 = Date.now();
       var c2 = Promise.resolve();
@@ -10235,6 +10299,7 @@ window.KutingCombo = function(o){
         });
       });
       return c2.then(function(){ busy = false; render(); msg("完成：已傳 " + done + " 位" + (fail ? "，失敗 " + fail + " 位（原因寫在名字旁）" : "") + "（" + Math.round((Date.now() - t0) / 1000) + " 秒）"); });
+      });
     }).catch(function(e){ stop(); busy = false; msg("⚠ " + esc(e.message)); });
   }
   bg.addEventListener("click", function(e){
@@ -13136,6 +13201,19 @@ window.KutingPeople = function(o){
           if(n && !seen[n]){ seen[n] = 1; out.push({ name: n, lineUserId: "" }); }
         });
         return out;
+      },
+      // v189（小朱 11-13）：確認名單裡沒有 LINE／同名多個 LINE 的，開這裡的報名成功圖（已收款會標已收款），可選 LINE 好友或傳圖片；關掉後回到名單
+      single: function(name, stage){
+        var nk = function(x){ return String(x || "").replace(/\s+/g, ""); };
+        var regs = (current().registrations || []).filter(function(r){ return !r.deleted && !(r.test && occ.status === "open") && nk(r.name) === nk(name) && (stage !== "paid" || r.paid); });
+        if(!regs.length){ alert("這場找不到「" + name + "」" + (stage === "paid" ? "已收款的" : "") + "報名（可能是法會報名的，請到法會報名後台處理）"); return; }
+        openRegNotice(regs);
+        return new Promise(function(resolve){
+          var seen = false, t = setInterval(function(){
+            var on = regNoticeOverlay.style.display === "flex";
+            if(on) seen = true; else if(seen){ clearInterval(t); resolve(); }
+          }, 400);
+        });
       } });
   });
   document.getElementById("regPhotoBtn").addEventListener("click", function(){
