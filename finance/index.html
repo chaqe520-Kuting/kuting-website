@@ -1034,9 +1034,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.3';
+const APP_VERSION = 'v1.20.4';
 const APP_DATE = '2026-11-13';
 const CHANGELOG = [
+  { version:'v1.20.4', date:'2026-11-13', items:[
+    '銀行截圖快速登記：AI 讀到的帳號後 5 碼開頭是 0 時（例如 02949）有時只給 4 碼（2949），對照表就找不到匯款人 → 不滿 5 碼自動補 0，和後 5 碼對照表一樣比對，帶出匯款人',
+    '銀行截圖快速登記的「備註」不再帶入截圖上的摘要／附註字眼（例如「轉帳008」），留空由登記者自己填；匯給廠商的收款銀行、戶名、帳號後 5 碼照舊寫在備註'
+  ]},
   { version:'v1.20.3', date:'2026-11-13', items:[
     'LINE 留言帶進「項目／摘要」時，只留下財務記帳項目／摘要清單裡有的詞（建議清單＋登記過的項目），其他字（姓名、稱呼、「好的謝謝」等聊天）都不帶；一句裡有好幾個項目用「、」接起來',
     '留言裡沒有清單裡的項目時，「項目／摘要」不填，檢查欄寫「LINE 留言沒有對到項目，請看留言」；「📥 LINE 轉來的銀行截圖」先顯示會帶入哪些詞'
@@ -3647,7 +3651,8 @@ async function learnOwnAccts(list){
   try{ await fbDb.collection('suggestions').doc('ownAccts').set({ list:[...ownAccts], updatedBy: currentUser ? currentUser.name || '' : '', updatedAt: new Date().toISOString() }); }
   catch(e){ console.error('ownAccts', e); }
 }
-const acct5 = v=> String(v||'').replace(/\D/g,'').slice(-5);
+// v1.20.4 不滿 5 碼補 0（AI 常把 02949 讀成 2949），和 acctOf 一樣
+const acct5 = v=>{ const d = String(v||'').replace(/\D/g,''); return !d ? '' : d.length < 5 ? d.padStart(5,'0') : d.slice(-5); };
 // 轉帳成功畫面：用記住的古亭院帳號決定收支與對方帳號（AI 判斷錯時以這個為準）
 function fixTransferDir(raw){
   const from = acct5(raw.fromAcct), to = acct5(raw.toAcct);
@@ -3684,7 +3689,7 @@ function addBankshotRows(found){
     // v1.20.1 匯給廠商：備註寫收款銀行、戶名、帳號後 5 碼，對帳時看得到匯去哪裡
     const payee = r.dir==='out' && (r.counterBank || r.counterAcct)
       ? `匯給 ${[r.counterBank, r.name, r.counterAcct ? '帳號後5碼 '+r.counterAcct : ''].filter(Boolean).join(' ')}` : '';
-    r.note = [r.summary, r.memo, payee].filter(Boolean).join(' ');
+    r.note = payee;   // v1.20.4 截圖上的摘要／附註字眼不帶進備註（小朱 11-13）
     bankshotRows.push(r);
     // 手續費另列一筆支出（同時間、餘額跟主交易那筆）
     const fee = Math.round(Number(raw.fee)||0);
@@ -3921,7 +3926,7 @@ function renderBankPending(){
     const ins = rows.filter(r=>r.dir!=='out');
     const t = p.lineTime ? new Date(p.lineTime) : null;
     const when = t && !isNaN(t) ? `${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}` : '';
-    const brief = rows.slice(0, 4).map(r=>`${escHtml(r.date||'')} ${r.dir==='out'?'支出':'收入'} ${moneyPlain(Number(r.amount)||0)}${r.counterAcct?`（後5碼 ${escHtml(r.counterAcct)}${nameForCounterAcct(r.counterAcct)?' '+escHtml(nameForCounterAcct(r.counterAcct)):''}）`:''}`).join('<br>') + (rows.length > 4 ? '<br>…' : '');
+    const brief = rows.slice(0, 4).map(r=>`${escHtml(r.date||'')} ${r.dir==='out'?'支出':'收入'} ${moneyPlain(Number(r.amount)||0)}${r.counterAcct?`（後5碼 ${escHtml(acct5(r.counterAcct))}${nameForCounterAcct(acct5(r.counterAcct))?' '+escHtml(nameForCounterAcct(acct5(r.counterAcct))):''}）`:''}`).join('<br>') + (rows.length > 4 ? '<br>…' : '');
     return `<div class="bp-item">
       ${p.image ? `<img src="${escHtml(p.image)}" alt="截圖" class="bp-img" data-big="${escHtml(p.id)}">` : ''}
       ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
