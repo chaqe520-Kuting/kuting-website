@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.05 ・ 2026-11-13（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.06 ・ 2026-11-13（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.06（2026-11-13）</b>：LINE 彙整通知依信徒關聯表的「姓名連動」合併：同一戶只列一位（🏠 代表人，旁邊寫同戶家人），卡片列出整戶在法會＋供品的報名；代表找不到 LINE 時用家人的 LINE；「產生圖片」也是整戶一張（要小幫手 v1.76）。<br>
       <b>v5.05（2026-11-13）</b>：「傳給哪個 LINE？」只列真正加了小幫手好友的人；只在有小幫手的群組發過言、沒加好友（或已封鎖）的不再出現（小朱：會誤判；要小幫手 v1.75）。<br>
       <b>v5.04（2026-11-13）</b>：LINE 彙整通知：找不到 LINE 的那一位，名單上直接有「🖼️ 產生圖片」按鈕（同名對到好幾個 LINE 的是「選收件人」），打開這位的收款確認預覽，可選 LINE 或產生圖片。<br>
       <b>v5.03（2026-11-13）</b>：LINE 彙整通知和供品贊助 v190 共用程式同步（名單可顯示同一筆報名的家人姓名；法會報名畫面不變）。<br>
@@ -4054,13 +4055,15 @@ async function openNoticeImageModal(card, headHtml){
     });
   });
 }
-async function fahuiLinePush(regId, kind){
+async function fahuiLinePush(regId, kind, extraRegs, nameOverride){
   const ev = events.find(e=>e.id===adminSelectedEvent);
   const r0 = (regsCache[adminSelectedEvent]||[]).find(x=>x.id===regId);
   if(!ev || !r0) return false;
   let regs = sameReporterRegs(r0, kind);
+  // v5.06：彙整通知「產生圖片」帶進同戶家人的報名，合成一張
+  (extraRegs||[]).forEach(x=>{ if(!regs.some(y=>y.id===x.id)) regs.push(x); });
   if(!regs.length){ await showResultModal('這位還沒有已收款的報名，沒有收款確認可以傳。'); return false; }
-  const reporter = String((r0.f||{}).reporter||'');
+  const reporter = String(nameOverride || (r0.f||{}).reporter||'');
   // v4.91（小朱）：預覽時可以勾選要合併的報名（也可加入其他報名人的），合成一張卡片傳給這一位
   // v4.95（小朱）：一定先選傳給哪個 LINE、按確認才送（不再自動傳給幫忙報名的 LINE）
   const picked = await pickRegsForCard(ev, r0, regs, kind, reporter);
@@ -4322,15 +4325,42 @@ window.KutingCombo = function(o){
         return h + "　" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() + '　<span style="color:' + (r.paid ? "#2e7d32" : "#b26a00") + ';">' + (r.paid ? (r.how ? esc(r.how) + "已收" : "已收款") : "待收款") + "</span>"; }).join("<br>") +
       (stage === "photo" ? "<br>📷 照片 " + (x.photoN || 0) + " 張" : "") + "</div>";
   }
+  // v5.06／v192（小朱 11-13）：依信徒關聯表的姓名連動（戶）合併，一戶一位（代表人）；小幫手 v1.76 起整戶的報名列在同一張卡片
+  var HH = null, hhNote = "";
+  function mergeHh(list){
+    if(!HH) return list;
+    var rep = {};
+    HH.forEach(function(h){ if((h.members || []).length > 1) h.members.forEach(function(m){ rep[m] = h.rep; }); });
+    var out = [], by = {};
+    list.forEach(function(p){
+      var all = [p.name].concat(p.alt || []);
+      var r = null; all.some(function(n){ if(rep[n]){ r = rep[n]; return true; } return false; });
+      var key = r || ("@" + p.name);
+      var x = by[key];
+      if(!x){ x = by[key] = { name: r || p.name, lineUserId: p.lineUserId || "", alt: [], hh: !!r }; out.push(x); }
+      if(!x.lineUserId && p.lineUserId) x.lineUserId = p.lineUserId;
+      all.forEach(function(n){ if(n !== x.name && x.alt.indexOf(n) < 0) x.alt.push(n); });
+    });
+    return out;
+  }
+  function loadHh(){
+    var url = o.botUrl(); if(!url) return;
+    o.idToken().then(function(idToken){
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "people", op: "households", from: o.from, idToken: idToken }) });
+    }).then(function(r){ return r.json(); }).then(function(out){
+      if(out && out.ok && Array.isArray(out.list)){ HH = out.list; hhNote = ""; } else hhNote = "（姓名連動讀不到，先依報名姓名列出）";
+      if(!busy) render();
+    }).catch(function(){ hhNote = "（姓名連動讀不到，先依報名姓名列出）"; if(!busy) render(); });
+  }
   function render(){
-    people = o.names();
+    people = mergeHh(o.names());
     var h = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0; color:#8b1a1a;">📨 LINE 彙整通知</h3><span style="display:flex; gap:8px; flex-wrap:wrap;">' + btn("🔗 信徒關聯表", "people") + btn("關閉", "close") + "</span></div>" +
-      '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">同一位在法會＋供品的報名合成一張卡片，由小幫手私訊。幫家人報的姓名也會合在同一張。</p>' +
+      '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">同一位在法會＋供品的報名合成一張卡片，由小幫手私訊。幫家人報的姓名、信徒關聯表姓名連動同一戶的家人也會合在同一張。' + (HH ? "" : hhNote || "（讀取姓名連動中…）") + "</p>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">' + STAGES.map(function(s){ return btn(s[1], "stage", ' data-s="' + s[0] + '"', s[0] === stage); }).join("") + "</div>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("📨 一鍵全部（" + people.length + " 位）", "all", "", true) + '<span class="kc-msg" style="color:#6b5c4d;"></span></div>' +
       '<div class="kc-list">' + people.map(function(p, i){
         var s = st[stage + ":" + p.name] || {};
-        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（同筆：' + esc(p.alt.join("、")) + "）</span>" : "") +
+        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + (p.hh ? "🏠 " : "") + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（' + (p.hh ? "同戶" : "同筆") + "：" + esc(p.alt.join("、")) + "）</span>" : "") +
           btn("預覽", "pv", ' data-i="' + i + '"') + btn(s.sent ? "再傳一次" : "傳送", "send", ' data-i="' + i + '"' + (s.ok || s.sent ? "" : " disabled"), !!s.ok && !s.sent) +
           (o.single && stage !== "photo" && (s.skip === "noline" || s.skip === "dup") ? btn(s.skip === "noline" ? "🖼️ 產生圖片" : "選收件人", "one", ' data-i="' + i + '"') : "") +
           '<span style="font-size:15px; color:' + (s.sent ? "#2e7d32" : s.error ? "#b3261e" : "#6b5c4d") + ';">' + (s.sent ? "✅ 已傳" : s.busy ? "處理中…" : s.error ? "⚠ " + esc(s.error) : s.ok ? "可以傳" : "") + "</span></div>" + (s.ok || s.sent ? rowsHtml(s) : "") + "</div>";
@@ -4438,7 +4468,7 @@ window.KutingCombo = function(o){
       busy = true;
       var done = 0, fail = 0, t0 = Date.now();
       var c2 = Promise.resolve();
-      chunks(go.map(function(x){ return { name: x.name, lineUserId: x.toId }; }), 15).forEach(function(c){
+      chunks(go.map(function(x){ var pp = people.filter(function(q){ return q.name === x.name; })[0]; return { name: x.name, lineUserId: x.toId, alt: (pp && pp.alt) || [] }; }), 15).forEach(function(c){
         c2 = c2.then(function(){
           msg("📨 傳送中… " + done + "／" + go.length + " 位，" + Math.round((Date.now() - t0) / 1000) + " 秒");
           return call(c, true, true).then(function(r){ r.forEach(function(x){ st[stage + ":" + x.name] = x; if(x.sent) done++; else fail++; }); })
@@ -4464,6 +4494,7 @@ window.KutingCombo = function(o){
     if(k === "all") all();
   });
   render();
+  loadHh();
 };
 /* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.61）。法會報名與供品贊助兩份必須相同 ----
    從現有法會、供品報名產生「哪個 LINE ↔ 哪些報名姓名」，列出每位的報名與已收／待收，志工可加／拿掉姓名。
@@ -6884,11 +6915,14 @@ function bindEvents(){
         return [...by.values()];
       },
       // v5.02（小朱 11-13）：確認名單裡沒有 LINE／同名多個 LINE 的，用這裡的單筆預覽（選收件人或產生圖片）
-      single: async (name, stage)=>{
+      single: async (name, stage, alt)=>{
         const nk = x=>String(x||'').replace(/\s+/g,'');
-        const r = (regsCache[ev.id]||[]).find(x=>!x.deleted && (ev.draft || !x.test) && nk((x.f||{}).reporter)===nk(name) && (stage!=='paid' || x.paid));
+        const want = [name].concat(alt||[]).map(nk);   // v5.06 同戶家人的報名一起
+        const ok = x=>!x.deleted && (ev.draft || !x.test) && (stage!=='paid' || x.paid);
+        const r = (regsCache[ev.id]||[]).find(x=>ok(x) && nk((x.f||{}).reporter)===nk(name)) || (regsCache[ev.id]||[]).find(x=>ok(x) && want.includes(nk((x.f||{}).reporter)));
         if(!r){ alert(`這場找不到「${name}」${stage==='paid'?'已收款的':''}報名（可能是供品贊助的報名，請到供品贊助後台處理）`); return; }
-        await fahuiLinePush(r.id, stage==='paid' ? 'paid' : '');
+        const extra = (regsCache[ev.id]||[]).filter(x=>ok(x) && x.id!==r.id && want.includes(nk((x.f||{}).reporter)));
+        await fahuiLinePush(r.id, stage==='paid' ? 'paid' : '', extra, name);
       } });
   };
   const exportBtn = document.getElementById('exportBtn');
