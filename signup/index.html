@@ -1071,8 +1071,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.02 ・ 2026-11-13（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.03 ・ 2026-11-13（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.03（2026-11-13）</b>：LINE 彙整通知和供品贊助 v190 共用程式同步（名單可顯示同一筆報名的家人姓名；法會報名畫面不變）。<br>
       <b>v5.02（2026-11-13）</b>：收款確認集中由管理者傳（小朱）：出納、會計在財務記帳配對報名就會標已收款；「📨 LINE 彙整通知 → 💰 收款確認 → 一鍵全部」先列確認名單（每位信徒 → 傳給哪個 LINE、哪幾筆、紅包袋或匯款），可以取消勾選，按「傳送」才送出；沒有 LINE 或同名對到好幾個 LINE 的可按「單筆處理」選收件人或產生圖片。收款確認卡片／圖標「已收款（紅包袋）」或「（匯款）」；單筆傳過收款確認的不會再重傳（要小幫手 v1.73）。<br>
       <b>v5.01（2026-11-06）</b>：電腦版報名成功圖改以「💾 存成圖片檔」為主（小朱實測：這台 LINE 電腦版貼上、拖曳都不行，用 LINE「傳送檔案／圖片」選檔案可以），視窗寫明三個步驟。<br>
       <b>v5.00（2026-11-06）</b>：LINE 電腦版貼不上複製的報名成功圖 → 電腦版加「直接把圖拖進 LINE 聊天視窗」（以圖片檔送進 LINE，不經剪貼簿），另有「💾 存成圖片檔」備用。<br>
@@ -4325,7 +4326,7 @@ window.KutingCombo = function(o){
       '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("📨 一鍵全部（" + people.length + " 位）", "all", "", true) + '<span class="kc-msg" style="color:#6b5c4d;"></span></div>' +
       '<div class="kc-list">' + people.map(function(p, i){
         var s = st[stage + ":" + p.name] || {};
-        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" +
+        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（同筆：' + esc(p.alt.join("、")) + "）</span>" : "") +
           btn("預覽", "pv", ' data-i="' + i + '"') + btn(s.sent ? "再傳一次" : "傳送", "send", ' data-i="' + i + '"' + (s.ok || s.sent ? "" : " disabled"), !!s.ok && !s.sent) +
           '<span style="font-size:15px; color:' + (s.sent ? "#2e7d32" : s.error ? "#b3261e" : "#6b5c4d") + ';">' + (s.sent ? "✅ 已傳" : s.busy ? "處理中…" : s.error ? "⚠ " + esc(s.error) : s.ok ? "可以傳" : "") + "</span></div>" + (s.ok || s.sent ? rowsHtml(s) : "") + "</div>";
       }).join("") + (people.length ? "" : '<p style="color:#6b5c4d;">這場還沒有報名。</p>') + "</div>";
