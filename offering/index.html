@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v193";
+  var APP_VERSION = "v194";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v194", date: "2026-11-13", changes: [
+      "登記清單比照法會報名：已收款的每筆下面多「💰 收款通知」鈕，打開這位的報名成功圖（同姓名的已收款合成一張），可小幫手私訊收款確認或傳圖片；傳過的變成綠色「✓ 已傳收款」（滑鼠移上去看是 LINE 小幫手還是圖片、什麼時候傳的），可以再傳一次（小朱）",
+      "LINE 彙整通知傳出的收款確認也會記成已傳（要小幫手 v1.77）"
+    ] },
     { version: "v193", date: "2026-11-13", changes: [
       "報名成功圖／收款確認圖：好幾位合成一張時，依信徒姓名分段，每位寫【姓名】和小計，底下列他贊助的供品，看得出誰贊助哪一項（小朱）；小幫手私訊的卡片也一樣分段"
     ] },
@@ -9601,7 +9605,10 @@ window.KutingFinMatch = function(opts){
         '<td class="rt-item">' + escHtml(reg.label + (reg.dedicateTo ? "　－　" + reg.dedicateTo : "")) + '<div class="type-tag">' + typeLabel + '</div>' + (buyunParts(reg).length ? '<div class="type-tag">補運　' + escHtml(buyunParts(reg).join("　")) + '</div>' : '') + '</td>' +
         '<td class="num rt-qty" data-label="數量">' + qtyDisplay + '</td>' +
         '<td class="num rt-amt">' + fmt(reg.amount) + '</td>' +
-        '<td class="rt-pay"><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button></td>' +
+        '<td class="rt-pay"><button class="paid-pill ' + (reg.paid ? "paid" : "unpaid") + '" data-act="paid" data-id="' + reg.id + '">' + (reg.paid ? "已收款" : "待收款") + '</button>' +
+          // v194（小朱 11-13）：比照法會報名，已收款的每筆有「收款通知」鈕，看得出傳過沒
+          (reg.paid ? '<div style="margin-top:4px;"><button type="button" class="ghost-btn" style="padding:2px 8px; font-size:.82rem; min-height:0;' + (reg.paidNoticeAt ? ' color:#2e7d32; border-color:#2e7d32;' : '') + '" data-act="paidnotice" data-id="' + reg.id + '" title="' + (reg.paidNoticeAt ? escAttr("已傳（" + (reg.paidNoticeHow === "img" ? "圖片" : "LINE 小幫手") + "）" + formatRegTime(new Date(reg.paidNoticeAt).toISOString()) + "，可再傳一次") : "傳收款確認給信徒（LINE 小幫手或圖片）") + '">' + (reg.paidNoticeAt ? "✓ 已傳收款" : "💰 收款通知") + '</button></div>' : '') +
+          '</td>' +
         (function(ph){ return '<td class="rt-photo' + (ph.indexOf("data-act") < 0 ? ' rt-empty' : '') + '">' + ph + '</td>'; })(regPhotoCell(reg)) +
         (occ.confirmFieldName ? '<td class="rt-conf" data-label="' + escAttr(occ.confirmFieldName) + '"><button class="paid-pill ' + (reg.confirmed ? "paid" : "unpaid") + '" data-act="confirm" data-id="' + reg.id + '">' + (reg.confirmed ? "已完成" : "未完成") + '</button></td>' : '') +
         '<td class="rt-time">' + formatRegTime(reg.time) + '</td>' +
@@ -9621,6 +9628,10 @@ window.KutingFinMatch = function(opts){
 
     if(act === "preview"){
       openRegPreview(id);
+    } else if(act === "paidnotice"){
+      // v194：同一位（同姓名）已收款的報名合成一張，打開報名成功圖（可小幫手私訊收款確認或傳圖片）
+      var nk = function(x){ return String(x || "").replace(/\s+/g, ""); };
+      openRegNotice(current().registrations.filter(function(r){ return !r.deleted && r.paid && nk(r.name) === nk(reg.name); }));
     } else if(act === "photos"){
       openRegPhoto([reg]);
     } else if(act === "paid"){
@@ -10144,6 +10155,8 @@ window.KutingFinMatch = function(opts){
     var card = regNoticeCards[+btn.getAttribute("data-i")];
     if(!card) return;
     var act = btn.getAttribute("data-act");
+    // v194：全部已收款的圖（收款確認）傳到 LINE／複製／下載，就記為已傳收款（圖片）
+    if((act === "download" || act === "share" || act === "copy") && regNoticePayState(card.group).paid) markPaidNotice(card.group.regs, "img");
     if(act === "download"){ regNoticeDownload(card, "已下載圖片"); return; }
     if(act === "push"){ regNoticePush(card, btn); return; }
     if(act === "paidpush"){ regNoticePaidPush(card, btn); return; }
@@ -10717,6 +10730,17 @@ window.KutingPeople = function(o){
     });
   }
 
+  // v194：記下收款通知已傳（how：line 小幫手私訊、img 圖片），登記清單顯示「✓ 已傳收款」
+  function markPaidNotice(regs, how){
+    var occ = current(), at = Date.now(), n = 0;
+    (regs || []).forEach(function(r0){
+      var r = occ.registrations.filter(function(x){ return x.id === r0.id; })[0];
+      if(!r || !r.paid) return;
+      r.paidNoticeAt = at; r.paidNoticeHow = how;
+      fsPushRegistration(occ.id, r); n++;
+    });
+    if(n) renderAll();
+  }
   function regNoticePaidPush(card, btn){
     if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
     if(!confirm("由小幫手把「" + card.name + "」的收款確認（已收到您的護持）私訊給 LINE「" + (card.lineName || "這位好友") + "」？\n（會用到每月的免費訊息則數）")) return;
@@ -10725,7 +10749,7 @@ window.KutingPeople = function(o){
     btn.disabled = true; btn.textContent = "傳送中…";
     var c = Object.assign({}, card, { group: { name: card.group.name, regs: card.group.regs.map(function(r){ return Object.assign({}, r, { time: nowTimeStr() }); }) } });
     linebotSend(c, "paid", url).then(function(out){
-      if(out.ok){ card.paidPushed = true; renderRegNotice(); linebotQuota(); showToast("已傳收款確認給 LINE「" + (out.to || card.lineName || "") + "」"); }
+      if(out.ok){ card.paidPushed = true; markPaidNotice(card.group.regs, "line"); renderRegNotice(); linebotQuota(); showToast("已傳收款確認給 LINE「" + (out.to || card.lineName || "") + "」"); }
       else { btn.disabled = false; btn.textContent = "💰 再試一次"; alert(out.error || "傳送失敗"); }
     }).catch(function(err){ btn.disabled = false; btn.textContent = "💰 再試一次"; linebotUnreachable(err); });
   }
@@ -10808,7 +10832,7 @@ window.KutingPeople = function(o){
       if(!askOk) return;
       var ok = 0, fail = [];
       cards.reduce(function(p, c){
-        return p.then(function(){ return linebotSend(c, "paid", url).then(function(out){ if(out.ok) ok++; else fail.push(c.name + "：" + (out.error || "傳送失敗")); }); });
+        return p.then(function(){ return linebotSend(c, "paid", url).then(function(out){ if(out.ok){ ok++; markPaidNotice(c.group && c.group.regs, "line"); } else fail.push(c.name + "：" + (out.error || "傳送失敗")); }); });
       }, Promise.resolve()).then(function(){
         showToast("已用小幫手私訊收款確認 " + ok + " 位");
         if(fail.length) alert("以下沒有傳成功：\n" + fail.join("\n"));
