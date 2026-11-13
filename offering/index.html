@@ -2349,7 +2349,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v191";
+  var APP_VERSION = "v192";
   var APP_UPDATED = "2026-11-06";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2360,6 +2360,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v192", date: "2026-11-13", changes: [
+      "LINE 彙整通知依信徒關聯表的「姓名連動」合併：同一戶只列一位（🏠 代表人，旁邊寫同戶家人），卡片列出整戶在法會＋供品的報名；代表找不到 LINE 時用家人的 LINE；「產生圖片」也是整戶一張（要小幫手 v1.76）"
+    ] },
     { version: "v191", date: "2026-11-13", changes: [
       "LINE 彙整通知：找不到 LINE 的那一位，名單上直接有「🖼️ 產生圖片」按鈕（同名對到好幾個 LINE 的是「選收件人」），會打開這一戶（含同筆家人）的報名成功圖，已收款的標已收款，可複製／下載用 LINE 傳"
     ] },
@@ -10183,15 +10186,42 @@ window.KutingCombo = function(o){
         return h + "　" + esc(r.occ) + "・" + (r.isNew ? "🆕 " : "") + esc(r.label) + "　" + Number(r.amount).toLocaleString() + '　<span style="color:' + (r.paid ? "#2e7d32" : "#b26a00") + ';">' + (r.paid ? (r.how ? esc(r.how) + "已收" : "已收款") : "待收款") + "</span>"; }).join("<br>") +
       (stage === "photo" ? "<br>📷 照片 " + (x.photoN || 0) + " 張" : "") + "</div>";
   }
+  // v5.06／v192（小朱 11-13）：依信徒關聯表的姓名連動（戶）合併，一戶一位（代表人）；小幫手 v1.76 起整戶的報名列在同一張卡片
+  var HH = null, hhNote = "";
+  function mergeHh(list){
+    if(!HH) return list;
+    var rep = {};
+    HH.forEach(function(h){ if((h.members || []).length > 1) h.members.forEach(function(m){ rep[m] = h.rep; }); });
+    var out = [], by = {};
+    list.forEach(function(p){
+      var all = [p.name].concat(p.alt || []);
+      var r = null; all.some(function(n){ if(rep[n]){ r = rep[n]; return true; } return false; });
+      var key = r || ("@" + p.name);
+      var x = by[key];
+      if(!x){ x = by[key] = { name: r || p.name, lineUserId: p.lineUserId || "", alt: [], hh: !!r }; out.push(x); }
+      if(!x.lineUserId && p.lineUserId) x.lineUserId = p.lineUserId;
+      all.forEach(function(n){ if(n !== x.name && x.alt.indexOf(n) < 0) x.alt.push(n); });
+    });
+    return out;
+  }
+  function loadHh(){
+    var url = o.botUrl(); if(!url) return;
+    o.idToken().then(function(idToken){
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "people", op: "households", from: o.from, idToken: idToken }) });
+    }).then(function(r){ return r.json(); }).then(function(out){
+      if(out && out.ok && Array.isArray(out.list)){ HH = out.list; hhNote = ""; } else hhNote = "（姓名連動讀不到，先依報名姓名列出）";
+      if(!busy) render();
+    }).catch(function(){ hhNote = "（姓名連動讀不到，先依報名姓名列出）"; if(!busy) render(); });
+  }
   function render(){
-    people = o.names();
+    people = mergeHh(o.names());
     var h = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0; color:#8b1a1a;">📨 LINE 彙整通知</h3><span style="display:flex; gap:8px; flex-wrap:wrap;">' + btn("🔗 信徒關聯表", "people") + btn("關閉", "close") + "</span></div>" +
-      '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">同一位在法會＋供品的報名合成一張卡片，由小幫手私訊。幫家人報的姓名也會合在同一張。</p>' +
+      '<p style="margin:6px 0; color:#6b5c4d; font-size:15px;">同一位在法會＋供品的報名合成一張卡片，由小幫手私訊。幫家人報的姓名、信徒關聯表姓名連動同一戶的家人也會合在同一張。' + (HH ? "" : hhNote || "（讀取姓名連動中…）") + "</p>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">' + STAGES.map(function(s){ return btn(s[1], "stage", ' data-s="' + s[0] + '"', s[0] === stage); }).join("") + "</div>" +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;">' + btn("📨 一鍵全部（" + people.length + " 位）", "all", "", true) + '<span class="kc-msg" style="color:#6b5c4d;"></span></div>' +
       '<div class="kc-list">' + people.map(function(p, i){
         var s = st[stage + ":" + p.name] || {};
-        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（同筆：' + esc(p.alt.join("、")) + "）</span>" : "") +
+        return '<div style="border-top:1px solid #eadfc8; padding:8px 0;"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;"><b style="min-width:6em;">' + (p.hh ? "🏠 " : "") + esc(p.name) + "</b>" + (p.alt && p.alt.length ? '<span style="font-size:14px; color:#6b5c4d;">（' + (p.hh ? "同戶" : "同筆") + "：" + esc(p.alt.join("、")) + "）</span>" : "") +
           btn("預覽", "pv", ' data-i="' + i + '"') + btn(s.sent ? "再傳一次" : "傳送", "send", ' data-i="' + i + '"' + (s.ok || s.sent ? "" : " disabled"), !!s.ok && !s.sent) +
           (o.single && stage !== "photo" && (s.skip === "noline" || s.skip === "dup") ? btn(s.skip === "noline" ? "🖼️ 產生圖片" : "選收件人", "one", ' data-i="' + i + '"') : "") +
           '<span style="font-size:15px; color:' + (s.sent ? "#2e7d32" : s.error ? "#b3261e" : "#6b5c4d") + ';">' + (s.sent ? "✅ 已傳" : s.busy ? "處理中…" : s.error ? "⚠ " + esc(s.error) : s.ok ? "可以傳" : "") + "</span></div>" + (s.ok || s.sent ? rowsHtml(s) : "") + "</div>";
@@ -10299,7 +10329,7 @@ window.KutingCombo = function(o){
       busy = true;
       var done = 0, fail = 0, t0 = Date.now();
       var c2 = Promise.resolve();
-      chunks(go.map(function(x){ return { name: x.name, lineUserId: x.toId }; }), 15).forEach(function(c){
+      chunks(go.map(function(x){ var pp = people.filter(function(q){ return q.name === x.name; })[0]; return { name: x.name, lineUserId: x.toId, alt: (pp && pp.alt) || [] }; }), 15).forEach(function(c){
         c2 = c2.then(function(){
           msg("📨 傳送中… " + done + "／" + go.length + " 位，" + Math.round((Date.now() - t0) / 1000) + " 秒");
           return call(c, true, true).then(function(r){ r.forEach(function(x){ st[stage + ":" + x.name] = x; if(x.sent) done++; else fail++; }); })
@@ -10325,6 +10355,7 @@ window.KutingCombo = function(o){
     if(k === "all") all();
   });
   render();
+  loadHh();
 };
 /* ---- 信徒關聯表（小朱 11-06；需小幫手 v1.61）。法會報名與供品贊助兩份必須相同 ----
    從現有法會、供品報名產生「哪個 LINE ↔ 哪些報名姓名」，列出每位的報名與已收／待收，志工可加／拿掉姓名。
