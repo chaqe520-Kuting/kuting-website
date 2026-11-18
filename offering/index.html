@@ -1056,7 +1056,7 @@
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">黃姐,12,500</code><br>
         <strong>各師尊大壽金</strong>要寫敬致的仙佛／師尊時，用 4 欄「姓名,項次,仙佛名稱,數量」，例如：
         <code style="background:var(--paper-sunken); padding:2px 6px; border-radius:4px;">王小明,17,觀世音菩薩,1</code><br>
-        項次可填數字（比對「項次」欄）或品項名稱都可以。只要整段貼上的內容「每一行都有逗號分隔成2～4欄」，系統就會優先用這個方式解析，最準確、最不會有辨識落差。若沒有逗號，系統仍會嘗試辨識「供品項次：」「贊助數量：」「贊助者姓名：」標籤格式，或「陳小姐 壽桃 2」這種舊格式，但正確率不如逗號格式。解析結果請務必核對後再匯入。</p>
+        項次可填數字（比對「項次」欄）或品項名稱都可以。只要整段貼上的內容「每一行都有逗號分隔成2～4欄」，系統就會優先用這個方式解析，最準確、最不會有辨識落差。群組接龍原文（「1.壽桃-108顆：」下面「（1）黃昭菁38顆」「（2）郭虹汶*1」）也可以整段直接貼，最上面的說明文字會自動略過。若沒有逗號，系統仍會嘗試辨識「供品項次：」「贊助數量：」「贊助者姓名：」標籤格式，或「陳小姐 壽桃 2」這種舊格式，但正確率不如逗號格式。解析結果請務必核對後再匯入。</p>
         <div id="histBox" style="margin:10px 0 12px; padding:10px 12px; border:1px dashed var(--gold, #b8860b); border-radius:8px; background:var(--paper-sunken);">
           <div style="font-weight:700; margin-bottom:6px;">📜 打姓名帶出去年的報名</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -2374,7 +2374,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v196";
+  var APP_VERSION = "v197";
   var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2385,6 +2385,12 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v197", date: "2026-11-18", changes: [
+      "「LINE 訊息貼上快速登記」看得懂群組接龍原文：「1.壽桃-108顆：」下面一行一行「（1）黃昭菁38顆」「（2）郭虹汶*1；」",
+      "最上面的日期、主講、地點等說明文字自動略過；每筆依上面最近的品項歸類，品項標頭本身不會算成一筆",
+      "多人合寫（葉懿青，葉宸希／黃琼裕.鄧景釧）合成一格用「、」分開；「2仟元」算 2000；「水果和鮮花」看每筆自己寫的是水果還是鮮花",
+      "群組寫的品名和平台不完全一樣也對得到（壽麵→長壽麵線、水果→五果），對不到的留「需確認」自己選"
+    ] },
     { version: "v196", date: "2026-11-18", changes: [
       "「供品品項管理」表格電腦上一次看到全部欄位（到「補運欄」「操作」），不用再左右拉卷軸；手機改成一個品項一張卡片"
     ] },
@@ -8328,6 +8334,118 @@ window.KutingFinMatch = function(opts){
     });
   }
 
+  /* ---- v197 群組接龍格式：品項標頭「1.壽桃-108顆：」＋「（1）黃昭菁38顆」「（2）郭虹汶*1；」 ----
+     小朱 11-18：昇龍義工圓修班群組直接把接龍原文貼進來，舊解析把標題行當姓名、
+     「（1）黃昭菁38串」比到壽桃、標頭本身算一筆。這種格式改成：第一個品項標頭之前的
+     說明文字（日期、主講、地點）全部略過；每筆依「上面最近的品項標頭」歸類；
+     標頭寫兩種（水果和鮮花）時看那一筆自己寫的是哪一種；多人合寫（葉懿青，葉宸希／
+     黃琼裕.鄧景釧）用「、」連成一格；「2仟元」＝2000。品項名稱和平台不完全一樣時
+     （壽麵→長壽麵線、水果→五果）用相近字比對，比不到就留「需確認」讓志工選，不亂猜。 */
+  var GL_HEAD_RE = /^\s*(\d{1,2})\s*[.、．]\s*(\S.*)$/;
+  var GL_ENTRY_RE = /^\s*[（(]\s*\d{1,3}\s*[)）]\s*(.*)$/;
+  var GL_UNIT = "元|顆|串|籠|捆|付|份|個|包|斤|盒|箱|對|朵|束|粒|碗|籃|瓶|支|枝|張|條|斗|桶|台|尊|盞|組|套|件|把|塊";
+
+  function looksLikeGroupList(rawLines){
+    var heads = 0, entries = 0, seenHead = false;
+    rawLines.forEach(function(l){
+      if(GL_ENTRY_RE.test(l)){ if(seenHead) entries++; }
+      else if(GL_HEAD_RE.test(l)){ heads++; seenHead = true; }
+    });
+    return heads >= 1 && entries >= 2;
+  }
+
+  function glLcs(a, b){
+    a = Array.from(a); b = Array.from(b);
+    var best = 0, prev = new Array(b.length + 1).fill(0);
+    for(var i = 1; i <= a.length; i++){
+      var row = new Array(b.length + 1).fill(0);
+      for(var j = 1; j <= b.length; j++){
+        if(a[i - 1] === b[j - 1]){ row[j] = prev[j - 1] + 1; if(row[j] > best) best = row[j]; }
+      }
+      prev = row;
+    }
+    return best;
+  }
+
+  // 依名稱找品項（不看項次數字：群組的 1、2、3 是群組自己的編號，不一定等於平台項次）
+  function glMatchItem(word, occ){
+    word = String(word || "").replace(/\s+/g, "");
+    if(!word) return null;
+    var items = occ.items.filter(function(it){ return it.name; });
+    var exact = items.filter(function(it){ return it.name === word; })[0];
+    if(exact) return findCatalog(exact.id, occ);
+    var scored = items.map(function(it){
+      var n = it.name, s = 0;
+      if(n.indexOf(word) >= 0 || word.indexOf(n) >= 0) s = 100 + Math.min(n.length, word.length) * 10 - Math.abs(n.length - word.length);
+      else {
+        var l = glLcs(word, n);
+        if(l >= 2) s = 50 + l * 10 - Math.abs(n.length - word.length);
+        else if(Array.from(word).slice(-1)[0] && n.indexOf(Array.from(word).slice(-1)[0]) >= 0) s = 10 - n.length * 0.5; // 水果→五果、鮮花→供花：最後一個字（名詞）相同
+      }
+      return { it: it, s: s };
+    }).filter(function(x){ return x.s > 0; }).sort(function(a, b){ return b.s - a.s; });
+    if(!scored.length) return null;
+    if(scored.length > 1 && scored[0].s === scored[1].s) return null; // 一樣像就不猜
+    return findCatalog(scored[0].it.id, occ);
+  }
+
+  function glHeadWords(text){
+    var name = String(text).split(/[-－—–~～:：︰=＝(（\d]/)[0].replace(/\s+/g, "");
+    return name.split(/和|與|及|、|，|,|\/|／|＆|&|\+|＋/).map(function(s){ return s.trim(); }).filter(Boolean);
+  }
+
+  function glNames(s){
+    return String(s || "").replace(/[，,．.／\/;；\s]+/g, "、").replace(/、{2,}/g, "、").replace(/^、+|、+$/g, "");
+  }
+
+  function parseGroupList(rawLines, occ){
+    var rows = [], head = null;
+    rawLines.forEach(function(line){
+      var me = line.match(GL_ENTRY_RE);
+      if(!me){
+        var mh = line.match(GL_HEAD_RE);
+        if(mh){
+          var words = glHeadWords(mh[2]);
+          head = { words: words, matched: words.length === 1 ? glMatchItem(words[0], occ) : null };
+        }
+        return; // 標題、說明文字、空白行都略過
+      }
+      if(!head) return;
+      var t = me[1].replace(/[；;。.，,、\s]+$/, "").trim();
+      if(!t) return;
+      var namePart, qtyPart;
+      var colon = t.match(/^(.*?)[:：︰](.*)$/);
+      if(colon){
+        if(/\d|[*＊xX×]/.test(colon[1])){ qtyPart = colon[1]; namePart = colon[2]; }
+        else { namePart = colon[1]; qtyPart = colon[2]; }
+      } else { namePart = t; qtyPart = ""; }
+      // 數量：「*1」「x2」或結尾的「38顆」「2仟元」
+      var qty = null, src = qtyPart || namePart;
+      var qm = src.match(/[*＊xX×]\s*(\d+(?:\.\d+)?)\s*(仟|千|萬|万|百)?\s*(?:元|顆|串|籠|捆|付|份|個|包|斤|盒|箱|對|朵|束|粒|碗|籃|瓶|支|枝|張|條|斗|桶|台|尊|盞|組|套|件|把|塊)?/) ||
+               src.match(new RegExp("(\\d+(?:\\.\\d+)?)\\s*(仟|千|萬|万|百)?\\s*(?:" + GL_UNIT + ")?\\s*$"));
+      if(qm){
+        qty = parseFloat(qm[1]) * ({ "仟": 1000, "千": 1000, "萬": 10000, "万": 10000, "百": 100 }[qm[2]] || 1);
+        if(qtyPart) qtyPart = qtyPart.replace(qm[0], " ");
+        else namePart = namePart.replace(qm[0], " ");
+      }
+      if(qty === null) qty = 1;
+      // 這一筆自己寫了品項（標頭有兩種時，例：李佳柔鮮花*1、水果*1：黃琼裕.鄧景釧）
+      var matched = head.matched, rest = (qtyPart || "") + " " + namePart;
+      head.words.forEach(function(w){
+        if(rest.indexOf(w) >= 0){
+          if(head.words.length > 1) matched = glMatchItem(w, occ);
+          namePart = namePart.split(w).join(" ");
+        }
+      });
+      var name = glNames(namePart) || "(未填姓名)";
+      rows.push({
+        raw: line, name: name, matched: matched, qty: qty, dedicateTo: "",
+        amount: matched ? (matched.type === "donation" ? qty : qty * matched.price) : 0
+      });
+    });
+    return rows;
+  }
+
   // Applies the same 贊助基準數量（總量）額滿檢查 used everywhere else to a whole
   // batch of freshly-parsed LINE rows at once. Several rows in one paste can
   // target the SAME item, so this walks them in order and tracks how much of
@@ -8363,6 +8481,15 @@ window.KutingFinMatch = function(opts){
     var occ = current();
     var rawLines = bulkText.value.split("\n").map(function(l){ return normalizeLine(l.trim()); }).filter(Boolean);
     if(!rawLines.length){ showToast("請先貼上 LINE 訊息內容"); return; }
+
+    // v197 — 群組接龍格式（品項標頭＋（1）姓名數量）
+    if(looksLikeGroupList(rawLines)){
+      previewRows = parseGroupList(rawLines, occ);
+      annotateRowsWithCapacity(previewRows);
+      renderPreview();
+      if(!previewRows.length) showToast("沒有找到報名資料，請確認格式");
+      return;
+    }
 
     // v126 — 每一行都只有姓名：帶出這些人去年的報名
     if(histAllNameLines(rawLines)){
