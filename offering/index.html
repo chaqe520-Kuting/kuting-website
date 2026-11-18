@@ -2374,7 +2374,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v197";
+  var APP_VERSION = "v198";
   var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2385,6 +2385,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v198", date: "2026-11-18", changes: [
+      "確認加入登記清單後跳出的「報名成功圖」、登記清單勾選後按「📷 報名成功圖」：依信徒關聯表的姓名連動，同一戶合成一張（卡片名稱用代表人，裡面依姓名分段）",
+      "多人合寫一格（例：葉懿青、葉宸希（柏言））和其中一位自己的報名（葉懿青）也合成一張",
+      "姓名連動讀不到時會提示，先依姓名合併"
+    ] },
     { version: "v197", date: "2026-11-18", changes: [
       "「LINE 訊息貼上快速登記」看得懂群組接龍原文：「1.壽桃-108顆：」下面一行一行「（1）黃昭菁38顆」「（2）郭虹汶*1；」",
       "最上面的日期、主講、地點等說明文字自動略過；每筆依上面最近的品項歸類，品項標頭本身不會算成一筆",
@@ -10241,10 +10246,56 @@ window.KutingFinMatch = function(opts){
     });
   }
 
+  // v198（小朱 11-18）：報名成功圖依信徒關聯表合併——同一戶（姓名連動）、多人合寫一格裡有同一位
+  // （「葉懿青、葉宸希（柏言）」和「葉懿青」）的報名合成一張，卡片名稱用該戶代表人
+  function regNoticeGroupsHh(regs, hh){
+    regs = regs.filter(Boolean);
+    var key = function(n){ return String(n || "").replace(/[（(][^）)]*[)）]/g, "").replace(/\s+/g, ""); };
+    var hhOf = {}, repOf = {};
+    (hh || []).forEach(function(h, i){
+      if(!h || (h.members || []).length < 2) return;
+      h.members.forEach(function(m){ var k = key(m); if(k && hhOf[k] === undefined){ hhOf[k] = i; } });
+      repOf[i] = h.rep || h.members[0];
+    });
+    var parent = regs.map(function(_, i){ return i; });
+    var find = function(i){ while(parent[i] !== i){ parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    var join = function(a, b){ a = find(a); b = find(b); if(a !== b) parent[Math.max(a, b)] = Math.min(a, b); };
+    var seen = {};
+    regs.forEach(function(r, i){
+      var parts = regNameParts(r.name).map(key).filter(Boolean);
+      if(!parts.length) parts = ["（未填姓名）"];
+      parts.forEach(function(k){
+        var tag = hhOf[k] !== undefined ? "h" + hhOf[k] : "n" + k;
+        if(seen[tag] !== undefined) join(seen[tag], i); else seen[tag] = i;
+      });
+    });
+    var groups = [], byRoot = {};
+    regs.forEach(function(r, i){
+      var root = find(i);
+      if(!byRoot[root]){ byRoot[root] = { name: "", regs: [], rep: "" }; groups.push(byRoot[root]); }
+      var g = byRoot[root];
+      g.regs.push(r);
+      if(!g.rep) regNameParts(r.name).map(key).some(function(k){ if(hhOf[k] !== undefined){ g.rep = repOf[hhOf[k]]; return true; } });
+    });
+    groups.forEach(function(g){
+      var single = g.regs.map(function(r){ return String(r.name || "").trim(); }).filter(function(n){ return n && regNameParts(n).length === 1; })[0];
+      g.name = g.rep || single || String(g.regs[0].name || "").trim() || "（未填姓名）";
+      delete g.rep;
+    });
+    return groups;
+  }
+
   function openRegNotice(regs, oneName){
     var occ = current();
     // v191：彙整通知的「產生圖片」把同一戶（同筆家人）合成一張
-    var groups = oneName ? [{ name: oneName, regs: regs.filter(Boolean) }] : regNoticeGroups(regs);
+    if(oneName){ showRegNoticeGroups([{ name: oneName, regs: regs.filter(Boolean) }], occ); return; }
+    // v198：先讀信徒關聯表姓名連動（最多等 8 秒），讀不到就只合併同姓名／合寫一格裡的同一位
+    regHhLoad().then(function(hh){
+      if(!hh) showToast("姓名連動讀不到，先依姓名合併報名成功圖");
+      showRegNoticeGroups(regNoticeGroupsHh(regs, hh), occ);
+    });
+  }
+  function showRegNoticeGroups(groups, occ){
     if(!groups.length) return;
     var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
     ready.then(function(){
