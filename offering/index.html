@@ -446,6 +446,29 @@
   .manage-table td.col-name input{ min-width:110px; }
   .manage-table td.col-spec input{ min-width:140px; }
   .manage-table td.col-num input{ width:76px; text-align:right; }
+  /* v196 — 小朱：品項管理表格一次看到全部，不用左右捲。電腦版固定欄寬、輸入框填滿格子；手機改卡片 */
+  .manage-wrap{ overflow-x:visible; }
+  .manage-table{ table-layout:fixed; min-width:0; width:100%; }
+  .manage-table th, .manage-table td{ padding:7px 4px; white-space:normal; }
+  .manage-table th{ line-height:1.3; }
+  .manage-table th:first-child, .manage-table td:first-child{ padding-left:8px; }
+  .manage-table input[type=text], .manage-table input[type=number]{ width:100% !important; min-width:0 !important; box-sizing:border-box; padding:6px 5px; }
+  .manage-table td.col-num input{ text-align:right; }
+  .manage-table td.remaining-cell{ font-size:.78rem; }
+  .manage-table td.col-act{ white-space:normal; text-align:center; }
+  .manage-table td.col-act button{ margin:2px 1px !important; padding:5px 8px !important; }
+  @media (max-width:760px){
+    .manage-table colgroup, .manage-table thead{ display:none; }
+    .manage-table, .manage-table tbody{ display:block; }
+    .manage-table tbody tr{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px 8px; padding:12px; border-bottom:1px solid var(--border); }
+    .manage-table tbody tr > td{ display:block; border:0; padding:0 !important; text-align:left !important; }
+    .manage-table tbody tr > td::before{ content:attr(data-label); display:block; font-size:.72rem; color:var(--ink-soft); font-weight:700; margin-bottom:2px; }
+    .manage-table td.col-name, .manage-table td.col-spec{ grid-column:span 2; }
+    .manage-table td.col-act{ grid-column:1 / -1; text-align:right !important; }
+    .manage-table td.col-act::before{ display:none; }
+    .manage-table input[type=text], .manage-table input[type=number]{ font-size:16px; min-height:44px; }
+    .manage-table td.col-act button{ min-height:44px; }
+  }
   .danger-btn{ border:1px solid var(--border); background:var(--paper-sunken); color:var(--full-text); border-radius:8px; padding:5px 10px; font-size:.75rem; cursor:pointer; }
   .danger-btn:hover{ background:var(--full-bg); border-color:var(--full-text); }
   .danger-btn.confirm{ background:var(--cinnabar); color:#fdf1e6; border-color:var(--cinnabar); font-weight:700; }
@@ -889,8 +912,9 @@
       </div>
       <div class="panel">
         <p class="pdesc">「項次」可直接作為快速登記與 LINE 訊息貼上的辨識關鍵字（例如輸入「3」即比對到 3 號品項）；修改「單價」「總量」「已贊助基準」會立即反映到「剩餘名額總覽」與關鍵字比對，「已贊助基準」是開放報名前既有的預訂數量，之後志工登記會在此基礎上累加。「總量」填 0 或留空代表這項供品不限量，畫面會顯示「不限量」，不會出現已額滿，登記時也不會被擋。</p>
-        <div class="table-wrap">
+        <div class="table-wrap manage-wrap">
           <table class="manage-table">
+            <colgroup><col style="width:6%"><col style="width:14%"><col style="width:16%"><col style="width:6%"><col style="width:8.5%"><col style="width:9%"><col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%"><col style="width:12%"></colgroup>
             <thead><tr><th>項次</th><th>品項名稱</th><th>規格說明</th><th>單位</th><th>單價</th><th>總量</th><th>已贊助基準</th><th>剩餘</th><th title="勾選後信眾報名頁不顯示這個品項">不公開</th><th title="勾選後登記這個品項時多一格「補運」可填寫">補運欄</th><th>操作</th></tr></thead>
             <tbody id="itemManageBody"></tbody>
           </table>
@@ -2350,8 +2374,8 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v195";
-  var APP_UPDATED = "2026-11-06";
+  var APP_VERSION = "v196";
+  var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -2361,6 +2385,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v196", date: "2026-11-18", changes: [
+      "「供品品項管理」表格電腦上一次看到全部欄位（到「補運欄」「操作」），不用再左右拉卷軸；手機改成一個品項一張卡片"
+    ] },
     { version: "v195", date: "2026-11-13", changes: [
       "登記清單「💰 收款通知」自動合併同筆家人＋信徒關聯表姓名連動同一戶的已收款報名，合成一張（依姓名分段）",
       "勾選好幾筆後按「💰 合併收款通知」，勾的人（含同戶家人）合成一張收款通知",
@@ -7168,17 +7195,17 @@ window.KutingFinMatch = function(opts){
       var remainingText = unlimited ? "不限量" : (remaining < 0 ? "超額 " + (-remaining) : "剩 " + remaining);
       var tr = document.createElement("tr");
       tr.innerHTML =
-        '<td class="col-num"><input type="text" value="' + (it.no || "").replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="no" style="width:56px;"></td>' +
-        '<td class="col-name"><input type="text" value="' + it.name.replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="name"></td>' +
-        '<td class="col-spec"><input type="text" value="' + it.spec.replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="spec"></td>' +
-        '<td class="col-num"><input type="text" value="' + it.unit + '" data-id="' + it.id + '" data-field="unit" style="width:48px;"></td>' +
-        '<td class="col-num"><input type="number" value="' + it.price + '" min="0" data-id="' + it.id + '" data-field="price"></td>' +
-        '<td class="col-num"><input type="number" value="' + it.total + '" min="0" data-id="' + it.id + '" data-field="total" placeholder="0＝不限量"></td>' +
-        '<td class="col-num"><input type="number" value="' + it.sponsored + '" min="0" data-id="' + it.id + '" data-field="sponsored"></td>' +
-        '<td class="remaining-cell num">' + remainingText + '</td>' +
-        '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="hidden"' + (it.hidden ? " checked" : "") + '></td>' +
-        '<td style="text-align:center;"><input type="checkbox" data-id="' + it.id + '" data-field="needsBuyun"' + (it.needsBuyun ? " checked" : "") + '></td>' +
-        '<td style="white-space:nowrap;"><button class="ghost-btn" data-act="edititem" data-id="' + it.id + '" style="padding:5px 10px; font-size:.75rem; margin-right:4px;">編輯</button><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
+        '<td class="col-num" data-label="項次"><input type="text" value="' + (it.no || "").replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="no"></td>' +
+        '<td class="col-name" data-label="品項名稱"><input type="text" value="' + it.name.replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="name"></td>' +
+        '<td class="col-spec" data-label="規格說明"><input type="text" value="' + it.spec.replace(/"/g,"&quot;") + '" data-id="' + it.id + '" data-field="spec"></td>' +
+        '<td class="col-num" data-label="單位"><input type="text" value="' + it.unit + '" data-id="' + it.id + '" data-field="unit"></td>' +
+        '<td class="col-num" data-label="單價"><input type="number" value="' + it.price + '" min="0" data-id="' + it.id + '" data-field="price"></td>' +
+        '<td class="col-num" data-label="總量"><input type="number" value="' + it.total + '" min="0" data-id="' + it.id + '" data-field="total" placeholder="0＝不限量"></td>' +
+        '<td class="col-num" data-label="已贊助基準"><input type="number" value="' + it.sponsored + '" min="0" data-id="' + it.id + '" data-field="sponsored"></td>' +
+        '<td class="remaining-cell num" data-label="剩餘">' + remainingText + '</td>' +
+        '<td style="text-align:center;" data-label="不公開"><input type="checkbox" data-id="' + it.id + '" data-field="hidden"' + (it.hidden ? " checked" : "") + '></td>' +
+        '<td style="text-align:center;" data-label="補運欄"><input type="checkbox" data-id="' + it.id + '" data-field="needsBuyun"' + (it.needsBuyun ? " checked" : "") + '></td>' +
+        '<td class="col-act"><button class="ghost-btn" data-act="edititem" data-id="' + it.id + '" style="padding:5px 10px; font-size:.75rem; margin-right:4px;">編輯</button><button class="danger-btn" data-act="delitem" data-id="' + it.id + '">刪除</button></td>';
       itemManageBody.appendChild(tr);
     });
   }
