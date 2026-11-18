@@ -1101,6 +1101,7 @@
           <button class="ghost-btn" id="regPaidMergeBtn" disabled title="勾選的已收款報名合成一張收款通知（依姓名分段）">💰 合併收款通知（<span id="regSelectedCountPm">0</span>）</button>
           <button class="ghost-btn" id="regPhotoBtn" disabled>🖼 贊助照片傳送</button>
           <button class="ghost-btn" id="regComboBtn">📨 LINE 彙整通知</button>
+          <button class="ghost-btn" id="regHhMergeBtn" title="信徒關聯表同一戶、報同一品項的待收款報名合成一筆">🏠 同戶同品項合併</button>
           <button class="ghost-btn" id="regBulkPaidBtn" disabled>標記已收款（<span id="regSelectedCountPaid">0</span>）</button>
           <button class="danger-btn" id="regBulkDeleteBtn" disabled>刪除已選取</button>
           <button class="ghost-btn" id="regClearSelectBtn" disabled>清除已選</button>
@@ -2383,7 +2384,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v199";
+  var APP_VERSION = "v200";
   var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2394,6 +2395,11 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v200", date: "2026-11-18", changes: [
+      "LINE 訊息貼上快速登記：信徒關聯表姓名連動同一戶（或姓名重疊）報同一個品項，解析預覽時自動合成一筆（姓名用「、」合寫、數量相加），不再分成好幾筆",
+      "登記清單多「🏠 同戶同品項合併」：把這場已登記、同戶報同一品項的待收款報名合成一筆，先列出要合的內容再確認（已收款、傳過收款通知、有照片的不合）",
+      "不同品項不會合在一起（一筆只能有一個品項），報名成功圖照舊同戶合一張"
+    ] },
     { version: "v199", date: "2026-11-18", changes: [
       "報名成功圖有好幾張時，最下面多「📨 合併成一張用小幫手私訊」：全部合成一張 LINE 卡片（依姓名分段），選一位 LINE 好友後由小幫手私訊",
       "收件人不會自動帶，一定要自己選；這張合併卡片的姓名不會記到收件的 LINE（需小幫手 v1.78）"
@@ -8503,8 +8509,7 @@ window.KutingFinMatch = function(opts){
     // v197 — 群組接龍格式（品項標頭＋（1）姓名數量）
     if(looksLikeGroupList(rawLines)){
       previewRows = parseGroupList(rawLines, occ);
-      annotateRowsWithCapacity(previewRows);
-      renderPreview();
+      previewShowMerged();
       if(!previewRows.length) showToast("沒有找到報名資料，請確認格式");
       return;
     }
@@ -8518,8 +8523,7 @@ window.KutingFinMatch = function(opts){
 
     if(looksLikeCsv(rawLines)){
       previewRows = parseCsvRecords(rawLines, occ);
-      annotateRowsWithCapacity(previewRows);
-      renderPreview();
+      previewShowMerged();
       return;
     }
 
@@ -8546,13 +8550,101 @@ window.KutingFinMatch = function(opts){
     } else {
       previewRows = rawLines.map(parseLine);
     }
-    annotateRowsWithCapacity(previewRows);
-    renderPreview();
+    previewShowMerged();
   });
   bulkClearBtn.addEventListener("click", function(){
     bulkText.value = ""; previewRows = []; renderPreview();
     lineInboxInPreview = []; renderLineInbox();
   });
+
+  /* ---- v200 同戶同品項合成一筆（小朱 11-18）----
+     信徒關聯表姓名連動同一戶（或姓名有重疊）的人報同一個品項（敬致仙佛、補運也相同），
+     合成一筆：姓名用「、」合寫、數量相加，不要分成好幾筆佔筆數。不同品項不合（一筆只能有一個品項）。 */
+  function hhJoinNames(list){
+    var seen = {}, out = [];
+    list.forEach(function(n){ regNameParts(n).forEach(function(p){
+      var k = p.replace(/[（(][^）)]*[)）]/g, "");
+      if(k && !seen[k]){ seen[k] = 1; out.push(p); }
+    }); });
+    return out.join("、");
+  }
+  function hhSameItemGroups(items, keyOf, hh){
+    var buckets = {}, order = [];
+    items.forEach(function(x){ var k = keyOf(x); if(k == null) return; if(!buckets[k]){ buckets[k] = []; order.push(k); } buckets[k].push(x); });
+    var out = [];
+    order.forEach(function(k){
+      if(buckets[k].length < 2) return;
+      regNoticeGroupsHh(buckets[k], hh).forEach(function(g){ if(g.regs.length > 1) out.push(g.regs); });
+    });
+    return out;
+  }
+  function previewShowMerged(){
+    annotateRowsWithCapacity(previewRows);
+    renderPreview();
+    var rowsAtStart = previewRows;
+    regHhLoad().then(function(hh){
+      if(previewRows !== rowsAtStart || !previewRows.length) return; // 期間已重新解析或清空
+      var groups = hhSameItemGroups(previewRows, function(r){
+        return r.matched ? [r.matched.catId, r.dedicateTo || "", r.buyunName || "", r.buyunAddr || ""].join("|") : null;
+      }, hh);
+      if(!groups.length) return;
+      var drop = [];
+      groups.forEach(function(rows){
+        var keep = rows[0];
+        keep.name = hhJoinNames(rows.map(function(r){ return r.name; }));
+        keep.qty = rows.reduce(function(a, r){ return a + (Number(r.qty) || 0); }, 0);
+        keep.amount = keep.matched.type === "donation" ? keep.qty : keep.qty * keep.matched.price;
+        keep.raw = rows.map(function(r){ return r.raw; }).join("／");
+        keep.hhMerged = rows.length;
+        rows.slice(1).forEach(function(r){ drop.push(r); });
+      });
+      previewRows = previewRows.filter(function(r){ return drop.indexOf(r) < 0; });
+      annotateRowsWithCapacity(previewRows);
+      renderPreview();
+      showToast((hh ? "同戶（姓名連動）" : "同姓名") + "報同一品項已合成一筆：" + groups.length + " 組、少了 " + drop.length + " 筆" + (hh ? "" : "（姓名連動讀不到）"));
+    });
+  }
+
+  // 登記清單「🏠 同戶同品項合併」：這場已登記的資料一次合併（只合待收款、沒傳過收款通知、沒有照片的）
+  function regHhMergeExisting(btn){
+    var occ = current();
+    var old = btn.textContent;
+    btn.disabled = true; btn.textContent = "讀取姓名連動…";
+    regHhLoad().then(function(hh){
+      btn.disabled = false; btn.textContent = old;
+      var regs = occ.registrations.filter(function(r){
+        if(r.deleted || r.paid || r.paidNoticeAt) return false;
+        try { if(psState && psState.occId === occ.id && regPhotoItems(r).length) return false; } catch(e){}
+        return true;
+      });
+      var groups = hhSameItemGroups(regs, function(r){
+        return [r.type, r.catId, r.dedicateTo || "", r.buyunName || "", r.buyunAddr || ""].join("|");
+      }, hh);
+      if(!groups.length){ showToast("沒有可以合併的報名（同戶、同品項、待收款）" + (hh ? "" : "；姓名連動讀不到，只看同姓名")); return; }
+      var lines = groups.map(function(rows){
+        var cat = findCatalog(rows[0].catId, occ);
+        return (cat ? cat.label : rows[0].label) + "：" + rows.map(function(r){ return r.name + " " + r.qty; }).join("＋") + " → " + hhJoinNames(rows.map(function(r){ return r.name; })) + " " + rows.reduce(function(a, r){ return a + (Number(r.qty) || 0); }, 0);
+      });
+      var n = groups.reduce(function(a, g){ return a + g.length - 1; }, 0);
+      if(!confirm("依信徒關聯表姓名連動，把同一戶報同一品項的合成一筆（共少 " + n + " 筆）：\n\n" + lines.join("\n") + "\n\n只合待收款的報名。確定合併？")) return;
+      groups.forEach(function(rows){
+        var keep = rows[0], add = 0;
+        rows.slice(1).forEach(function(r){ add += Number(r.qty) || 0; removeRegistration(r.id); });
+        keep.name = hhJoinNames(rows.map(function(r){ return r.name; }));
+        keep.qty = (Number(keep.qty) || 0) + add;
+        keep.amount = keep.type === "donation" ? keep.qty : keep.qty * (Number(keep.unitPrice) || 0);
+        if(keep.type === "item"){
+          var it = findItem(keep.catId, occ);
+          if(it) it.sponsored += add;
+          fsIncrementItemSponsored(occ.id, keep.catId, add);
+        }
+        fsPushRegistration(occ.id, keep);
+      });
+      selectedRegIds = {};
+      renderAll();
+      showToast("已合併 " + groups.length + " 組，少了 " + n + " 筆");
+    });
+  }
 
   function renderPreview(){
     bulkPreviewWrap.style.display = previewRows.length ? "block" : "none";
@@ -9994,6 +10086,7 @@ window.KutingFinMatch = function(opts){
   // 勾選多位報名者後，一次刪除已選取的登記——比照上面「批次已收款」與既有的
   // 「合併預覽已選取」做法。刪除是不可逆動作，沿用 armConfirm 需要連按兩次的模式，
   // 避免手滑勾錯就整批刪掉。
+  document.getElementById("regHhMergeBtn").addEventListener("click", function(){ regHhMergeExisting(this); });
   document.getElementById("regBulkDeleteBtn").addEventListener("click", function(){
     var ids = Object.keys(selectedRegIds).map(function(k){ return +k; });
     if(!ids.length) return;
