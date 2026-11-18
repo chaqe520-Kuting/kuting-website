@@ -1454,6 +1454,15 @@
       <button type="button" class="add-btn" id="regNoticeShareAllBtn">全部傳到 LINE</button>
       <button type="button" class="ghost-btn" id="regNoticeCopyAllBtn">全部複製（合併成一張）</button>
       <button type="button" class="ghost-btn" id="regNoticeDownloadAllBtn">全部下載</button>
+      <button type="button" class="add-btn" id="regNoticeMergePushBtn" style="display:none;">📨 合併成一張用小幫手私訊</button>
+    </div>
+    <div id="regNoticeMergeRow" style="display:none; margin-top:10px; padding:10px 12px; border:1px dashed var(--gold, #b8860b); border-radius:8px; background:var(--paper-sunken); text-align:center;">
+      <div class="pdesc" id="regNoticeMergeInfo" style="margin:0 0 8px;"></div>
+      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; align-items:center;">
+        <select id="regNoticeMergeUser" style="max-width:240px; min-height:44px; font-size:16px;"></select>
+        <button type="button" class="add-btn" id="regNoticeMergeSendBtn">📨 傳送</button>
+        <button type="button" class="ghost-btn" id="regNoticeMergeCancelBtn">取消</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2374,7 +2383,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v198";
+  var APP_VERSION = "v199";
   var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2385,6 +2394,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v199", date: "2026-11-18", changes: [
+      "報名成功圖有好幾張時，最下面多「📨 合併成一張用小幫手私訊」：全部合成一張 LINE 卡片（依姓名分段），選一位 LINE 好友後由小幫手私訊",
+      "收件人不會自動帶，一定要自己選；這張合併卡片的姓名不會記到收件的 LINE（需小幫手 v1.78）"
+    ] },
     { version: "v198", date: "2026-11-18", changes: [
       "確認加入登記清單後跳出的「報名成功圖」、登記清單勾選後按「📷 報名成功圖」：依信徒關聯表的姓名連動，同一戶合成一張（卡片名稱用代表人，裡面依姓名分段）",
       "多人合寫一格（例：葉懿青、葉宸希（柏言））和其中一位自己的報名（葉懿青）也合成一張",
@@ -10165,6 +10178,10 @@ window.KutingFinMatch = function(opts){
     var pushAll = document.getElementById("regNoticePushAllBtn");
     pushAll.style.display = pushable ? "" : "none";
     pushAll.textContent = "📨 全部用小幫手私訊（" + pushable + " 位）";
+    // v199：好幾張合成一張，由小幫手私訊給一位 LINE 好友（收件人一定要自己選）
+    var hasFriends = (regNoticeLineUsers || []).some(function(u){ return u.friend !== false; });
+    document.getElementById("regNoticeMergePushBtn").style.display = (regNoticeCards.length > 1 && hasFriends) ? "" : "none";
+    if(regNoticeCards.length < 2) document.getElementById("regNoticeMergeRow").style.display = "none";
     regNoticeBody.innerHTML = regNoticeCards.map(function(card, i){
       return '<div class="merged-preview-card" style="text-align:center;">' +
         '<div class="merged-preview-name">' + escHtml(card.name) +
@@ -10974,7 +10991,7 @@ window.KutingPeople = function(o){
       // 用 text/plain 送出（簡單請求），Apps Script 才收得到、也讀得到回應
       var data = regNoticeCardData(card);
       if(kind) data.kind = kind;
-      return fetch(url, { method: "POST", body: JSON.stringify({ action: "notify", idToken: idToken, msgId: card.lineMsgId || "", lineUserId: card.lineUserId, card: data }) });
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "notify", idToken: idToken, msgId: card.lineMsgId || "", lineUserId: card.lineUserId, card: data, noRemember: !!card.noRemember }) });
     }).then(function(res){ return res.json(); }).then(function(out){
       if(out && out.ok){
         if(out.to) card.lineName = out.to;
@@ -11035,6 +11052,55 @@ window.KutingPeople = function(o){
       else { btn.disabled = false; btn.textContent = "💰 再試一次"; alert(out.error || "傳送失敗"); }
     }).catch(function(err){ btn.disabled = false; btn.textContent = "💰 再試一次"; linebotUnreachable(err); });
   }
+
+  // v199（小朱 11-18）：把這次的報名成功圖全部合成一張 LINE 卡片（依姓名分段），由小幫手私訊給一位 LINE 好友。
+  // 收件人不自動帶，一定要自己選；這張卡片的姓名不會記到收件的 LINE（小幫手 v1.78 起）。
+  function regNoticeMergedCard(){
+    var regs = [], names = [];
+    regNoticeCards.forEach(function(c){
+      (c.group.regs || []).forEach(function(r){ regs.push(r); });
+      if(names.indexOf(c.name) < 0) names.push(c.name);
+    });
+    var title = names.length > 3 ? names.slice(0, 3).join("、") + "等" + names.length + "位" : names.join("、");
+    return { name: title, group: { name: title, regs: regs }, noRemember: true, lineMsgId: "", names: names };
+  }
+  document.getElementById("regNoticeMergePushBtn").addEventListener("click", function(){
+    var row = document.getElementById("regNoticeMergeRow");
+    var m = regNoticeMergedCard();
+    var users = (regNoticeLineUsers || []).filter(function(u){ return u.friend !== false; });
+    document.getElementById("regNoticeMergeInfo").textContent = "合成一張：" + m.names.length + " 位、" + m.group.regs.length + " 筆（" + m.names.join("、") + "）。請選要傳給哪位 LINE 好友：";
+    document.getElementById("regNoticeMergeUser").innerHTML = '<option value="">選擇要傳給哪位 LINE 好友</option>' + users.map(function(u){
+      return '<option value="' + escAttr(u.id) + '">' + escHtml(u.displayName || "（未知名稱）") + '</option>';
+    }).join("");
+    row.style.display = "block";
+  });
+  document.getElementById("regNoticeMergeCancelBtn").addEventListener("click", function(){
+    document.getElementById("regNoticeMergeRow").style.display = "none";
+  });
+  document.getElementById("regNoticeMergeSendBtn").addEventListener("click", function(){
+    if(!(fsAuth && fsAuth.currentUser)){ showToast("請先登入志工帳號"); return; }
+    var sel = document.getElementById("regNoticeMergeUser");
+    if(!sel.value){ showToast("請先選擇要傳給哪位 LINE 好友"); return; }
+    var lineName = sel.options[sel.selectedIndex].text;
+    var m = regNoticeMergedCard();
+    m.lineUserId = sel.value; m.lineName = lineName;
+    if(!confirm("由小幫手把這 " + m.names.length + " 位的報名成功通知合成一張，私訊給 LINE「" + lineName + "」？\n\n" + m.names.join("、") + "\n\n（會用到每月的免費訊息則數）")) return;
+    var url = linebotUrl(false);
+    if(!url) return;
+    var btn = this;
+    btn.disabled = true; btn.textContent = "傳送中…";
+    linebotSend(m, "", url).then(function(out){
+      btn.disabled = false; btn.textContent = "📨 傳送";
+      if(out.ok){
+        document.getElementById("regNoticeMergeRow").style.display = "none";
+        linebotQuota();
+        showToast("已合成一張由小幫手私訊給 LINE「" + (out.to || lineName) + "」");
+      } else alert(out.error || "傳送失敗");
+    }).catch(function(err){
+      btn.disabled = false; btn.textContent = "📨 傳送";
+      linebotUnreachable(err);
+    });
+  });
 
   // v111 — 全部用小幫手私訊：已選好 LINE 好友、還沒傳過的卡片，問一次後依序傳
   document.getElementById("regNoticePushAllBtn").addEventListener("click", function(){
