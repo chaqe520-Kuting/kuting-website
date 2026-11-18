@@ -733,7 +733,7 @@
               <tbody id="reconBody"></tbody>
             </table>
           </div>
-          <p class="muted" style="font-size:12.5px;margin:8px 0 0;">點任一筆可帶到上方表單修改。「登記後餘額」是從本月期初依日期逐筆加減，可和存摺／銀行 App 每筆後的餘額對照；黃底＝同日、同帳別、同金額、同姓名的疑似重複；「截圖餘額不符」＝銀行截圖讀到的餘額和平台算出的不同。</p>
+          <p class="muted" style="font-size:12.5px;margin:8px 0 0;">最新的登記排在最上面。點任一筆可帶到上方表單修改。「登記後餘額」是從本月期初依日期逐筆加減，可和存摺／銀行 App 每筆後的餘額對照；黃底＝同日、同帳別、同金額、同姓名的疑似重複；「截圖餘額不符」＝銀行截圖讀到的餘額和平台算出的不同。</p>
         </div>
 
         <h3 style="font-family:'Noto Serif TC',serif;color:var(--temple-red-deep);font-size:15px;margin:22px 0 10px;">最近登記（線上即時）</h3>
@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.6';
+const APP_VERSION = 'v1.20.7';
 const APP_DATE = '2026-11-18';
 const CHANGELOG = [
+  { version:'v1.20.7', date:'2026-11-18', items:[
+    '「本月收支對帳」明細改成最新日期排第一列（由新到舊），不用再捲到最下面找最近的登記；「登記後餘額」仍是從本月期初依日期逐筆加減算出，每列的數字不變'
+  ]},
   { version:'v1.20.6', date:'2026-11-18', items:[
     '「🔗 配對報名」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就算對上這一場，會出現配對按鈕、登記時自動跳出配對（原本只認農曆月日和場次名稱裡的詞）'
   ]},
@@ -2751,6 +2754,7 @@ function renderRecon(){
   });
   calc.forEach(c=>{ if(c.dup && !dupOrder[c.dk]) dupOrder[c.dk] = ++dupSeq; });
   if(reconState.dupOnly) shown.sort((x,y)=> (dupOrder[x.dk]||0) - (dupOrder[y.dk]||0));
+  else shown.reverse();   // v1.20.7 最新的排第一列（小朱）；登記後餘額已依日期由舊到新算好，倒過來顯示數字不變
   const fin = shown.filter(c=>c.e.direction==='in').reduce((t,c)=>t+c.amt,0);
   const fout = shown.filter(c=>c.e.direction!=='in').reduce((t,c)=>t+c.amt,0);
   const dups = shown.filter(c=>c.dup).length, bads = shown.filter(c=>c.shotBad).length;
