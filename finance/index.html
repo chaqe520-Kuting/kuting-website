@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.5';
-const APP_DATE = '2026-11-13';
+const APP_VERSION = 'v1.20.6';
+const APP_DATE = '2026-11-18';
 const CHANGELOG = [
+  { version:'v1.20.6', date:'2026-11-18', items:[
+    '「🔗 配對報名」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就算對上這一場，會出現配對按鈕、登記時自動跳出配對（原本只認農曆月日和場次名稱裡的詞）'
+  ]},
   { version:'v1.20.5', date:'2026-11-13', items:[
     '「🔗 這筆收入對應哪一筆報名？」按「確認對應」後，提示收款確認不用在這裡傳：管理者會在法會報名／供品贊助後台「📨 LINE 彙整通知 → 💰 收款確認」確認名單後統一傳給信徒（紅包袋、匯款都會標出來）'
   ]},
@@ -2960,9 +2963,18 @@ const FinPair = (function(){
     while((m = LUNAR_RE.exec(String(str || '')))){ const k = cnNum(m[1]) + '/' + cnNum(m[2]); if(out.indexOf(k) < 0) out.push(k); }
     return out;
   }
+  // v1.20.6 國曆月日（11/29、11月29日）：場次名稱有國曆月日、財務的活動／項目／備註也寫同一天就算對上（小朱：摘要寫「11/29日供品贊助」）
+  function solarKeys(str){
+    const s = String(str || '').replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/／/g, '/');
+    const out = [], re = /(^|[^\d\/])((?:\d{2,4}\s*[\/年.\-]\s*)?)(\d{1,2})\s*[\/月]\s*(\d{1,2})(?!\d)/g; let m;
+    while((m = re.exec(s))){ const mo = +m[3], d = +m[4]; if(mo >= 1 && mo <= 12 && d >= 1 && d <= 31){ const k = mo + '/' + d; if(out.indexOf(k) < 0) out.push(k); } re.lastIndex = m.index + m[1].length + m[2].length + m[3].length; }
+    return out;
+  }
   // 和報名平台的「只列活動名稱對應本場次的收入」同一套比法：農曆月日一樣，或場次名稱有 3 個字以上的詞出現在活動／項目／備註
   function eventHit(title, e){
     const hay = [e.activity, e.item, e.note].join(' ');
+    const sk = solarKeys(title);
+    if(sk.length && solarKeys(hay).some(k=>sk.indexOf(k) >= 0)) return true;
     const lk = lunarKeys(title);
     if(lk.length) return lunarKeys(hay).some(k=>lk.indexOf(k) >= 0);
     const words = String(title || '').replace(LUNAR_RE, ' ').replace(GENERIC, ' ').split(/[\s\-－—…．.、，,（）()／/]+/).filter(w=>w.length >= 2);
@@ -3236,7 +3248,7 @@ const FinPair = (function(){
     if(!relevant(e)) return '';
     return `<button type="button" class="fp-btn" onclick="event.stopPropagation();FinPair.open('${e.id}')" title="對應到供品贊助／法會報名的報名">🔗 配對報名</button>`;
   }
-  return { open, offer, btnHtml, _t: { eventHit, tokens, meet, findSubset } };
+  return { open, offer, btnHtml, _t: { eventHit, solarKeys, relevant, tokens, meet, findSubset } };
 })();
 
 /* ================= 銀行截圖快速登記（v1.12.0）=================
