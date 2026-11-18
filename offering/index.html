@@ -1720,17 +1720,23 @@ window.KutingFinMatch = function(opts){
     return out;
   }
   var GENERIC = /古亭院|昇龍|觀世音|菩薩|農曆|國曆|丙午|乙巳|丁未|[0-9０-９]+|年|月|日|法會|供品|贊助|報名|線上|聖誕|千秋|祝壽|活動/g;
+  // v201／v5.07 國曆月日（11/29、11月29日）也算：場次名稱有國曆月日、財務的活動／項目／備註寫同一天就列（小朱 11-18）
+  function solarKeys(str){
+    var s = String(str || "").replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/／/g, "/");
+    var out = [], re = /(^|[^\d\/])((?:\d{2,4}\s*[\/年.\-]\s*)?)(\d{1,2})\s*[\/月]\s*(\d{1,2})(?!\d)/g, m;
+    while((m = re.exec(s))){ var mo = +m[3], d = +m[4]; if(mo >= 1 && mo <= 12 && d >= 1 && d <= 31){ var k = mo + "/" + d; if(out.indexOf(k) < 0) out.push(k); } re.lastIndex = m.index + m[1].length + m[2].length + m[3].length; }
+    return out;
+  }
   function eventMatcher(){
     var t = String(opts.title() || "");
-    var lk = lunarKeys(t);
-    if(lk.length) return { text: (t.match(LUNAR_RE) || []).filter(function(x, i, a){ return a.indexOf(x) === i; }).join("、"), test: function(e){
-      var ek = lunarKeys([e.activity, e.item, e.note].join(" "));
-      return ek.some(function(k){ return lk.indexOf(k) >= 0; });
-    } };
-    var words = t.replace(LUNAR_RE, " ").replace(GENERIC, " ").split(/[\s\-－—…．.、，,（）()／/]+/).filter(function(w){ return w.length >= 2; });
-    if(!words.length) return null;
-    return { text: words.join("、"), test: function(e){
+    var lk = lunarKeys(t), sk = solarKeys(t);
+    var words = lk.length ? [] : t.replace(LUNAR_RE, " ").replace(GENERIC, " ").split(/[\s\-－—…．.、，,（）()／/]+/).filter(function(w){ return w.length >= 2; });
+    if(!lk.length && !sk.length && !words.length) return null;
+    var text = lk.length ? (t.match(LUNAR_RE) || []).filter(function(x, i, a){ return a.indexOf(x) === i; }) : words;
+    return { text: sk.concat(text).join("、"), test: function(e){
       var hay = [e.activity, e.item, e.note].join(" ");
+      if(sk.length && solarKeys(hay).some(function(k){ return sk.indexOf(k) >= 0; })) return true;
+      if(lk.length) return lunarKeys(hay).some(function(k){ return lk.indexOf(k) >= 0; });
       return words.some(function(w){
         if(w.length <= 3) return hay.indexOf(w) >= 0;
         for(var i = 0; i + 3 <= w.length; i++) if(hay.indexOf(w.substr(i, 3)) >= 0) return true;
@@ -2384,7 +2390,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v200";
+  var APP_VERSION = "v201";
   var APP_UPDATED = "2026-11-18";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2395,6 +2401,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v201", date: "2026-11-18", changes: [
+      "「💵 對照財務收入」的「只列紅包袋活動名稱對應本場次的收入」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就列出來（原本只認農曆月日和場次名稱裡的詞）"
+    ] },
     { version: "v200", date: "2026-11-18", changes: [
       "LINE 訊息貼上快速登記：信徒關聯表姓名連動同一戶（或姓名重疊）報同一個品項，解析預覽時自動合成一筆（姓名用「、」合寫、數量相加），不再分成好幾筆",
       "登記清單多「🏠 同戶同品項合併」：把這場已登記、同戶報同一品項的待收款報名合成一筆，先列出要合的內容再確認（已收款、傳過收款通知、有照片的不合）",

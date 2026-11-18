@@ -149,17 +149,23 @@ window.KutingFinMatch = function(opts){
     return out;
   }
   var GENERIC = /古亭院|昇龍|觀世音|菩薩|農曆|國曆|丙午|乙巳|丁未|[0-9０-９]+|年|月|日|法會|供品|贊助|報名|線上|聖誕|千秋|祝壽|活動/g;
+  // v201／v5.07 國曆月日（11/29、11月29日）也算：場次名稱有國曆月日、財務的活動／項目／備註寫同一天就列（小朱 11-18）
+  function solarKeys(str){
+    var s = String(str || "").replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/／/g, "/");
+    var out = [], re = /(^|[^\d\/])((?:\d{2,4}\s*[\/年.\-]\s*)?)(\d{1,2})\s*[\/月]\s*(\d{1,2})(?!\d)/g, m;
+    while((m = re.exec(s))){ var mo = +m[3], d = +m[4]; if(mo >= 1 && mo <= 12 && d >= 1 && d <= 31){ var k = mo + "/" + d; if(out.indexOf(k) < 0) out.push(k); } re.lastIndex = m.index + m[1].length + m[2].length + m[3].length; }
+    return out;
+  }
   function eventMatcher(){
     var t = String(opts.title() || "");
-    var lk = lunarKeys(t);
-    if(lk.length) return { text: (t.match(LUNAR_RE) || []).filter(function(x, i, a){ return a.indexOf(x) === i; }).join("、"), test: function(e){
-      var ek = lunarKeys([e.activity, e.item, e.note].join(" "));
-      return ek.some(function(k){ return lk.indexOf(k) >= 0; });
-    } };
-    var words = t.replace(LUNAR_RE, " ").replace(GENERIC, " ").split(/[\s\-－—…．.、，,（）()／/]+/).filter(function(w){ return w.length >= 2; });
-    if(!words.length) return null;
-    return { text: words.join("、"), test: function(e){
+    var lk = lunarKeys(t), sk = solarKeys(t);
+    var words = lk.length ? [] : t.replace(LUNAR_RE, " ").replace(GENERIC, " ").split(/[\s\-－—…．.、，,（）()／/]+/).filter(function(w){ return w.length >= 2; });
+    if(!lk.length && !sk.length && !words.length) return null;
+    var text = lk.length ? (t.match(LUNAR_RE) || []).filter(function(x, i, a){ return a.indexOf(x) === i; }) : words;
+    return { text: sk.concat(text).join("、"), test: function(e){
       var hay = [e.activity, e.item, e.note].join(" ");
+      if(sk.length && solarKeys(hay).some(function(k){ return sk.indexOf(k) >= 0; })) return true;
+      if(lk.length) return lunarKeys(hay).some(function(k){ return lk.indexOf(k) >= 0; });
       return words.some(function(w){
         if(w.length <= 3) return hay.indexOf(w) >= 0;
         for(var i = 0; i + 3 <= w.length; i++) if(hay.indexOf(w.substr(i, 3)) >= 0) return true;
@@ -1071,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.06 ・ 2026-11-13（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.07 ・ 2026-11-18（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.07（2026-11-18）</b>：「💵 對照財務收入」的「只列紅包袋活動名稱對應本場次的收入」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就列出來（原本只認農曆月日和場次名稱裡的詞）（和供品贊助 v201 同一份程式）。<br>
       <b>v5.06（2026-11-13）</b>：LINE 彙整通知依信徒關聯表的「姓名連動」合併：同一戶只列一位（🏠 代表人，旁邊寫同戶家人），卡片列出整戶在法會＋供品的報名；代表找不到 LINE 時用家人的 LINE；「產生圖片」也是整戶一張（要小幫手 v1.76）。<br>
       <b>v5.05（2026-11-13）</b>：「傳給哪個 LINE？」只列真正加了小幫手好友的人；只在有小幫手的群組發過言、沒加好友（或已封鎖）的不再出現（小朱：會誤判；要小幫手 v1.75）。<br>
       <b>v5.04（2026-11-13）</b>：LINE 彙整通知：找不到 LINE 的那一位，名單上直接有「🖼️ 產生圖片」按鈕（同名對到好幾個 LINE 的是「選收件人」），打開這位的收款確認預覽，可選 LINE 或產生圖片。<br>
