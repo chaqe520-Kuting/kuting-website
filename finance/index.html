@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.7';
-const APP_DATE = '2026-11-18';
+const APP_VERSION = 'v1.20.8';
+const APP_DATE = '2026-11-19';
 const CHANGELOG = [
+  { version:'v1.20.8', date:'2026-11-19', items:[
+    '綠色「🔗 已對應供品／法會」標籤精簡成每筆收入只有一個，改用供品／法會項目名稱辨識（重複的名稱只列一次，超過 3 項顯示「等 N 項」），後面標共對應幾筆報名；點一下標籤（電腦滑鼠停住）可看每筆報名的姓名、項目、金額和合計；同一筆報名真的重複對應時另標黃色「⚠ 重複對應」'
+  ]},
   { version:'v1.20.7', date:'2026-11-18', items:[
     '「本月收支對帳」明細改成最新日期排第一列（由新到舊），不用再捲到最下面找最近的登記；「登記後餘額」仍是從本月期初依日期逐筆加減算出，每列的數字不變'
   ]},
@@ -2847,7 +2850,7 @@ const FinLinkStatus = (function(){
             if(label && !o.deleted) evAll.add(label);
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
             regs.forEach(d=>{
-              const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'' }));
+              const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'', item:String(r.label||'').trim(), ref:d.ref.path, amount:Number(r.amount)||0 }));
               // v1.16.0 配對報名用（v1.16.5 已對應財務的也帶著，配對視窗顯示收款進度用，不能勾）
               if(!o.deleted) list.push({ plat:'gp', platLabel:p.label, ref:d.ref, event:label, closed:o.status==='closed', linked:ids(r).length > 0,
                 name:String(r.name||'').trim(), amount:Number(r.amount)||0, paid:!!r.paid, what:(r.label||'') + (r.dedicateTo ? '－' + r.dedicateTo : '') });
@@ -2858,7 +2861,7 @@ const FinLinkStatus = (function(){
           try{ const kv = await s.db.collection('kv').doc('events').get(); JSON.parse((kv.data()||{}).value||'[]').forEach(e=>{ names[e.id] = e.name; evs[e.id] = e; if(e.name) evAll.add(e.name); }); }catch(e){}
           const regs = await s.db.collection('regs').get();
           regs.forEach(d=>{
-            const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'' }));
+            const x = d.data()||{}, r = x.payload||{}; ids(r).forEach(id=>add(id, { plat:p.label, event:names[x.eventId]||'', name:(r.f||{}).reporter||'', item:(r.items||[]).map(it=>String(it.itemName||'').trim()).filter(Boolean).join('、'), ref:d.ref.path, amount:Number(r.total)||0 }));
             const ev = evs[x.eventId];
             // v1.19.1：法會準備中的測試報名不列入配對（v1.20.0 修正：註解原本把後面欄位一起蓋掉）
             if(ev && !r.test) list.push({ plat:'fh', platLabel:p.label, ref:d.ref, event:ev.name||'', closed:ev.active===false, linked:ids(r).length > 0,
@@ -2905,7 +2908,17 @@ const FinLinkStatus = (function(){
   function tagHtml(entryId){
     const l = map[entryId];
     if(!l || !l.length) return '';
-    return l.map(v=>`<span class="recon-flag link" title="${escapeHtmlText(v.event)}">🔗 已對應${escapeHtmlText(v.plat)}：${escapeHtmlText(v.name)}</span>`).join('');
+    // v1.20.8 小朱：一筆收入只顯示一個精簡標籤，列不重複的供品／法會項目名稱；姓名、場次、金額放滑鼠提示（手機點一下看）
+    const plats = [...new Set(l.map(v=>v.plat))].join('／');
+    const items = [...new Set(l.map(v=>v.item || v.event || '').filter(Boolean))];
+    const refCount = {}; l.forEach(v=>{ if(v.ref) refCount[v.ref] = (refCount[v.ref]||0) + 1; });
+    const dupRef = Object.values(refCount).some(n=>n > 1);
+    const sum = l.reduce((a,v)=>a + (Number(v.amount)||0), 0);
+    const tip = l.map(v=>`${v.name||'（未填）'}｜${v.item||'—'}｜${v.amount ? Number(v.amount).toLocaleString() + ' 元' : ''}｜${v.event||''}`).join('\n')
+      + `\n共 ${l.length} 筆報名，合計 ${sum.toLocaleString()} 元` + (dupRef ? '\n⚠ 同一筆報名重複對應這筆收入' : '');
+    const shown = items.length > 3 ? items.slice(0, 3).join('、') + ` 等 ${items.length} 項` : items.join('、');
+    return `<span class="recon-flag link" style="cursor:help;" title="${escapeHtmlText(tip)}" onclick="alert(this.title)">🔗 已對應${escapeHtmlText(plats)}${shown ? '：' + escapeHtmlText(shown) : ''}${l.length > 1 ? `（${l.length} 筆）` : ''}</span>`
+      + (dupRef ? `<span class="recon-flag dup" title="同一筆報名重複對應">⚠ 重複對應</span>` : '');
   }
   function statusHtml(){
     if(!init()) return '';
