@@ -1034,9 +1034,12 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.8';
+const APP_VERSION = 'v1.20.9';
 const APP_DATE = '2026-11-19';
 const CHANGELOG = [
+  { version:'v1.20.9', date:'2026-11-19', items:[
+    '「🔗 已對應」標籤的供品名稱拿掉項次數字（原本顯示「1、壽桃、2、長壽麵線」，現在是「壽桃、長壽麵線」）；現金、銀行收入，對應供品贊助或法會報名，全部固定用這個標籤：項目名稱＋筆數，點開看每筆姓名、項目、金額與合計'
+  ]},
   { version:'v1.20.8', date:'2026-11-19', items:[
     '綠色「🔗 已對應供品／法會」標籤精簡成每筆收入只有一個，改用供品／法會項目名稱辨識（重複的名稱只列一次，超過 3 項顯示「等 N 項」），後面標共對應幾筆報名；點一下標籤（電腦滑鼠停住）可看每筆報名的姓名、項目、金額和合計；同一筆報名真的重複對應時另標黃色「⚠ 重複對應」'
   ]},
@@ -2850,7 +2853,7 @@ const FinLinkStatus = (function(){
             if(label && !o.deleted) evAll.add(label);
             const regs = await s.db.collection('occasions').doc(od.id).collection('registrations').get();
             regs.forEach(d=>{
-              const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'', item:String(r.label||'').trim(), ref:d.ref.path, amount:Number(r.amount)||0 }));
+              const r = d.data(); ids(r).forEach(id=>add(id, { plat:p.label, event:label, name:r.name||'', item:String(r.label||'').trim().replace(/^\s*[0-9０-９]+(\.[0-9]+)?\s*[、.．]\s*/, ''), ref:d.ref.path, amount:Number(r.amount)||0 }));
               // v1.16.0 配對報名用（v1.16.5 已對應財務的也帶著，配對視窗顯示收款進度用，不能勾）
               if(!o.deleted) list.push({ plat:'gp', platLabel:p.label, ref:d.ref, event:label, closed:o.status==='closed', linked:ids(r).length > 0,
                 name:String(r.name||'').trim(), amount:Number(r.amount)||0, paid:!!r.paid, what:(r.label||'') + (r.dedicateTo ? '－' + r.dedicateTo : '') });
@@ -2910,7 +2913,9 @@ const FinLinkStatus = (function(){
     if(!l || !l.length) return '';
     // v1.20.8 小朱：一筆收入只顯示一個精簡標籤，列不重複的供品／法會項目名稱；姓名、場次、金額放滑鼠提示（手機點一下看）
     const plats = [...new Set(l.map(v=>v.plat))].join('／');
-    const items = [...new Set(l.map(v=>v.item || v.event || '').filter(Boolean))];
+    // v1.20.9 供品品項 label 是「1、壽桃」，項次數字拿掉只留名稱，避免「1、壽桃、2、長壽麵線」看不懂；現金、銀行、供品、法會都用同一個標籤
+    const noNum = t=>String(t||'').replace(/^\s*[0-9０-９]+(\.[0-9]+)?\s*[、.．,，]\s*/, '').trim();
+    const items = [...new Set(l.map(v=>v.item ? noNum(v.item) : (v.event || '')).filter(Boolean))];
     const refCount = {}; l.forEach(v=>{ if(v.ref) refCount[v.ref] = (refCount[v.ref]||0) + 1; });
     const dupRef = Object.values(refCount).some(n=>n > 1);
     const sum = l.reduce((a,v)=>a + (Number(v.amount)||0), 0);
