@@ -1077,8 +1077,12 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.07 ・ 2026-11-18（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.08 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.08（2026-11-21）</b>：116 梁皇寶懺（小朱）：<br>
+      ・新增內建範本「梁皇寶懺 116（超薦蓮位含地基主／消災牌位，公告價格）」：報名類別照小朱改的「超薦祖先／已逝先人/地基主」「消災個人／公司」；地基主移到超薦這邊；價格照公告：姓氏祖先主蓮位 5000、已逝先人主蓮位 3000、小蓮位（含倒房）1000、地基主小蓮位 1600、主牌位 3600、小牌位 1000；「副」改叫「小」；填寫範例改新的（姓名地址遮蔽）。<br>
+      ・修正：在「編輯欄位」改了報名類別的選項文字，下面欄位、費用的「只在選○○時顯示」還記著舊文字，選了以後欄位、費用都不出現。現在會自動跟著改（同位置改名照改；舊文字找字詞最像的選項），開網頁時畫面上先修正，按「儲存變更」才寫回。<br>
+      ・📥 匯入去年 Excel：表頭寫「副蓮位／副牌位」對得到今年的「小蓮位／小牌位」；表頭有「1000元」只對數量欄；工作表的報名類別先看欄位大多屬於哪一類；115「個人&地基主」表同一列的地基主拆成另一筆、歸到「超薦…/地基主」，同去年、比照上次報名就會帶到對的類別。<br>
       <b>v5.07（2026-11-18）</b>：「💵 對照財務收入」的「只列紅包袋活動名稱對應本場次的收入」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就列出來（原本只認農曆月日和場次名稱裡的詞）（和供品贊助 v201 同一份程式）。<br>
       <b>v5.06（2026-11-13）</b>：LINE 彙整通知依信徒關聯表的「姓名連動」合併：同一戶只列一位（🏠 代表人，旁邊寫同戶家人），卡片列出整戶在法會＋供品的報名；代表找不到 LINE 時用家人的 LINE；「產生圖片」也是整戶一張（要小幫手 v1.76）。<br>
       <b>v5.05（2026-11-13）</b>：「傳給哪個 LINE？」只列真正加了小幫手好友的人；只在有小幫手的群組發過言、沒加好友（或已封鎖）的不再出現（小朱：會誤判；要小幫手 v1.75）。<br>
@@ -2153,6 +2157,36 @@ const TEMPLATES = {
     addLabel: '＋ 再加一個牌位',
     exampleNote: '一個牌位填一格，先選「報名類別」，再按「＋ 再加一個牌位」繼續填。（以下姓名、地址都是範例）\n① 超薦祖先：主蓮位「王氏歷代祖先」，牌位地址「○○市○○區○○路○號」，\n   副蓮位「王○明、王○華、王○美(女)」，數量會自動算 3 位。\n② 已逝先人：主蓮位寫先人全名，例「王○明」，地址可寫塔位「○○縣○○鄉○○寶塔」。\n③ 消災個人：陽世者「王○明、陳○英」，住家地址寫到門牌號，主牌位、副牌位一人一份。\n④ 地基主：姓名「王○明」，地址「○○縣○○鄉○○村○○路○號」。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
   },
+  // v5.08：116 梁皇寶懺（小朱 2026-11-21）：照小朱改好的兩個報名類別（地基主移到超薦這邊）＋公告價格；欄位代號和 liang2 一樣，同去年、LINE 貼上照常
+  liang3: {
+    label: '梁皇寶懺 116（超薦蓮位／消災牌位，公告價格）',
+    fields: [
+      {k:'reporter', label:'報名者姓名', type:'text', required:true, isShared:true, help:'繳費、聯絡的人', keywords:['報名者']},
+      {k:'phone', label:'聯絡電話', type:'tel', isShared:true, help:'手機或市話，可不填', keywords:['電話','手機']},
+      {k:'regType', label:'報名類別', type:'radio', required:true, options:['超薦祖先／已逝先人/地基主','消災個人／公司'], keywords:['報名類別','類別']},
+      {k:'yangshang', label:'陽上報恩人姓名', type:'text', help:'在世的子孫，多位用「、」分開', keywords:['陽上人','陽上報恩人'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainAncestor', label:'主蓮位 姓氏祖先或已逝先人', type:'text', help:'姓氏祖先寫「王氏歷代祖先」（5000）；已逝先人寫全名（3000），一格一位', keywords:['主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainAddr', label:'主蓮位 祖先牌位地址', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'subName', label:'小蓮位 已逝及倒房先人姓名', type:'textarea', help:'一人一份（1000），多位用「、」分開，女性可加（女）', keywords:['小蓮位','副蓮位','倒房'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'subAddr', label:'小蓮位 已逝及倒房先人住址', type:'textarea', help:'和主蓮位一樣可寫「同上」', keywords:['小蓮位住址','副蓮位住址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'jijiName', label:'地基主小蓮位 姓名（誰家的地基主）', type:'text', help:'例：王○明（1600），一個地址一份', keywords:['地基主'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'jijiAddr', label:'地基主地址', type:'textarea', help:'兩處以上請再加一個寫', keywords:['地基主地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'liveName', label:'陽世者姓名或公司行號', type:'textarea', help:'一人（一間公司）一份，多人用「、」分開，外籍姓名照護照寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司']}},
+      {k:'liveAddr', label:'住家或公司地址', type:'textarea', help:'寫到門牌號', keywords:['住家地址','公司地址'], showIf:{k:'regType', v:['消災個人／公司']}},
+      {k:'note', label:'備註', type:'textarea', help:'其他交代，例如多一紮大壽金', keywords:['備註']},
+    ],
+    fees: [
+      {k:'mainHousehold', label:'姓氏祖先（主蓮位）', price:5000, mode:'qty', auto:{how:'ancestor', k:'mainAncestor'}, keywords:['姓氏祖先','一戶祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainDeceased', label:'已逝先人（主蓮位）', price:3000, mode:'qty', auto:{how:'person', k:'mainAncestor'}, showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'subDeceased', label:'已逝先人（小蓮位，含倒房）', price:1000, mode:'qty', auto:{how:'names', k:'subName'}, keywords:['小蓮位','副蓮位'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'jijiFee', label:'地基主（小蓮位）', price:1600, mode:'qty', auto:{how:'filled', k:'jijiName'}, keywords:['地基主'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'personMain', label:'個人或公司（主牌位）', price:3600, mode:'qty', auto:{how:'none'}, keywords:['主牌位'], showIf:{k:'regType', v:['消災個人／公司']}},
+      {k:'personSub', label:'個人或公司（小牌位）', price:1000, mode:'qty', auto:{how:'none'}, keywords:['小牌位','副牌位'], showIf:{k:'regType', v:['消災個人／公司']}},
+    ],
+    lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
+    addLabel: '＋ 再加一個蓮位／牌位',
+    exampleNote: '先選「報名類別」，一格填一種，再按「＋ 再加一個蓮位／牌位」繼續填。（以下姓名、地址都是範例）\n【超薦祖先／已逝先人/地基主（黃色蓮位）】\n① 姓氏祖先主蓮位 5000：主蓮位寫「王氏歷代祖先」，牌位地址「○○縣○○鄉○○寶塔」。\n② 已逝先人主蓮位 3000：主蓮位寫先人全名「王○德」，一格一位。\n③ 已逝先人（含倒房）小蓮位 1000：寫「王○美(女)、王○成」，會自動算 2 份。\n④ 地基主小蓮位 1600：姓名「王○明」，地址「○○市○○區○○路○號」。\n【消災個人／公司（紅色牌位）】\n⑤ 陽世者「王○明、陳○英」，住家地址寫到門牌號；主牌位 3600、小牌位 1000，一人一份，請填份數。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
+  },
   birthday: {
     label: '聖誕供品贊助',
     fields: [
@@ -2374,6 +2408,40 @@ async function loadEvents(){
     const r = await window.storage.get('events', STORE_SHARED);
     events = r ? JSON.parse(r.value) : [];
   }catch(e){ events = []; }
+  events.forEach(ev=>fixStaleShowIf(ev));   // v5.08：只在畫面上修正，下次儲存場次設定才寫回
+}
+/* v5.08（小朱 116 梁皇）：改了「報名類別」選項的文字，下面欄位、費用的「只在選○○時顯示」還記著舊文字，
+   選了之後什麼都不出現。舊文字對不到選項時，找字詞最像的選項（例：「超薦祖先／已逝先人」→「超薦祖先／已逝先人/地基主」）。 */
+function showIfTokens(s){ return String(s||'').split(/[／\/、,，&＆＋+\s]+/).map(t=>t.trim()).filter(t=>t.length>=2); }
+function closestOption(stale, options){
+  const st = showIfTokens(stale);
+  let best = '', bestSc = 0, tie = false;
+  (options||[]).forEach(o=>{
+    const ot = showIfTokens(o);
+    const sc = st.filter(t=>ot.includes(t)).length*2 + st.filter(t=>!ot.includes(t) && ot.some(x=>x.includes(t)||t.includes(x))).length;
+    if(sc>bestSc){ best = o; bestSc = sc; tie = false; } else if(sc && sc===bestSc) tie = true;
+  });
+  return bestSc && !tie ? best : '';
+}
+function fixStaleShowIf(ev, renames){
+  if(!ev) return 0;
+  let n = 0;
+  const parents = {};
+  (ev.fields||[]).forEach(f=>{ if((f.type==='radio'||f.type==='select') && (f.options||[]).length) parents[f.k] = f.options; });
+  [...(ev.fields||[]), ...(ev.fees||[])].forEach(x=>{
+    const c = x && x.showIf;
+    if(!c || !c.k || !parents[c.k]) return;
+    const opts = parents[c.k];
+    const nv = (c.v||[]).map(v=>{
+      if(opts.includes(v)) return v;
+      const r = renames && renames[c.k] && renames[c.k][v];
+      const to = (r && opts.includes(r)) ? r : closestOption(v, opts);
+      if(to){ n++; return to; }
+      return v;
+    });
+    c.v = Array.from(new Set(nv));
+  });
+  return n;
 }
 async function saveEvents(){
   try{
@@ -3504,10 +3572,12 @@ const REF_SKIP_HEAD = /^(編號|序號|總費用|總金額|合計|小計|會計�
 function refNorm(s){ return String(s==null?'':s).normalize('NFC').replace(/[\s ()（）\[\]【】:：*＊,，、.&＆／\/]/g,''); }
 function refNoPrice(s){ return refNorm(s).replace(/\d[\d,]*元?/g,'').replace(/元$/,'').replace(/或/g,''); }   // v4.51：「個人&公司」「個人或公司」「個人／公司」視為同一個
 function refGuessCol(head, ev){
+  head = synLabel(ev, String(head==null?'':head).replace(/副(蓮位|牌位)/g, (m,x)=>JSON.stringify([(ev.fields||[]).map(f=>f.label),(ev.fees||[]).map(f=>f.label)]).indexOf('小'+x)>=0 && JSON.stringify([(ev.fields||[]).map(f=>f.label),(ev.fees||[]).map(f=>f.label)]).indexOf('副'+x)<0 ? '小'+x : m));   // v5.08：去年寫「副蓮位」，今年範本叫「小蓮位」
   const h = refNorm(head), hp = refNoPrice(head);
   if(!h || REF_SKIP_HEAD.test(h)) return '';
   if(/報名者/.test(h) || h==='姓名' || h==='報名者姓名') return (ev.fields||[]).some(f=>f.k==='reporter') ? 'f:reporter' : '';
-  const cands = [...(ev.fields||[]).map(f=>({key:'f:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)})), ...(ev.fees||[]).map(f=>({key:'x:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)}))];
+  let cands = [...(ev.fields||[]).map(f=>({key:'f:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)})), ...(ev.fees||[]).map(f=>({key:'x:'+f.k, n:refNorm(f.label), p:refNoPrice(f.label)}))];
+  if(/\d[\d,]*\s*元/.test(head) && (ev.fees||[]).length) cands = cands.filter(c=>c.key.indexOf('x:')===0);   // v5.08：表頭有「1000元」就是數量欄
   let best = cands.find(c=>c.n===h) || cands.find(c=>c.p && c.p===hp);
   if(best) return best.key;
   const inc = cands.filter(c=>c.p.length>=2 && hp.length>=2 && (c.p.includes(hp) || hp.includes(c.p))).sort((a,b)=>Math.abs(a.p.length-hp.length)-Math.abs(b.p.length-hp.length));
@@ -3562,9 +3632,33 @@ function refBuildRecords(ev, sheets){
       // v4.51：這張表指定的報名類別（例：祖先表＝超薦祖先，個人表＝消災個人）
       Object.keys(sh.fixed||{}).forEach(k=>{ if(sh.fixed[k] && !String(f[k]||'').trim()) f[k] = sh.fixed[k]; });
       inferShowIfChoice(ev, f);
-      out.push({id:uid(), f, fee, ref:true, sheet:sh.name, row:d.row, createdAt:Date.now()});
+      refSplitByChoice(ev, f, fee).forEach(p=>out.push({id:uid(), f:p.f, fee:p.fee, ref:true, sheet:sh.name, row:d.row, createdAt:Date.now()}));
     });
   });
+  return out;
+}
+/* v5.08：去年同一列有屬於另一個類別的資料（例：115「個人&地基主」表的地基主，今年地基主改在「超薦…/地基主」），
+   拆成兩筆：這個類別的留著，另一個類別的欄位、費用搬到新的一筆（報名者、電話、備註兩筆都有）。 */
+function refSplitByChoice(ev, f, fee){
+  const parents = new Set([...(ev.fields||[]), ...(ev.fees||[])].filter(x=>x.showIf && x.showIf.k).map(x=>x.showIf.k));
+  if(parents.size!==1) return [{f, fee}];
+  const pk = Array.from(parents)[0], cur = String(f[pk]||'').trim();
+  if(!cur) return [{f, fee}];
+  const groups = {};
+  const other = it => it.showIf && it.showIf.k===pk && !(it.showIf.v||[]).includes(cur) && (it.showIf.v||[])[0];
+  (ev.fields||[]).forEach(fl=>{ const o = other(fl); if(o && String(f[fl.k]||'').trim()){ (groups[o] = groups[o]||{f:{}, fee:{}}).f[fl.k] = f[fl.k]; delete f[fl.k]; } });
+  (ev.fees||[]).forEach(fl=>{ const o = other(fl); if(o && Number(fee[fl.k])){ (groups[o] = groups[o]||{f:{}, fee:{}}).fee[fl.k] = fee[fl.k]; delete fee[fl.k]; } });
+  const out = [];
+  Object.keys(groups).forEach(o=>{
+    const g = groups[o];
+    if(!Object.keys(g.f).length){ Object.assign(fee, g.fee); return; }   // 只有數量、沒有姓名地址的不拆
+    (ev.fields||[]).forEach(fl=>{ if(!fl.showIf && f[fl.k]!==undefined) g.f[fl.k] = f[fl.k]; });
+    g.f[pk] = o;
+    out.push(g);
+  });
+  // 原本這筆如果只剩報名者（類別欄位都搬走了），就不留
+  const keep = (ev.fields||[]).some(fl=>fl.showIf && String(f[fl.k]||'').trim()) || Object.keys(fee).some(k=>Number(fee[k]));
+  if(keep || !out.length) out.unshift({f, fee});
   return out;
 }
 async function refSaveAll(eventId, records){
@@ -3591,7 +3685,19 @@ function openRefImport(ev){
   inp.click();
 }
 // v4.51：工作表名稱猜類別（「梁皇寶懺-祖先&已逝先人」→ 超薦祖先／已逝先人；「個人&地基主」→ 消災個人／公司／地基主）
-function refGuessFixed(sheetName, f){
+function refGuessFixed(sheetName, f, sh, ev){
+  // v5.08：先看這張表的欄位大多屬於哪個類別（例：115「個人&地基主」表大多是陽世者、主牌位 → 消災個人／公司），看不出來才用表名猜
+  if(sh && ev){
+    const cnt = {};
+    (sh.map||[]).forEach(key=>{
+      if(!key) return;
+      const k = key.slice(2), it = key.indexOf('f:')===0 ? (ev.fields||[]).find(x=>x.k===k) : (ev.fees||[]).find(x=>x.k===k);
+      const c = it && it.showIf;
+      if(c && c.k===f.k) (c.v||[]).forEach(v=>{ if((f.options||[]).includes(v)) cnt[v] = (cnt[v]||0)+1; });
+    });
+    const top = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
+    if(top.length && (top.length===1 || cnt[top[0]]>cnt[top[1]])) return top[0];
+  }
   const sn = refNorm(sheetName);
   let best = '', bestScore = 0;
   (f.options||[]).forEach(o=>{
@@ -3606,7 +3712,7 @@ function refGuessFixed(sheetName, f){
 function refImportModal(ev, fileName, sheets){
   const choiceFs = (ev.fields||[]).filter(f=>(f.type==='radio'||f.type==='select') && (f.options||[]).length);
   const fixedHtml = (sh, si)=>choiceFs.filter(f=>sh.map.indexOf('f:'+f.k)<0).map(f=>{
-    const g = refGuessFixed(sh.name, f);
+    const g = refGuessFixed(sh.name, f, sh, ev);
     return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;font-size:13px;background:#FFF8E6;border-radius:8px;padding:6px 8px;">
       <span style="flex:1;min-width:140px;font-weight:700;">這張表的「${escHtml(f.label)}」</span>
       <select data-reffix="${si}:${escHtml(f.k)}" style="width:auto;min-width:180px;"><option value="">（不指定）</option>${(f.options||[]).map(o=>`<option value="${escHtml(o)}" ${o===g?'selected':''}>${escHtml(o)}</option>`).join('')}</select></div>`;
@@ -7471,6 +7577,7 @@ async function openNewEventModal(){
   const builtinOpts = [
     ['ancestor','祭拜祖先（一戶/倒房/地基主/金紙）'],
     ['liang','梁皇寶懺（主蓮位/副蓮位）'],
+    ['liang3','梁皇寶懺 116（超薦蓮位含地基主／消災牌位，公告價格）'],   // v5.08
     ['liang2','梁皇寶懺（祖先＋個人／地基主，依類別顯示）'],   // v4.52：v4.51 漏加進選單
     ['general','一般法會（一戶 6000、隨喜功德）'],
     ['buyun','補運（每位 1000，補運／補運+補財庫、地址）'],
@@ -7861,6 +7968,13 @@ function openFieldEditor(eventId){
     const backup = {fields: ev.fields, items: ev.items, fees: ev.fees, lineKeywords: ev.lineKeywords};
     const badOpt = newFields.find(f=>(f.type==='select'||f.type==='radio') && !(f.options||[]).length);
     if(badOpt){ showToast(`「${badOpt.label}」是選單／單選，請填選項（用逗號分隔）`, 3500); return; }
+    // v5.08：單選／下拉選項改了文字（同一個位置）→ 記下舊→新，下面存完欄位、費用後一起改「只在選○○時顯示」
+    const optRenames = {};
+    newFields.forEach(nf=>{
+      const of = (backup.fields||[]).find(x=>x.k===nf.k);
+      if(!of || !(of.options||[]).length || !(nf.options||[]).length) return;
+      of.options.forEach((o,i)=>{ if(nf.options[i]!==undefined && nf.options[i]!==o && !nf.options.includes(o)){ (optRenames[nf.k] = optRenames[nf.k]||{})[o] = nf.options[i]; } });
+    });
     ev.fields = newFields;
     ev.lineKeywords = bg.querySelector('#fe_lineKw').value.split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
     if(ev.mode==='items'){
@@ -7886,11 +8000,12 @@ function openFieldEditor(eventId){
         return o;
       }).filter(fl=>fl.label);
     }
+    const fixedN = fixStaleShowIf(ev, optRenames);
     const ok = await saveEvents();
     if(!ok){ ev.fields = backup.fields; ev.items = backup.items; ev.fees = backup.fees; ev.lineKeywords = backup.lineKeywords; return; }
     bg.remove();
     render();
-    showToast('已更新報名欄位設定');
+    showToast(fixedN ? `已更新報名欄位設定（${fixedN} 個欄位／費用的「只在選○○時顯示」已跟著改成新的選項文字）` : '已更新報名欄位設定', fixedN?5000:2500);
   };
 }
 
