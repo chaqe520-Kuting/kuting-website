@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.18 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.19 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.19（2026-11-22）</b>：LINE 待確認帶入（小朱 iPhone 實測）：按「確認並產生報名資料」後按鈕先鎖住、顯示「產生中」，連按也只產生一次；按「帶入解析」不再跳回網頁頂端，直接到解析結果；匯入完停在原本位置。<br>
       <b>v5.18（2026-11-22）</b>：報名頁「🔁 內容和去年一樣」（小朱）：有匯入去年 Excel 的場次，信徒勾選、填姓名，只顯示去年幾筆、各位別幾位、依今年價格合計，不顯示姓名、地址、祖先；送出後是一筆「同去年」報名，後台按「🔁 照去年展開」填入完整內容再核對。提醒信徒：正確資料要等志工回覆後才完成報名程序。摘要在匯入去年 Excel、開放報名或按「🔁 更新網頁同去年摘要」時產生（需新資料庫規則 refsum）。<br>
       <b>v5.17（2026-11-22）</b>：「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存。<br>
       <b>v5.16（2026-11-21）</b>：每一場有自己的報名網址（小朱）：kuting.tw/signup/?e=代碼，信徒打開就直接是那一場的報名表，看不到其他場次；準備中只有登入志工打得開（信徒看到「尚未開放報名」），已結束顯示「已截止報名」。後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 lh116）、複製網址、QR 存成圖片。原本 kuting.tw/signup 照常列出所有開放中的場次。<br>
@@ -4391,7 +4392,21 @@ async function fahuiLinePush(regId, kind, extraRegs, nameOverride){
   return true;
 }
 
+/* v5.19（小朱 iPhone 實測）：按「確認並產生報名資料」後雲端要幾秒，連按好幾下會重複產生報名 → 按下就鎖住按鈕，存完才放開 */
+let importConfirmBusy = false;
 async function confirmImport(){
+  if(importConfirmBusy) return;
+  importConfirmBusy = true;
+  const cbtn = document.getElementById('confirmImportBtn');
+  if(cbtn){ cbtn.disabled = true; cbtn.textContent = '產生中，請稍候…'; }
+  try{ await confirmImportRun(); }
+  finally{
+    importConfirmBusy = false;
+    const b2 = document.getElementById('confirmImportBtn');
+    if(b2){ b2.disabled = false; b2.textContent = '確認並產生報名資料'; }
+  }
+}
+async function confirmImportRun(){
   let count = 0;
   const byEvent = {};
   const learnedEvents = new Set();
@@ -4440,7 +4455,7 @@ async function confirmImport(){
   importRaw = '';
   importForceEventId = '';
   showToast((allOk ? `已匯入 ${count} 筆報名資料` : '部分資料匯入失敗，請檢查網路後再試一次') + (learnedEvents.size ? '，並記住新的欄位說法' : ''), 3500);
-  render();
+  await renderHoldScroll();
 }
 
 /* ---------------- v4.38：LINE 小幫手待確認 ----------------
@@ -4559,9 +4574,10 @@ function lineInboxParse(ids){
   importForceEventId = '';
   parseAndBuildPreview(importRaw);
   importParseFailed = !importBlocks.length;
-  render().then(()=>{
-    const ta = document.getElementById('importRawArea');
-    if(ta) ta.scrollIntoView({behavior:'smooth', block:'start'});
+  // v5.19（小朱 iPhone）：重畫時畫面先變「載入中…」被拉回頂端；改成撐住高度重畫，再直接跳到解析結果
+  renderHoldScroll().then(()=>{
+    const target = document.getElementById('importRawArea');
+    if(target) requestAnimationFrame(()=>{ const y = target.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo(0, Math.max(0, y)); });
   });
   showToast(importParseFailed ? '⚠️ 沒有辨識出報名資料，可以在框裡修改後再按「解析文字」' : `已帶入 ${docs.length} 則 LINE 訊息，請核對下方解析結果後確認匯入`, 4000);
 }
@@ -5097,6 +5113,14 @@ document.addEventListener('click', async e=>{
 /* ---------------- render root ---------------- */
 /* v4.2：換頁時整個畫面會先變成「載入中…」再重畫，頁面高度瞬間縮短，瀏覽器就把捲動位置
    跳到別處。改成重畫後把剛剛按的按鈕捲回原本在螢幕上的同一個位置。 */
+// v5.19：重畫期間撐住高度、重畫完回到原本捲動位置（iPhone 重畫時會被拉回頂端）
+async function renderHoldScroll(){
+  const y = window.scrollY;
+  const view = document.getElementById('view');
+  view.style.minHeight = view.offsetHeight + 'px';
+  try{ await render(); } finally { view.style.minHeight = ''; }
+  window.scrollTo(0, Math.min(y, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)));
+}
 async function renderKeepAnchor(id){
   const before = document.getElementById(id);
   const top = before ? before.getBoundingClientRect().top : null;
@@ -7616,6 +7640,7 @@ function bindEvents(){
   });
   const confirmImportBtn = document.getElementById('confirmImportBtn');
   if(confirmImportBtn) confirmImportBtn.onclick = async ()=>{
+    if(importConfirmBusy) return;
     const unc = importBlocks.filter(b=>b.include && b.uncertain).length;
     if(unc && !(await showConfirm(`還有 <b>${unc} 筆</b>場次不確定（紅框），確定場次都對了嗎？`))) return;
     confirmImport();
