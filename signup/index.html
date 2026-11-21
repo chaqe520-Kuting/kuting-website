@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.13 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.14 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.14（2026-11-21）</b>：「🔁 比照上次報名」修正（小朱測試梁皇）：第一位只先選了報名類別、還沒填內容時，帶入會跳過第一位、從第二位開始填，留下一筆只有類別、金額 0 的空白報名。現在只選了類別也算空的，第一筆會填進第一位（類別照去年的改過來）。<br>
       <b>v5.13（2026-11-21）</b>：「編輯報名欄位／費用」的費用項目設定：項目名稱整行顯示、單價框加寬並標「單價…元」（小朱：視窗窄時單價框太小，看不到數字、找不到在哪改）。<br>
       <b>v5.12（2026-11-21）</b>：梁皇寶懺 116 修正（小朱檢查發現）：① 用範本建場次時，費用單價被舊場次同名費用的價格蓋掉（已逝先人主蓮位變 3600、小蓮位 3600、地基主 1000）→ 這個範本固定用公告價格；② 在「編輯欄位」按儲存，姓氏祖先、已逝先人主蓮位的「數量依填寫內容自動算」會不見 → 選單加上這兩種算法、選單沒有的算法照原樣保留，已被洗掉的場次開網頁自動補回（儲存才寫回）。<br>
       <b>v5.11（2026-11-21）</b>：梁皇寶懺 116 範本欄位名稱標上價格（小朱）：「姓氏祖先主蓮位（每戶5000元）」「已逝先人姓名 主蓮位（每位3000元）」「小蓮位 已逝及倒房先人姓名（每位1000元）」「地基主小蓮位 姓名（戶長的地基主）」「陽世者姓名或公司行號（主牌位3600元，小牌位1000元）」。已建好的場次在「編輯欄位」改名稱即可，不用重建。<br>
@@ -1913,7 +1914,8 @@ function fillFromRef(pf, ev, recs, firstBlk){
   recs.forEach((r, i)=>{
     let blocks = Array.from(wrap.querySelectorAll('.person-block'));
     // 找一個還沒填的牌位，沒有就按「再加一個」
-    const isEmpty = b=>getRepeatFields(ev).every(f=>!readFieldValue(b, `pf_${b.dataset.block}_${f.k}`));
+    // v5.14（小朱）：只選了報名類別（單選／下拉）還算空的，不然第一位會被跳過、留下一筆只有類別、金額 0 的報名
+    const isEmpty = b=>getRepeatFields(ev).filter(f=>f.type!=='radio' && f.type!=='select').every(f=>!readFieldValue(b, `pf_${b.dataset.block}_${f.k}`));
     let blk = (i===0 && firstBlk && isEmpty(firstBlk)) ? firstBlk : blocks.find(isEmpty);
     if(!blk && addBtn){ addBtn.click(); blocks = Array.from(wrap.querySelectorAll('.person-block')); blk = blocks[blocks.length-1]; }
     if(!blk) return;
