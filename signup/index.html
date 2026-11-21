@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.08 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.09 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.09（2026-11-21）</b>：新增「🛟 救回單一場次（從自動備份）」（管理者，在後台最下方「匯出／匯入資料備份」旁）：選每週自動備份的「法會報名_kuting-9d240_….json」或本頁匯出的備份檔，選一場，先列出場次設定在不在、備份幾筆、雲端目前幾筆、要補回幾筆與報名者姓名；輸入「救回」後先下載現況備份，再只補回這一場缺少的報名（一筆一文件，目前還在的不覆蓋）、場次不在就加回去，其他場次完全不動（小朱誤刪 115 渡祖先法會）。<br>
       <b>v5.08（2026-11-21）</b>：116 梁皇寶懺（小朱）：<br>
       ・新增內建範本「梁皇寶懺 116（超薦蓮位含地基主／消災牌位，公告價格）」：報名類別照小朱改的「超薦祖先／已逝先人/地基主」「消災個人／公司」；地基主移到超薦這邊；價格照公告：姓氏祖先主蓮位 5000、已逝先人主蓮位 3000、小蓮位（含倒房）1000、地基主小蓮位 1600、主牌位 3600、小牌位 1000；「副」改叫「小」；填寫範例改新的（姓名地址遮蔽）。<br>
       ・修正：在「編輯欄位」改了報名類別的選項文字，下面欄位、費用的「只在選○○時顯示」還記著舊文字，選了以後欄位、費用都不出現。現在會自動跟著改（同位置改名照改；舊文字找字詞最像的選項），開網頁時畫面上先修正，按「儲存變更」才寫回。<br>
@@ -5475,7 +5476,9 @@ function renderSiteSettingsCard(){
     <div class="row-actions" style="margin-top:10px;">
       <button class="btn btn-primary btn-sm" id="exportBackupBtn">匯出資料備份（下載檔案）</button>
       <button class="btn btn-ghost btn-sm" id="restoreBackupBtn">匯入資料備份（還原檔案）</button>
+      ${staffIsAdmin() ? `<button class="btn btn-primary btn-sm" id="restoreOneEventBtn">🛟 救回單一場次（從自動備份）</button>` : ''}
     </div>
+    ${staffIsAdmin() ? `<p class="hint" style="margin-top:6px;">🛟 誤刪場次或報名時用：選每週自動備份的「法會報名_kuting-9d240_….json」（或這裡匯出的備份檔），只補回選定那一場缺少的場次設定與報名，<b>其他場次、目前還在的報名都不會動</b>；動手前會先下載一份現況備份。</p>` : ''}
     <p class="hint" style="margin-top:8px;">你在後台編輯的場次、欄位、費用、報名清單、海報圖片跟標頭設定，都存在這個網頁對應的雲端空間裡。若之後需要更新這個網頁（例如請人修改功能），建議先按「匯出資料備份」下載一份檔案，拿到新版網頁後再用「匯入資料備份」還原，就能確保你編輯好的內容不會不見。</p>
   </div>`;
 }
@@ -6953,6 +6956,8 @@ function bindEvents(){
   if(exportBackupBtn) exportBackupBtn.onclick = exportFullBackup;
   const restoreBackupBtn = document.getElementById('restoreBackupBtn');
   if(restoreBackupBtn) restoreBackupBtn.onclick = openRestoreBackupModal;
+  const restoreOneEventBtn = document.getElementById('restoreOneEventBtn');
+  if(restoreOneEventBtn) restoreOneEventBtn.onclick = openRestoreOneEventModal;
 
   const toggleActive = document.getElementById('toggleActiveBtn');
   if(toggleActive) toggleActive.onclick = async ()=>{
@@ -8157,6 +8162,138 @@ function openRestoreBackupModal(){
     applySiteConfig();
     render();
     showToast('已還原備份資料');
+  };
+}
+
+/* v5.09（小朱 2026-11-21 誤刪 115 渡祖先法會）：從自動備份救回單一場次
+   - 讀每週自動備份（kuting-backup，collections.kv.events + collections.regs）或本頁「匯出資料備份」的檔
+   - 只處理選定的一場：場次不在目前清單就加回去；報名只補「目前雲端沒有的那幾筆」（同 id 已存在的不覆蓋）
+   - 動手前先下載現況備份；一筆一文件寫回，等雲端確認才算完成 */
+function rbParseBackup(data){
+  const out = {events:[], regs:{}, when:''};
+  if(data && data.collections && data.collections.kv){   // 自動備份格式
+    const evDoc = data.collections.kv.events;
+    const v = evDoc && evDoc.value;
+    out.events = typeof v === 'string' ? JSON.parse(v) : (Array.isArray(v) ? v : []);
+    const regs = data.collections.regs || {};
+    Object.keys(regs).forEach(docId=>{
+      const d = regs[docId]; if(!d || !d.eventId || !d.payload) return;
+      (out.regs[d.eventId] = out.regs[d.eventId] || []).push({...d.payload, id: d.payload.id || docId});
+    });
+    out.when = data.exportedAt || '';
+  } else if(data && Array.isArray(data.events)){          // 本頁匯出格式
+    out.events = data.events;
+    Object.keys(data.regs||{}).forEach(k=>{ out.regs[k] = (data.regs[k]||[]).filter(r=>r && r.id); });
+    out.when = data.exportedAt || '';
+  } else throw new Error('看不懂這個檔案（不是法會報名的備份檔）');
+  return out;
+}
+function rbDownload(obj, name){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+}
+function openRestoreOneEventModal(){
+  if(!staffIsAdmin()){ showToast('只有管理者可以救回場次'); return; }
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="max-width:640px;">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 10px;">🛟 救回單一場次</h2>
+    <p class="hint" style="margin:0 0 10px;">選備份檔：Google 雲端硬碟「古亭院自動備份／（日期）」裡的 <b>法會報名_kuting-9d240_….json</b>，或電腦「自動備份\\資料」裡同名的檔。只會補回你選的那一場，其他場次不會動。</p>
+    <input type="file" id="ro_file" accept="application/json,.json">
+    <div id="ro_body" style="margin-top:12px;"></div>
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" id="ro_go" disabled>確定救回</button>
+      <button class="btn btn-ghost" id="ro_cancel">關閉</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const body = bg.querySelector('#ro_body'), go = bg.querySelector('#ro_go');
+  let bk = null, plan = null;
+  bg.querySelector('#ro_cancel').onclick = ()=>bg.remove();
+  async function preview(evId){
+    plan = null; go.disabled = true;
+    const bev = bk.events.find(e=>e.id===evId);
+    const bregs = (bk.regs[evId]||[]);
+    body.querySelector('#ro_info').innerHTML = '讀取雲端目前的資料中…';
+    let curIds;
+    try{
+      const snap = await db.collection('regs').where('eventId','==',evId).get();
+      curIds = new Set(snap.docs.map(d=>d.id));
+    }catch(e){ body.querySelector('#ro_info').innerHTML = '<span style="color:var(--vermilion)">讀不到雲端資料：'+escHtml(e && e.message || e)+'</span>'; return; }
+    const evMissing = !!bev && !events.some(e=>e.id===evId);
+    const missing = bregs.filter(r=>!curIds.has(r.id));
+    plan = {evId, bev, evMissing, missing, curCount: curIds.size};
+    const names = missing.map(r=>escHtml((r.f||{}).reporter||'（無姓名）')).join('、');
+    body.querySelector('#ro_info').innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:15px;">
+        <tr><td style="padding:4px 0;">場次設定</td><td><b>${bev ? (evMissing ? '目前網頁上沒有 → 會加回去' : '還在，不用動') : '備份裡沒有這場的設定'}</b></td></tr>
+        <tr><td style="padding:4px 0;">備份裡的報名</td><td><b>${bregs.length}</b> 筆</td></tr>
+        <tr><td style="padding:4px 0;">雲端目前還在</td><td><b>${curIds.size}</b> 筆（不會改動）</td></tr>
+        <tr><td style="padding:4px 0;">要補回</td><td><b style="color:var(--vermilion)">${missing.length}</b> 筆</td></tr>
+      </table>
+      ${missing.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">看要補回的報名者（${missing.length}）</summary><div class="hint" style="margin-top:6px;line-height:1.8;">${names}</div></details>` : ''}
+      <p class="hint" style="margin-top:8px;">備份時間：${escHtml(bk.when ? new Date(bk.when).toLocaleString('zh-TW') : '不明')}。這之後才新增或修改的報名，備份裡不會有。</p>`;
+    go.disabled = !(evMissing || missing.length);
+    if(go.disabled) body.querySelector('#ro_info').insertAdjacentHTML('beforeend','<p style="color:var(--gold-deep,#8a6d1f);font-weight:700;">這場沒有缺少的資料，不需要救回。</p>');
+  }
+  bg.querySelector('#ro_file').onchange = async (e)=>{
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    body.innerHTML = '讀取檔案中…'; go.disabled = true;
+    try{ bk = rbParseBackup(JSON.parse(await file.text())); }
+    catch(err){ body.innerHTML = '<span style="color:var(--vermilion)">'+escHtml(err && err.message || '檔案讀取失敗')+'</span>'; return; }
+    const ids = Array.from(new Set(bk.events.map(e=>e.id).concat(Object.keys(bk.regs).filter(k=>k.indexOf('ref:')!==0))));
+    if(!ids.length){ body.innerHTML = '備份裡沒有場次'; return; }
+    const label = id=>{ const ev = bk.events.find(e=>e.id===id); const gone = !events.some(e=>e.id===id); return (ev ? ev.name : '（備份沒有場次設定）'+id) + `（${(bk.regs[id]||[]).length} 筆）` + (gone ? ' ⚠ 目前網頁上沒有這場' : ''); };
+    const firstGone = ids.find(id=>!events.some(e=>e.id===id)) || ids[0];
+    body.innerHTML = `<div class="field"><label>要救回哪一場</label><select id="ro_ev" style="width:100%;padding:9px;font-size:16px;">${ids.map(id=>`<option value="${escHtml(id)}" ${id===firstGone?'selected':''}>${escHtml(label(id))}</option>`).join('')}</select></div><div id="ro_info"></div>`;
+    body.querySelector('#ro_ev').onchange = ev=>preview(ev.target.value);
+    preview(firstGone);
+  };
+  go.onclick = async ()=>{
+    if(!plan) return;
+    const name = plan.bev ? plan.bev.name : plan.evId;
+    const typed = await showPromptModal(`確定救回「${escHtml(name)}」：${plan.evMissing?'加回場次設定、':''}補回 ${plan.missing.length} 筆報名。<br>會先下載一份現況備份。確定請輸入「救回」兩個字：`);
+    if(typed===null) return;
+    if(typed.trim()!=='救回'){ showToast('沒有輸入「救回」，沒有動作', 3000); return; }
+    go.disabled = true; const t0 = Date.now();
+    const tick = setInterval(()=>{ go.textContent = `救回中…${Math.round((Date.now()-t0)/1000)} 秒`; }, 500);
+    try{
+      // 1. 先留現況備份
+      const curSnap = await db.collection('regs').where('eventId','==',plan.evId).get();
+      rbDownload({exportedAt:new Date().toISOString(), note:'救回單一場次前的現況備份', events, regs:{[plan.evId]: curSnap.docs.map(d=>({docId:d.id, ...d.data()}))}},
+        '法會報名_救回前現況備份_' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'') + '.json');
+      // 2. 補回報名（只寫目前沒有的 id，一筆一文件）
+      const latestIds = new Set(curSnap.docs.map(d=>d.id));
+      const todo = plan.missing.filter(r=>!latestIds.has(r.id));
+      for(let i=0;i<todo.length;i+=400){
+        const b = db.batch();
+        todo.slice(i,i+400).forEach(r=>b.set(db.collection('regs').doc(r.id), {eventId: plan.evId, payload: r}));
+        await b.commit();
+      }
+      // 3. 場次設定不在就加回去（重新讀一次最新清單再加，避免蓋掉別人剛改的）
+      if(plan.evMissing){
+        try{ const r = await window.storage.get('events', STORE_SHARED); if(r && r.value) events = JSON.parse(r.value); }catch(e){}
+        if(!events.some(e=>e.id===plan.evId)){
+          events.push(plan.bev);
+          if(!(await saveEvents())) throw new Error('場次設定寫回失敗');
+        }
+      }
+      // 4. 雲端確認
+      const after = await db.collection('regs').where('eventId','==',plan.evId).get();
+      clearInterval(tick);
+      delete regsCache[plan.evId];
+      await loadRegs(plan.evId);
+      adminSelectedEvent = plan.evId;
+      bg.remove(); render();
+      alert(`已救回「${name}」：補回 ${todo.length} 筆，雲端現在共 ${after.size} 筆${plan.evMissing?'；場次設定已加回':''}。`);
+    }catch(err){
+      clearInterval(tick); go.disabled = false; go.textContent = '確定救回';
+      console.error('restoreOneEvent failed', err);
+      alert('救回沒有完成：' + (err && err.message ? err.message : err) + '\n已寫入的不會重複，請檢查網路後再按一次。');
+    }
   };
 }
 
