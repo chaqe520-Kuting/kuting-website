@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.09 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.10 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.10（2026-11-21）</b>：梁皇寶懺 116 範本的主蓮位分成兩格（小朱：同一格寫祖先和已逝先人會搞錯）：「姓氏祖先主蓮位（5000）」「已逝先人主蓮位（3000）姓名」，各自依名字數量算份數；祖先格寫了沒有「祖先／歷代」的名字，算已逝先人。LINE 貼上、同去年、去年 Excel 的「主蓮位」一欄，沒有「祖先／歷代」的名字自動搬到已逝先人那格。已用 v5.08 範本建好的場次要用新範本重建才會有兩格。<br>
       <b>v5.09（2026-11-21）</b>：新增「🛟 救回單一場次（從自動備份）」（管理者，在後台最下方「匯出／匯入資料備份」旁）：選每週自動備份的「法會報名_kuting-9d240_….json」或本頁匯出的備份檔，選一場，先列出場次設定在不在、備份幾筆、雲端目前幾筆、要補回幾筆與報名者姓名；輸入「救回」後先下載現況備份，再只補回這一場缺少的報名（一筆一文件，目前還在的不覆蓋）、場次不在就加回去，其他場次完全不動（小朱誤刪 115 渡祖先法會）。<br>
       <b>v5.08（2026-11-21）</b>：116 梁皇寶懺（小朱）：<br>
       ・新增內建範本「梁皇寶懺 116（超薦蓮位含地基主／消災牌位，公告價格）」：報名類別照小朱改的「超薦祖先／已逝先人/地基主」「消災個人／公司」；地基主移到超薦這邊；價格照公告：姓氏祖先主蓮位 5000、已逝先人主蓮位 3000、小蓮位（含倒房）1000、地基主小蓮位 1600、主牌位 3600、小牌位 1000；「副」改叫「小」；填寫範例改新的（姓名地址遮蔽）。<br>
@@ -2166,8 +2167,9 @@ const TEMPLATES = {
       {k:'phone', label:'聯絡電話', type:'tel', isShared:true, help:'手機或市話，可不填', keywords:['電話','手機']},
       {k:'regType', label:'報名類別', type:'radio', required:true, options:['超薦祖先／已逝先人/地基主','消災個人／公司'], keywords:['報名類別','類別']},
       {k:'yangshang', label:'陽上報恩人姓名', type:'text', help:'在世的子孫，多位用「、」分開', keywords:['陽上人','陽上報恩人'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
-      {k:'mainAncestor', label:'主蓮位 姓氏祖先或已逝先人', type:'text', help:'姓氏祖先寫「王氏歷代祖先」（5000）；已逝先人寫全名（3000），一格一位', keywords:['主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
-      {k:'mainAddr', label:'主蓮位 祖先牌位地址', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainAncestor', label:'姓氏祖先主蓮位（5000）', type:'text', help:'例：王氏歷代祖先；兩個姓氏用「、」分開，一個姓氏一份', keywords:['姓氏祖先','歷代祖先','主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainPerson', label:'已逝先人主蓮位（3000）姓名', type:'textarea', help:'寫先人全名，多位用「、」分開，一位一份', keywords:['已逝先人主蓮位'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainAddr', label:'主蓮位 祖先牌位地址（已逝先人也寫這裡）', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'subName', label:'小蓮位 已逝及倒房先人姓名', type:'textarea', help:'一人一份（1000），多位用「、」分開，女性可加（女）', keywords:['小蓮位','副蓮位','倒房'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'subAddr', label:'小蓮位 已逝及倒房先人住址', type:'textarea', help:'和主蓮位一樣可寫「同上」', keywords:['小蓮位住址','副蓮位住址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'jijiName', label:'地基主小蓮位 姓名（誰家的地基主）', type:'text', help:'例：王○明（1600），一個地址一份', keywords:['地基主'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
@@ -2177,8 +2179,8 @@ const TEMPLATES = {
       {k:'note', label:'備註', type:'textarea', help:'其他交代，例如多一紮大壽金', keywords:['備註']},
     ],
     fees: [
-      {k:'mainHousehold', label:'姓氏祖先（主蓮位）', price:5000, mode:'qty', auto:{how:'ancestor', k:'mainAncestor'}, keywords:['姓氏祖先','一戶祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
-      {k:'mainDeceased', label:'已逝先人（主蓮位）', price:3000, mode:'qty', auto:{how:'person', k:'mainAncestor'}, showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainHousehold', label:'姓氏祖先（主蓮位）', price:5000, mode:'qty', auto:{how:'ancestorNames', k:'mainAncestor'}, keywords:['姓氏祖先','一戶祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainDeceased', label:'已逝先人（主蓮位）', price:3000, mode:'qty', auto:{how:'personNames', k:'mainPerson'}, showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'subDeceased', label:'已逝先人（小蓮位，含倒房）', price:1000, mode:'qty', auto:{how:'names', k:'subName'}, keywords:['小蓮位','副蓮位'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'jijiFee', label:'地基主（小蓮位）', price:1600, mode:'qty', auto:{how:'filled', k:'jijiName'}, keywords:['地基主'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'personMain', label:'個人或公司（主牌位）', price:3600, mode:'qty', auto:{how:'none'}, keywords:['主牌位'], showIf:{k:'regType', v:['消災個人／公司']}},
@@ -2186,7 +2188,7 @@ const TEMPLATES = {
     ],
     lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
     addLabel: '＋ 再加一個蓮位／牌位',
-    exampleNote: '先選「報名類別」，一格填一種，再按「＋ 再加一個蓮位／牌位」繼續填。（以下姓名、地址都是範例）\n【超薦祖先／已逝先人/地基主（黃色蓮位）】\n① 姓氏祖先主蓮位 5000：主蓮位寫「王氏歷代祖先」，牌位地址「○○縣○○鄉○○寶塔」。\n② 已逝先人主蓮位 3000：主蓮位寫先人全名「王○德」，一格一位。\n③ 已逝先人（含倒房）小蓮位 1000：寫「王○美(女)、王○成」，會自動算 2 份。\n④ 地基主小蓮位 1600：姓名「王○明」，地址「○○市○○區○○路○號」。\n【消災個人／公司（紅色牌位）】\n⑤ 陽世者「王○明、陳○英」，住家地址寫到門牌號；主牌位 3600、小牌位 1000，一人一份，請填份數。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
+    exampleNote: '先選「報名類別」，一格填一種，再按「＋ 再加一個蓮位／牌位」繼續填。（以下姓名、地址都是範例）\n【超薦祖先／已逝先人/地基主（黃色蓮位）】\n① 姓氏祖先主蓮位 5000：寫在「姓氏祖先主蓮位」，例「王氏歷代祖先」，牌位地址「○○縣○○鄉○○寶塔」。\n② 已逝先人主蓮位 3000：寫在「已逝先人主蓮位」，寫先人全名，例「王○德」。\n③ 已逝先人（含倒房）小蓮位 1000：寫「王○美(女)、王○成」，會自動算 2 份。\n④ 地基主小蓮位 1600：姓名「王○明」，地址「○○市○○區○○路○號」。\n【消災個人／公司（紅色牌位）】\n⑤ 陽世者「王○明、陳○英」，住家地址寫到門牌號；主牌位 3600、小牌位 1000，一人一份，請填份數。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
   },
   birthday: {
     label: '聖誕供品贊助',
@@ -2993,20 +2995,36 @@ function countNames(v){
     .filter(x=>/[A-Za-z一-鿿À-ỹ]/.test(x)).length;
 }
 const ANCESTOR_NAME_RE = /祖先|歷代/;
+function lotusParts(v){ return String(v||'').split(/[、,，;；\/\n　]+/).map(x=>x.trim()).filter(x=>/[一-鿿A-Za-z]/.test(x)); }
+/* v5.10（小朱）：梁皇 116 主蓮位分「姓氏祖先」「已逝先人」兩格。LINE 貼上、同去年、去年 Excel 都只有一個「主蓮位」→
+   沒有「祖先／歷代」的名字搬到已逝先人那格。 */
+function splitMainLotus(ev, vals){
+  if(!ev || !vals || !(ev.fields||[]).some(f=>f.k==='mainPerson') || !(ev.fields||[]).some(f=>f.k==='mainAncestor')) return;
+  const parts = lotusParts(vals.mainAncestor);
+  const persons = parts.filter(x=>!ANCESTOR_NAME_RE.test(x));
+  if(!persons.length) return;
+  vals.mainAncestor = parts.filter(x=>ANCESTOR_NAME_RE.test(x)).join('、');
+  vals.mainPerson = [String(vals.mainPerson||'').trim(), ...persons].filter(Boolean).join('、');
+}
 function autoQtyFor(fl, vals){
   const a = fl.auto || {};
   const v = String((vals||{})[a.k]||'').trim();
+  // v5.10：姓氏祖先、已逝先人主蓮位分兩格；祖先格裡寫了先人姓名，算到已逝先人
+  if(a.how==='ancestorNames') return lotusParts(v).filter(x=>ANCESTOR_NAME_RE.test(x)).length;
+  if(a.how==='personNames') return (v ? countNames(v) : 0) + lotusParts((vals||{}).mainAncestor).filter(x=>!ANCESTOR_NAME_RE.test(x)).length;
   if(!v) return 0;
   if(a.how==='filled') return 1;
   if(a.how==='names') return countNames(v);
   if(a.how==='ancestor') return ANCESTOR_NAME_RE.test(v) ? 1 : 0;
   if(a.how==='person') return ANCESTOR_NAME_RE.test(v) ? 0 : 1;
+
   return 0;
 }
 // 沒選類別、但填了只屬於某個類別的欄位（LINE 貼上、語音、同去年）→ 自動補上那個類別；回傳補上的欄位
 function inferShowIfChoice(ev, vals){
   const set = [];
   if(!ev) return set;
+  splitMainLotus(ev, vals);   // v5.10
   const parents = new Set((ev.fields||[]).filter(f=>f.showIf && f.showIf.k).map(f=>f.showIf.k));
   parents.forEach(pk=>{
     if(String(vals[pk]||'').trim()) return;
