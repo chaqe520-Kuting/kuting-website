@@ -1521,6 +1521,67 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
+/* ===== 防連按（法會報名 v5.20／供品贊助 v204 共用，同一份程式碼；小朱 2026-11-22 iPhone 實測）=====
+   以前每個按鈕各自擋，新功能常漏掉，網路慢時連按就重複報名、重複傳 LINE。改成全站統一：
+   按下按鈕後 0.8 秒內開始寫入雲端（Firestore 新增／修改／刪除、送到 LINE 小幫手），這顆按鈕就鎖住（變淡、顯示 ⏳），
+   雲端回覆後才放開；鎖住期間再按無效。最多鎖 30 秒（網路斷掉也會放開，可以再按一次）。 */
+(function(){
+  var last = null, lastAt = 0, cnt = typeof Map === 'function' ? new Map() : null;
+  if(!cnt) return;
+  function begin(){
+    var b = (last && Date.now() - lastAt < 800) ? last : null;
+    if(!b) return function(){};
+    cnt.set(b, (cnt.get(b) || 0) + 1);
+    b.classList.add('k-busy'); b.setAttribute('aria-busy', 'true');
+    var done = false, timer = setTimeout(end, 30000);
+    function end(){
+      if(done) return; done = true; clearTimeout(timer);
+      var n = (cnt.get(b) || 1) - 1;
+      if(n <= 0){ cnt.delete(b); b.classList.remove('k-busy'); b.removeAttribute('aria-busy'); } else cnt.set(b, n);
+    }
+    return end;
+  }
+  function wrap(fn){
+    return function(){
+      var end = begin(), p;
+      try{ p = fn.apply(this, arguments); }catch(e){ end(); throw e; }
+      if(p && typeof p.then === 'function') p.then(end, end); else end();
+      return p;
+    };
+  }
+  function hit(e){
+    var t = e.target;
+    var b = t && t.closest ? t.closest('button, .btn, input[type="submit"], input[type="button"]') : null;
+    if(!b) return;
+    if(b.classList.contains('k-busy')){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+    last = b; lastAt = Date.now();
+  }
+  document.addEventListener('click', hit, true);
+  document.addEventListener('submit', function(e){
+    var b = e.submitter || (e.target && e.target.querySelector ? e.target.querySelector('[type="submit"]') : null);
+    if(!b) return;
+    if(b.classList.contains('k-busy')){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+    last = b; lastAt = Date.now();
+  }, true);
+  try{
+    var F = window.firebase && firebase.firestore;
+    if(F){
+      [[F.DocumentReference, ['set', 'update', 'delete']], [F.CollectionReference, ['add']], [F.WriteBatch, ['commit']], [F.Firestore, ['runTransaction']]].forEach(function(x){
+        var P = x[0] && x[0].prototype; if(!P) return;
+        x[1].forEach(function(m){ if(typeof P[m] === 'function' && !P[m]._kWrap){ P[m] = wrap(P[m]); P[m]._kWrap = true; } });
+      });
+    }
+  }catch(e){ console.warn('k-busy firestore', e); }
+  if(window.fetch){
+    var of = window.fetch, wf = wrap(of);
+    window.fetch = function(u, o){ return (o && /^post$/i.test(o.method || '')) ? wf.apply(this, arguments) : of.apply(this, arguments); };
+  }
+  var st = document.createElement('style');
+  st.textContent = '.k-busy{opacity:.55!important;cursor:progress!important;}.k-busy::after{content:" ⏳";}';
+  (document.head || document.documentElement).appendChild(st);
+})();
+</script>
+<script>
 /* ===== 對照財務收入（供品贊助 v168／法會報名 v4.39 共用，同一份程式碼） =====
    用第二個 Firebase app 登入財務記帳（kuting-accounting115）的帳號，只讀
    entries 的收入（direction=in、沒刪除，現金＋銀行），和本場次未收款報名配對：
@@ -2390,7 +2451,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v203";
+  var APP_VERSION = "v204";
   var APP_UPDATED = "2026-11-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2401,6 +2462,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v204", date: "2026-11-22", changes: [
+      "全站防連按（小朱）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，網路慢時連按不會重複報名或重複傳；和法會報名用同一份程式碼"
+    ] },
     { version: "v203", date: "2026-11-22", changes: [
       "「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存"
     ] },
