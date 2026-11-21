@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.17 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.18 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.18（2026-11-22）</b>：報名頁「🔁 內容和去年一樣」（小朱）：有匯入去年 Excel 的場次，信徒勾選、填姓名，只顯示去年幾筆、各位別幾位、依今年價格合計，不顯示姓名、地址、祖先；送出後是一筆「同去年」報名，後台按「🔁 照去年展開」填入完整內容再核對。提醒信徒：正確資料要等志工回覆後才完成報名程序。摘要在匯入去年 Excel、開放報名或按「🔁 更新網頁同去年摘要」時產生（需新資料庫規則 refsum）。<br>
       <b>v5.17（2026-11-22）</b>：「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存。<br>
       <b>v5.16（2026-11-21）</b>：每一場有自己的報名網址（小朱）：kuting.tw/signup/?e=代碼，信徒打開就直接是那一場的報名表，看不到其他場次；準備中只有登入志工打得開（信徒看到「尚未開放報名」），已結束顯示「已截止報名」。後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 lh116）、複製網址、QR 存成圖片。原本 kuting.tw/signup 照常列出所有開放中的場次。<br>
       <b>v5.15（2026-11-21）</b>：梁皇寶懺 116：報名清單「內容摘要」主牌位、小牌位看不到陽世者姓名（小朱）。原因是欄位名稱加了「（主牌位3600元，小牌位1000元）」，平台看到「牌位」兩個字就把它當成地址欄。現在名稱寫「主牌位／小牌位」或「姓名」「行號」的不算地址欄，摘要會顯示「個人或公司（小牌位）×1：王○明」；LINE 貼上、自動帶地址也不會把地址填進這格。<br>
@@ -3506,6 +3507,132 @@ async function loadRef(eventId){
   }catch(e){ console.error('loadRef', e); refCache[eventId] = []; }
   return refCache[eventId];
 }
+/* v5.18（小朱 2026-11-22）：網頁報名「🔁 內容和去年一樣」
+   信徒在報名頁勾選、填姓名 → 只顯示「去年幾筆、各位別幾位、今年價格合計」，不顯示姓名、地址、祖先。
+   摘要存在 refsum/{場次ID}_{姓名雜湊}（只有份數，沒有個資；不能列出，只能用完整姓名讀一筆），
+   志工匯入去年 Excel、按「✅ 開放報名」或「🔁 更新網頁同去年摘要」時產生。
+   信徒送出後是一筆「同去年」報名（份數、金額照去年份數×今年價格），志工在後台按「🔁 照去年展開」填入完整內容。 */
+function refRecToReg(ev, h, name){
+  const fields = {}, fee = {};
+  (ev.fields||[]).forEach(f=>{ const v = (h.f||{})[f.k]; if(v!==undefined && v!==null && String(v).trim()) fields[f.k] = String(v); });
+  (ev.fees||[]).forEach(fl=>{ const q = Number((h.fee||{})[fl.k])||0; if(q) fee[fl.k] = q; });
+  if(!fields.reporter && name) fields.reporter = name;
+  inferShowIfChoice(ev, fields);
+  const inf = autoInferFeeQuantities(ev, fields);
+  Object.keys(inf).forEach(k=>{ if(!(k in fee) && inf[k]) fee[k] = inf[k]; });
+  return {f:fields, fee};
+}
+function refSumName(n){ return String(n||'').replace(/\s+/g,''); }
+async function refSumDocId(eventId, name){ return eventId + '_' + (await sha256Hex('kuting-refsum|' + refSumName(name))).slice(0,32); }
+async function refSumRebuild(ev, quiet){
+  if(!ev || !ev.sameRef || !staffActive()) return false;
+  try{
+    const refs = await loadRef(ev.id);
+    const byName = {};
+    (refs||[]).forEach(h=>{
+      const names = Array.from(new Set([statName(h), ...refNameParts(h)].filter(x=>x && x.length>=2)));
+      names.forEach(n=>{ (byName[n] = byName[n] || []).push(h); });
+    });
+    const docs = [];
+    for(const n of Object.keys(byName)){
+      const q = {};
+      byName[n].forEach(h=>{ const r = refRecToReg(ev, h, n); Object.keys(r.fee).forEach(k=>{ q[k] = (q[k]||0) + (Number(r.fee[k])||0); }); });
+      docs.push({id: await refSumDocId(ev.id, n), data:{e: ev.id, n: byName[n].length, q, at: Date.now()}});
+    }
+    const old = await db.collection('refsum').where('e','==',ev.id).get();
+    const keep = new Set(docs.map(d=>d.id));
+    const dels = []; old.forEach(d=>{ if(!keep.has(d.id)) dels.push(d.ref); });
+    for(let i=0; i<dels.length; i+=400){ const bt = db.batch(); dels.slice(i,i+400).forEach(r=>bt.delete(r)); await bt.commit(); }
+    for(let i=0; i<docs.length; i+=400){ const bt = db.batch(); docs.slice(i,i+400).forEach(d=>bt.set(db.collection('refsum').doc(d.id), d.data)); await bt.commit(); }
+    ev.sameRef.sum = Date.now(); ev.sameRef.sumCount = docs.length;
+    await saveEvents();
+    if(!quiet) showToast(`已更新網頁同去年摘要（${docs.length} 個姓名，只有份數、沒有姓名地址）`, 3500);
+    return true;
+  }catch(e){
+    console.error('refSumRebuild', e);
+    showToast('⚠️ 網頁同去年摘要沒有更新（' + (e && e.code==='permission-denied' ? '資料庫規則還沒發布，或這個帳號沒有權限' : (e && e.message || '網路問題')) + '）', 5000);
+    return false;
+  }
+}
+const refSumCache = {};
+async function refSumLookup(ev, name){
+  const n = refSumName(name);
+  if(n.length<2) return null;
+  const id = await refSumDocId(ev.id, n);
+  if(id in refSumCache) return refSumCache[id];
+  let v = null;
+  try{ const d = await db.collection('refsum').doc(id).get(); v = d.exists ? d.data() : null; }
+  catch(e){ console.warn('refsum get', e); return undefined; }
+  refSumCache[id] = v;
+  return v;
+}
+function refSumText(ev, sum){
+  let total = 0;
+  const lines = (ev.fees||[]).map(fl=>{
+    const q = Number((sum.q||{})[fl.k])||0;
+    if(!q) return '';
+    const amt = fl.mode==='amount' ? q : q*(Number(fl.price)||0);
+    total += amt;
+    return `・${escHtml(fl.label)}${fl.mode==='amount' ? '' : ' ' + q + ' 位'}　${money(amt)} 元`;
+  }).filter(Boolean);
+  return {total, html: `去年有報名 <b>${Number(sum.n)||0} 筆</b>：<br>${lines.join('<br>') || '（去年沒有寫份數，志工會幫您核對）'}<br>依今年價格合計約 <b>${money(total)} 元</b>（實際以志工確認為準）`};
+}
+function sameLastBoxHtml(ev){
+  if(!ev || ev.mode==='items' || !ev.sameRef || !ev.sameRef.sum) return '';
+  return `<div class="field" id="pubSameBox" style="background:#FDF1EC;border:1.5px dashed var(--vermilion);border-radius:10px;padding:10px 12px;">
+    <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--vermilion);margin:0;cursor:pointer;"><input type="checkbox" id="pubSameLast" style="width:22px;height:22px;"> 🔁 內容和去年一樣（同去年）</label>
+    <div class="hint" style="margin-top:4px;">去年報過、內容都一樣：勾這裡、填好上面的姓名和電話就可以送出，不用一格一格填。正確的報名資料要等志工回覆後才完成報名程序。</div>
+    <div id="pubSameInfo" style="margin-top:6px;font-size:14.5px;line-height:1.8;"></div></div>`;
+}
+function bindSameLastPublic(pf, ev){
+  const cb = pf.querySelector('#pubSameLast');
+  if(!cb) return;
+  const info = pf.querySelector('#pubSameInfo');
+  const rep = pf.querySelector('[name="reporter"]');
+  const wrap = pf.querySelector('#personBlocksWrap'), add = pf.querySelector('#addPersonBtn');
+  let timer = null;
+  const refresh = async ()=>{
+    pf._sameLastSum = null;
+    if(!cb.checked){ info.innerHTML = ''; if(wrap) wrap.style.display = ''; if(add) add.style.display = ''; updatePublicTotal(); return; }
+    if(wrap) wrap.style.display = 'none'; if(add) add.style.display = 'none';
+    const name = rep ? rep.value : '';
+    if(refSumName(name).length<2){ info.innerHTML = '請先在上面填「報名者姓名」。'; updatePublicTotal(); return; }
+    info.innerHTML = '查詢中…';
+    const sum = await refSumLookup(ev, name);
+    if(!cb.checked || (rep && rep.value!==name)) return;
+    if(sum===undefined){ info.innerHTML = '⚠️ 網路不穩，查不到去年資料，請稍後再試，或取消勾選照欄位填寫。'; updatePublicTotal(); return; }
+    if(!sum){ info.innerHTML = `去年資料裡沒有找到「${escHtml(refSumName(name))}」。請確認姓名和去年報名時一樣，或取消勾選，照下面的欄位填寫。`; updatePublicTotal(); return; }
+    const t = refSumText(ev, sum);
+    pf._sameLastSum = {sum, total: t.total};
+    info.innerHTML = t.html + '<br><span class="hint">地址、陽上人有變動，送出後請告訴志工。</span>' +
+      '<div style="margin-top:6px;padding:6px 10px;background:#FFF4D6;border-radius:8px;color:#6E1F1C;font-weight:700;">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</div>';
+    updatePublicTotal();
+  };
+  cb.addEventListener('change', refresh);
+  if(rep) rep.addEventListener('input', ()=>{ if(!cb.checked) return; clearTimeout(timer); timer = setTimeout(refresh, 400); });
+}
+// 後台：「同去年」報名展開成去年的每一筆（第一筆改寫這筆，其餘新增；不刪資料）
+async function expandSameLastReg(ev, r){
+  const name = refSumName((r.f||{}).reporter);
+  const refs = refCache[ev.id] || await loadRef(ev.id);
+  const hits = (refs||[]).filter(h=>statName(h)===name || refNameParts(h).includes(name));
+  if(!hits.length){ showToast(`去年資料裡找不到「${name}」，請點「編輯」手動填`, 4000); return; }
+  const keepShared = {};
+  getSharedFields(ev).forEach(fl=>{ const v = (r.f||{})[fl.k]; if(String(v||'').trim()) keepShared[fl.k] = v; });
+  const recs = hits.map(h=>{ const x = refRecToReg(ev, h, name); const f = {...x.f, ...keepShared, reporter: r.f.reporter}; return {f, fee:x.fee, total: calcTotal(ev, f, x.fee, [])}; });
+  if(!(await showConfirm(`把「${escHtml(r.f.reporter)}」這筆「同去年」照去年資料展開成 <b>${recs.length} 筆</b>嗎？<br>（第一筆改寫這筆，其他新增；收款、確認狀態保留在第一筆）`))) return;
+  const first = {...r, f: recs[0].f, fee: recs[0].fee, total: recs[0].total, sameLast: {...(r.sameLast||{}), done: Date.now(), by: (staff && staff.name) || ''}};
+  if(!(await updateReg(ev.id, r.id, first))) return;
+  Object.assign(r, first);
+  const rest = recs.slice(1).map(x=>({id: uid(), f: x.f, fee: x.fee, total: x.total, paid: false, confirmed: false, createdAt: r.createdAt || Date.now(), sameLastOf: r.id}));
+  if(rest.length){
+    if(r.test) rest.forEach(x=>{ x.test = true; });
+    if(!(await appendRegs(ev.id, rest))){ render(); return; }
+    regsCache[ev.id] = (regsCache[ev.id]||[]).concat(rest);
+  }
+  render();
+  showToast(`已照去年展開成 ${recs.length} 筆，地址、陽上人請再核對`, 4000);
+}
 let sameLastLoading = false;
 function sameLastPreload(){
   if(sameLastLoading) return;
@@ -3795,6 +3922,7 @@ function refImportModal(ev, fileName, sheets){
       const fx = use.filter(sh=>Object.keys(sh.fixed||{}).length).map(sh=>sh.name+'＝'+Object.values(sh.fixed).join('、'));
       if(fx.length) ev.sameRef.fixed = fx;
       const ok = await saveEvents();
+      if(ok) await refSumRebuild(ev, true);   // v5.18 網頁同去年摘要
       bg.remove();
       showToast(ok ? `已匯入 ${recs.length} 筆去年資料（${Math.round((Date.now()-t0)/1000)} 秒），之後「同去年」只參考這份` : '⚠️ 參考資料已存，但場次設定沒存到，請再匯入一次', 5000);
       render();
@@ -5195,6 +5323,7 @@ function renderPublicForm(ev){
     html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${renderFieldInput(f, f.k)}${condEmptyHint(ev, f)}</div>`;
   });
 
+  html += sameLastBoxHtml(ev);   // v5.18
   if(ev.mode==='items'){
     html += `<label>選擇供品並填寫數量</label>`;
     (ev.items||[]).forEach((it,idx)=>{
@@ -5710,6 +5839,7 @@ function renderEventManager(){
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
       ${ev.active!==false ? `<button class="btn btn-ghost btn-sm" id="refImportBtn">📥 匯入去年 Excel</button>` : ''}
+      ${ev.active!==false && ev.sameRef ? `<button class="btn btn-ghost btn-sm" id="refSumBtn" title="報名頁「內容和去年一樣」用的摘要（只有份數，沒有姓名地址）">🔁 更新網頁同去年摘要</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="eventLinkBtn">🔗 報名網址／QR</button>
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
       <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
@@ -5822,11 +5952,12 @@ function renderRegTable(ev){
       <td><input type="checkbox" class="reg-select-cb" data-id="${escHtml(r.id)}" ${selectedRegIds.has(r.id)?'checked':''}></td>
       <td>${startIdx+i+1}</td>
       <td>${escHtml(r.f.reporter||'')}${r.test?' <span class="pill pending" title="準備中測試時送出的報名，開放報名時會清掉" style="background:#FFF4D6;color:#9a6a00;">🧪 測試</span>':''}</td>
-      <td>${summary}</td>
+      <td>${r.sameLast && !r.sameLast.done ? `<b style="color:var(--vermilion);">🔁 同去年（去年 ${Number(r.sameLast.n)||0} 筆，待展開）</b><br>` : ''}${summary}</td>
       <td>${money(r.total)}</td>
       <td><span class="pill ${r.paid?'ok':'pending'}" data-togglepaid="${escHtml(r.id)}" style="cursor:pointer"${r.paid&&fahuiFinMatcher.hasLink(r)?` title="${escHtml(fahuiFinMatcher.regMatchText(r))}"`:''}>${r.paid?'已收款':'未收款'}</span>${r.paid&&fahuiFinMatcher.hasLink(r)?`<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">💵 ${escHtml(fahuiFinMatcher.regMatchText(r))}</div>`:''}</td>
       <td><span class="pill ${r.confirmed?'ok':'pending'}" data-toggleok="${escHtml(r.id)}" style="cursor:pointer">${r.confirmed?'已確認':'待確認'}</span></td>
       <td class="row-actions">
+        ${r.sameLast && !r.sameLast.done ? `<button class="btn btn-primary btn-sm" data-sameexpand="${escHtml(r.id)}">🔁 照去年展開</button>` : ''}
         <button class="btn btn-ghost btn-sm" data-edit="${escHtml(r.id)}">編輯</button>
         <button class="btn btn-ghost btn-sm" data-linepush="${escHtml(r.id)}" title="由 LINE 小幫手私訊報名成功通知${r.lineName?'給「'+escHtml(r.lineName)+'」':'（用報名姓名找 LINE 好友）'}">${r.linePushedAt?'✓ 已傳報名':'📨 LINE 報名成功'}</button>
         ${r.paid?`<button class="btn btn-ghost btn-sm" data-linepaid="${escHtml(r.id)}" title="由 LINE 小幫手私訊收款確認">${r.linePaidPushedAt?'✓ 已傳收款':'💰 LINE 收款確認'}</button>`:''}
@@ -5917,6 +6048,7 @@ function openSubmissionPreviewModal(ev, records){
   let inner = `<h2 style="font-family:'Noto Serif TC';margin:0 0 4px;">✅ 報名成功，請核對以下資料</h2>
     <p class="hint" style="margin:0 0 14px;">共 ${records.length} 筆，請確認內容無誤；如發現填錯，請聯繫工作人員協助修改，或關閉後重新報名一次。</p>`;
   records.forEach((r,i)=>{ inner += renderRegDetailBlock(ev, r, i); });
+  if(records.some(r=>r.sameLast)) inner += `<div style="margin:8px 0;padding:10px 12px;background:#FFF4D6;border:1.5px dashed var(--gold);border-radius:10px;line-height:1.8;">🔁 您選了「內容和去年一樣」：上面是去年的份數，金額依今年價格計算。<br><b style="color:var(--vermilion);">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</b></div>`;
   inner += `<div style="text-align:right;font-family:'Noto Serif TC';font-weight:900;font-size:18px;color:var(--vermilion);padding-top:8px;border-top:2px double var(--gold);">總計：${money(grandTotal)} 元</div>`;
   inner += `<div class="row-actions" style="margin-top:18px;">
     <button class="btn btn-primary" id="sp_close">關閉</button>
@@ -7055,6 +7187,8 @@ function bindEvents(){
 
   const newBtn = document.getElementById('newEventBtn');
   if(newBtn) newBtn.onclick = openNewEventModal;
+  const refSumBtn = document.getElementById('refSumBtn');   // v5.18
+  if(refSumBtn) refSumBtn.onclick = async ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(!ev) return; refSumBtn.disabled = true; refSumBtn.textContent = '更新中…'; await refSumRebuild(ev); render(); };
   const refImportBtn = document.getElementById('refImportBtn');
   if(refImportBtn) refImportBtn.onclick = ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(ev) openRefImport(ev); };
   const copyEventBtn = document.getElementById('copyEventBtn');
@@ -7139,6 +7273,7 @@ function bindEvents(){
       if(fail){ showToast(`⚠️ 有 ${fail} 筆測試報名沒有清掉（${'網路或權限問題'}），場次維持準備中，請再按一次「開放報名」`, 6000); render(); return; }
     }
     delete ev.draft;
+    if(ev.sameRef && !ev.sameRef.sum) await refSumRebuild(ev, true);   // v5.18 網頁同去年摘要（會一起存場次）
     const ok = await saveEvents(); render();
     if(ok) showToast((tests.length ? `已清掉 ${tests.length} 筆測試報名，` : '') + '已開放報名，報名網站看得到了（LINE 小幫手約 10 分鐘後認得這場）', 5000);
   };
@@ -7238,6 +7373,9 @@ function bindEvents(){
       render();
       showToast('已刪除');
     };
+  });
+  document.querySelectorAll('[data-sameexpand]').forEach(el=>{   // v5.18
+    el.onclick = ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); const r = ev && (regsCache[ev.id]||[]).find(x=>x.id===el.dataset.sameexpand); if(r) expandSameLastReg(ev, r); };
   });
   document.querySelectorAll('[data-edit]').forEach(el=>{
     el.onclick = ()=>{
@@ -7349,6 +7487,7 @@ function bindEvents(){
   const pf = document.getElementById('publicForm');
   if(pf){
     bindContactHint(pf);   // v4.48
+    { const evS = events.find(e=>e.id===publicSelectedEvent); if(evS) bindSameLastPublic(pf, evS); }   // v5.18
     pf.querySelectorAll('[data-feeinput], [data-itemqty]').forEach(inp=>{
       inp.addEventListener('input', updatePublicTotal);
     });
@@ -7549,6 +7688,8 @@ function autoFillBlockFees(ev, blockEl){
 
 function updatePublicTotal(){
   const pf = document.getElementById('publicForm');
+  if(pf && pf._sameLastSum){ document.getElementById('publicTotal').textContent = money(pf._sameLastSum.total)+' 元（同去年）'; return; }
+  if(pf && pf.querySelector('#pubSameLast:checked')){ document.getElementById('publicTotal').textContent = '0 元'; return; }
   let total = 0;
   pf.querySelectorAll('[data-feeinput]').forEach(inp=>{
     const v = Number(inp.value)||0;
@@ -7588,6 +7729,17 @@ async function submitPublicForm(pf){
       });
       if(!items.length){ showToast('請至少選擇一項供品'); return; }
       records.push({id: uid(), f:{...sharedF}, paid:false, confirmed:false, createdAt: Date.now(), items, total: calcTotal(ev, sharedF, {}, items)});
+    } else if(pf.querySelector('#pubSameLast:checked')){
+      // v5.18 同去年：只存報名者資料＋去年份數，志工後台「🔁 照去年展開」
+      const name = refSumName(sharedF.reporter);
+      if(name.length<2){ showToast('請填寫報名者姓名'); return; }
+      const sum = await refSumLookup(ev, name);
+      if(sum===undefined){ showToast('網路不穩，查不到去年資料，請稍後再試', 3500); return; }
+      if(!sum){ showToast(`去年資料裡沒有「${name}」，請取消勾選「內容和去年一樣」，照欄位填寫`, 4500); return; }
+      const fee = {};
+      (ev.fees||[]).forEach(fl=>{ const q = Number((sum.q||{})[fl.k])||0; if(q) fee[fl.k] = q; });
+      const f = {...sharedF};
+      records.push({id: uid(), f, paid:false, confirmed:false, createdAt: Date.now(), fee, total: calcTotal(ev, f, fee, []), sameLast: {n: Number(sum.n)||0, at: Date.now()}});
     } else {
       const blocks = Array.from(pf.querySelectorAll('.person-block'));
       for(const blockEl of blocks){
