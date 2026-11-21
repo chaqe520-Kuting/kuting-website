@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.15 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.16 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.16（2026-11-21）</b>：每一場有自己的報名網址（小朱）：kuting.tw/signup/?e=代碼，信徒打開就直接是那一場的報名表，看不到其他場次；準備中只有登入志工打得開（信徒看到「尚未開放報名」），已結束顯示「已截止報名」。後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 lh116）、複製網址、QR 存成圖片。原本 kuting.tw/signup 照常列出所有開放中的場次。<br>
       <b>v5.15（2026-11-21）</b>：梁皇寶懺 116：報名清單「內容摘要」主牌位、小牌位看不到陽世者姓名（小朱）。原因是欄位名稱加了「（主牌位3600元，小牌位1000元）」，平台看到「牌位」兩個字就把它當成地址欄。現在名稱寫「主牌位／小牌位」或「姓名」「行號」的不算地址欄，摘要會顯示「個人或公司（小牌位）×1：王○明」；LINE 貼上、自動帶地址也不會把地址填進這格。<br>
       <b>v5.14（2026-11-21）</b>：「🔁 比照上次報名」修正（小朱測試梁皇）：第一位只先選了報名類別、還沒填內容時，帶入會跳過第一位、從第二位開始填，留下一筆只有類別、金額 0 的空白報名。現在只選了類別也算空的，第一筆會填進第一位（類別照去年的改過來）。<br>
       <b>v5.13（2026-11-21）</b>：「編輯報名欄位／費用」的費用項目設定：項目名稱整行顯示、單價框加寬並標「單價…元」（小朱：視窗窄時單價框太小，看不到數字、找不到在哪改）。<br>
@@ -5020,6 +5021,7 @@ function activeEvents(){ const open = events.filter(e=>e.active!==false); return
 function adminOpenEvents(){ return events.filter(e=>e.active!==false); }  // 後台匯入用：準備中＋開放中
 
 async function renderPublicAsync(){
+  if(LINK_EVENT){ const lev = eventByLink(LINK_EVENT); if(lev && lev.active!==false && (!lev.draft || staffActive())){ publicSelectedEvent = lev.id; if(lev.mode==='items') await loadTally(lev.id); } return renderPublic(); }
   const list = activeEvents();
   if(!publicSelectedEvent || !list.find(e=>e.id===publicSelectedEvent)){
     publicSelectedEvent = list[0]?.id || null;
@@ -5029,7 +5031,25 @@ async function renderPublicAsync(){
   return renderPublic();
 }
 
+/* v5.16（小朱）：每一場有自己的報名網址 kuting.tw/signup/?e=代碼（代碼在後台「🔗 報名網址／QR」設定，沒設就用場次 ID）。
+   打開就是那一場的報名表，看不到其他場次；準備中只有登入志工看得到，已結束顯示已截止。原本的網址照常列出所有場次。 */
+const LINK_EVENT = (()=>{ try{ return (new URLSearchParams(location.search).get('e')||'').trim(); }catch(_){ return ''; } })();
+function eventByLink(code){ const c = String(code||'').trim().toLowerCase(); return c ? events.find(e=>String(e.slug||'').toLowerCase()===c) || events.find(e=>e.id===code) : null; }
+function eventSignupUrl(ev){ return location.origin + location.pathname + '?e=' + encodeURIComponent(ev.slug || ev.id); }
+function linkClosedHtml(title, msg){
+  return `<div class="card"><div class="empty" style="font-family:'Noto Serif TC',serif;font-size:clamp(22px,5.5vw,34px);font-weight:700;color:var(--vermilion);line-height:1.6;padding:44px 12px 20px;letter-spacing:1px;">${title}</div>
+    <p class="hint" style="text-align:center;margin:0 0 24px;">${msg}</p>
+    <p style="text-align:center;margin:0 0 20px;"><a href="${location.pathname}" class="btn btn-ghost">看其他開放中的法會</a></p></div>`;
+}
 function renderPublic(){
+  if(LINK_EVENT){
+    const lev = eventByLink(LINK_EVENT);
+    if(!lev) return linkClosedHtml('找不到這個報名網址', '網址可能打錯了，或場次已經刪除。');
+    if(lev.active===false) return linkClosedHtml(`${escHtml(lev.name)}<br>已截止報名`, '感謝您的護持。');
+    if(lev.draft && !staffActive()) return linkClosedHtml(`${escHtml(lev.name)}<br>尚未開放報名`, '開放後就可以用這個網址報名，請稍後再來。');
+    publicSelectedEvent = lev.id;
+    return renderPublicForm(lev) + `<p style="text-align:center;margin:10px 0 0;"><a href="${location.pathname}" class="hint">看其他開放中的法會 ›</a></p>`;
+  }
   const list = activeEvents();
   if(!publicSelectedEvent || !list.find(e=>e.id===publicSelectedEvent)){
     publicSelectedEvent = list[0]?.id || null;
@@ -5689,6 +5709,7 @@ function renderEventManager(){
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
       ${ev.active!==false ? `<button class="btn btn-ghost btn-sm" id="refImportBtn">📥 匯入去年 Excel</button>` : ''}
+      <button class="btn btn-ghost btn-sm" id="eventLinkBtn">🔗 報名網址／QR</button>
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
       <button class="btn btn-ghost btn-sm" id="saveTplBtn">⭐ 存成範本</button>
       <button class="btn btn-ghost btn-sm" id="lineFmtBtn">💬 LINE 報名格式</button>
@@ -6205,6 +6226,67 @@ async function photoSendGroup(ev, g, how){
   }
   await photoMarkGroupSent(ev, g, true);
   renderPhotoPanel();
+}
+// v5.16：每場報名網址＋QR（QR 用 qrcode-generator，按下才載入）
+function loadQrLib(){
+  if(window.qrcode) return Promise.resolve();
+  const srcs = ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'];
+  return srcs.reduce((pr, u)=>pr.catch(()=>new Promise((ok, bad)=>{ const sc = document.createElement('script'); sc.src = u; sc.onload = ()=>window.qrcode ? ok() : bad(new Error('no qrcode')); sc.onerror = ()=>bad(new Error('load')); document.head.appendChild(sc); })), Promise.reject()).catch(()=>{ throw new Error('QR 工具載入失敗，請檢查網路'); });
+}
+function qrCanvas(text, px){
+  const q = window.qrcode(0, 'M'); q.addData(unescape(encodeURIComponent(text))); q.make();
+  const n = q.getModuleCount(), quiet = 4, cell = Math.max(4, Math.floor(px/(n+quiet*2)));
+  const c = document.createElement('canvas'); c.width = c.height = cell*(n+quiet*2);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0,0,c.width,c.height); g.fillStyle = '#000';
+  for(let r=0;r<n;r++) for(let k=0;k<n;k++) if(q.isDark(r,k)) g.fillRect((k+quiet)*cell,(r+quiet)*cell,cell,cell);
+  return c;
+}
+function openEventLinkModal(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="max-width:520px;">
+    <h3 style="margin:0 0 6px;color:var(--vermilion);">🔗 這場的報名網址</h3>
+    <p class="hint" style="margin:0 0 10px;">${escHtml(ev.name)}<br>信徒打開這個網址就直接是這一場的報名表，看不到其他場次。${ev.draft?'<br><b style="color:var(--vermilion);">目前準備中：只有登入的志工打得開，信徒會看到「尚未開放」。</b>':''}${ev.active===false?'<br><b style="color:var(--vermilion);">這場已結束：打開會顯示「已截止」。</b>':''}</p>
+    <div class="field"><label>網址代碼（英文、數字，例：lh116）</label>
+      <div style="display:flex;gap:8px;"><input type="text" id="el_slug" value="${escHtml(ev.slug||'')}" placeholder="不填就用場次編號" maxlength="20" style="flex:1;"><button class="btn btn-ghost btn-sm" id="el_saveSlug">儲存代碼</button></div>
+      <div class="hint">短一點比較好記、貼到 LINE 不會變亂碼。改代碼後舊網址就打不開，海報印出去後就不要改。</div></div>
+    <div class="field"><label>報名網址</label>
+      <div style="display:flex;gap:8px;"><input type="text" id="el_url" readonly style="flex:1;"><button class="btn btn-primary btn-sm" id="el_copy">複製</button></div></div>
+    <div id="el_qr" style="text-align:center;margin:8px 0;min-height:60px;" class="hint">QR 碼產生中…</div>
+    <div class="row-actions">
+      <button class="btn btn-ghost" id="el_saveQr">💾 QR 存成圖片</button>
+      <button class="btn btn-ghost" id="el_close">關閉</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  let canvas = null;
+  const drawQr = async ()=>{
+    const url = eventSignupUrl(ev);
+    bg.querySelector('#el_url').value = url;
+    const box = bg.querySelector('#el_qr');
+    try{ await loadQrLib(); canvas = qrCanvas(url, 280); canvas.style.cssText = 'width:220px;height:220px;image-rendering:pixelated;'; box.innerHTML = ''; box.appendChild(canvas); }
+    catch(e){ canvas = null; box.textContent = '⚠️ ' + (e && e.message || 'QR 產生失敗'); }
+  };
+  drawQr();
+  bg.querySelector('#el_close').onclick = ()=>bg.remove();
+  bg.querySelector('#el_copy').onclick = async ()=>{ showToast(await photoCopy(bg.querySelector('#el_url').value) ? '已複製報名網址，可以貼到 LINE' : '複製失敗，請長按網址自己複製', 2500); };
+  bg.querySelector('#el_saveQr').onclick = ()=>{
+    if(!canvas){ showToast('QR 還沒產生好'); return; }
+    const a = document.createElement('a'); a.download = `報名QR_${(ev.slug||ev.name||'').replace(/[\\\/:*?"<>|\s]/g,'').slice(0,30)}.png`; a.href = canvas.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove();
+  };
+  bg.querySelector('#el_saveSlug').onclick = async ()=>{
+    const v = bg.querySelector('#el_slug').value.trim();
+    if(v && !/^[A-Za-z0-9_-]{2,20}$/.test(v)){ showToast('代碼只能用英文、數字、- 或 _，2～20 個字', 3500); return; }
+    if(v && events.some(e=>e.id!==ev.id && String(e.slug||'').toLowerCase()===v.toLowerCase())){ showToast('這個代碼別的場次用過了，請換一個', 3500); return; }
+    const old = ev.slug;
+    if(v) ev.slug = v; else delete ev.slug;
+    const ok = await saveEvents();
+    if(!ok){ if(old) ev.slug = old; else delete ev.slug; return; }
+    showToast(v ? '已儲存網址代碼' : '已改回用場次編號', 2500);
+    drawQr();
+  };
 }
 async function photoCopy(text){
   try{ await navigator.clipboard.writeText(text); return true; }
@@ -6949,6 +7031,8 @@ function bindEvents(){
   if(refImportBtn) refImportBtn.onclick = ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(ev) openRefImport(ev); };
   const copyEventBtn = document.getElementById('copyEventBtn');
   if(copyEventBtn) copyEventBtn.onclick = ()=>openCopyEventModal(adminSelectedEvent);
+  const eventLinkBtn = document.getElementById('eventLinkBtn');
+  if(eventLinkBtn) eventLinkBtn.onclick = ()=>openEventLinkModal(adminSelectedEvent);
   // v4.33：範本庫、LINE 報名格式、匯出設定
   const saveTplBtn = document.getElementById('saveTplBtn');
   if(saveTplBtn) saveTplBtn.onclick = ()=>openSaveTemplateModal(adminSelectedEvent);
