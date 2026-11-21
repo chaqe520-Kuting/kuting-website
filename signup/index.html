@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.16 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.17 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.17（2026-11-22）</b>：「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存。<br>
       <b>v5.16（2026-11-21）</b>：每一場有自己的報名網址（小朱）：kuting.tw/signup/?e=代碼，信徒打開就直接是那一場的報名表，看不到其他場次；準備中只有登入志工打得開（信徒看到「尚未開放報名」），已結束顯示「已截止報名」。後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 lh116）、複製網址、QR 存成圖片。原本 kuting.tw/signup 照常列出所有開放中的場次。<br>
       <b>v5.15（2026-11-21）</b>：梁皇寶懺 116：報名清單「內容摘要」主牌位、小牌位看不到陽世者姓名（小朱）。原因是欄位名稱加了「（主牌位3600元，小牌位1000元）」，平台看到「牌位」兩個字就把它當成地址欄。現在名稱寫「主牌位／小牌位」或「姓名」「行號」的不算地址欄，摘要會顯示「個人或公司（小牌位）×1：王○明」；LINE 貼上、自動帶地址也不會把地址填進這格。<br>
       <b>v5.14（2026-11-21）</b>：「🔁 比照上次報名」修正（小朱測試梁皇）：第一位只先選了報名類別、還沒填內容時，帶入會跳過第一位、從第二位開始填，留下一筆只有類別、金額 0 的空白報名。現在只選了類別也算空的，第一筆會填進第一位（類別照去年的改過來）。<br>
@@ -6233,6 +6234,33 @@ function loadQrLib(){
   const srcs = ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'];
   return srcs.reduce((pr, u)=>pr.catch(()=>new Promise((ok, bad)=>{ const sc = document.createElement('script'); sc.src = u; sc.onload = ()=>window.qrcode ? ok() : bad(new Error('no qrcode')); sc.onerror = ()=>bad(new Error('load')); document.head.appendChild(sc); })), Promise.reject()).catch(()=>{ throw new Error('QR 工具載入失敗，請檢查網路'); });
 }
+/* v5.17（小朱 iPhone 實測「QR 存成圖片」沒反應）：iPhone／LINE 內建瀏覽器不支援 a.download。
+   QR 改用 <img> 顯示（長按可存）；按鈕先用分享（iPhone 會出現「儲存影像」），不行再下載，最後提示長按。 */
+function qrImgEl(canvas){
+  const img = document.createElement('img');
+  img.src = canvas.toDataURL('image/png'); img.alt = '報名 QR 碼';
+  img.style.cssText = 'width:220px;height:220px;image-rendering:pixelated;-webkit-touch-callout:default;user-select:auto;';
+  try{ canvas.toBlob(b=>{ canvas._blob = b; }, 'image/png'); }catch(_){}
+  return img;
+}
+function qrSaveImage(canvas, filename){
+  // 分享要在按下的當下呼叫（iPhone 規定），所以圖檔在畫 QR 時就先準備好（canvas._blob）
+  try{
+    const blob = canvas._blob;
+    if(blob && window.File && navigator.canShare){
+      const file = new File([blob], filename, {type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file]}).catch(e=>{ if(!(e && e.name==='AbortError')) qrSaveFallback(canvas, filename); });
+        return;
+      }
+    }
+  }catch(e){ console.warn('qr share', e); }
+  qrSaveFallback(canvas, filename);
+}
+function qrSaveFallback(canvas, filename){
+  if(/iPhone|iPad|iPod|Line\//i.test(navigator.userAgent || '')){ showToast('請長按 QR 圖案 →「儲存影像」', 4000); return; }
+  const a = document.createElement('a'); a.download = filename; a.href = canvas.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove();
+}
 function qrCanvas(text, px){
   const q = window.qrcode(0, 'M'); q.addData(unescape(encodeURIComponent(text))); q.make();
   const n = q.getModuleCount(), quiet = 4, cell = Math.max(4, Math.floor(px/(n+quiet*2)));
@@ -6266,7 +6294,7 @@ function openEventLinkModal(eventId){
     const url = eventSignupUrl(ev);
     bg.querySelector('#el_url').value = url;
     const box = bg.querySelector('#el_qr');
-    try{ await loadQrLib(); canvas = qrCanvas(url, 280); canvas.style.cssText = 'width:220px;height:220px;image-rendering:pixelated;'; box.innerHTML = ''; box.appendChild(canvas); }
+    try{ await loadQrLib(); canvas = qrCanvas(url, 600); box.innerHTML = ''; box.appendChild(qrImgEl(canvas)); box.insertAdjacentHTML('beforeend', '<div class="hint" style="margin-top:4px;">手機：長按 QR 圖案 →「儲存影像」或「加入照片」</div>'); }
     catch(e){ canvas = null; box.textContent = '⚠️ ' + (e && e.message || 'QR 產生失敗'); }
   };
   drawQr();
@@ -6274,7 +6302,7 @@ function openEventLinkModal(eventId){
   bg.querySelector('#el_copy').onclick = async ()=>{ showToast(await photoCopy(bg.querySelector('#el_url').value) ? '已複製報名網址，可以貼到 LINE' : '複製失敗，請長按網址自己複製', 2500); };
   bg.querySelector('#el_saveQr').onclick = ()=>{
     if(!canvas){ showToast('QR 還沒產生好'); return; }
-    const a = document.createElement('a'); a.download = `報名QR_${(ev.slug||ev.name||'').replace(/[\\\/:*?"<>|\s]/g,'').slice(0,30)}.png`; a.href = canvas.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove();
+    qrSaveImage(canvas, `報名QR_${(ev.slug||ev.name||'').replace(/[\\\/:*?"<>|\s]/g,'').slice(0,30)}.png`);
   };
   bg.querySelector('#el_saveSlug').onclick = async ()=>{
     const v = bg.querySelector('#el_slug').value.trim();
