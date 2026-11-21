@@ -11,6 +11,67 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
+/* ===== 防連按（法會報名 v5.20／供品贊助 v204 共用，同一份程式碼；小朱 2026-11-22 iPhone 實測）=====
+   以前每個按鈕各自擋，新功能常漏掉，網路慢時連按就重複報名、重複傳 LINE。改成全站統一：
+   按下按鈕後 0.8 秒內開始寫入雲端（Firestore 新增／修改／刪除、送到 LINE 小幫手），這顆按鈕就鎖住（變淡、顯示 ⏳），
+   雲端回覆後才放開；鎖住期間再按無效。最多鎖 30 秒（網路斷掉也會放開，可以再按一次）。 */
+(function(){
+  var last = null, lastAt = 0, cnt = typeof Map === 'function' ? new Map() : null;
+  if(!cnt) return;
+  function begin(){
+    var b = (last && Date.now() - lastAt < 800) ? last : null;
+    if(!b) return function(){};
+    cnt.set(b, (cnt.get(b) || 0) + 1);
+    b.classList.add('k-busy'); b.setAttribute('aria-busy', 'true');
+    var done = false, timer = setTimeout(end, 30000);
+    function end(){
+      if(done) return; done = true; clearTimeout(timer);
+      var n = (cnt.get(b) || 1) - 1;
+      if(n <= 0){ cnt.delete(b); b.classList.remove('k-busy'); b.removeAttribute('aria-busy'); } else cnt.set(b, n);
+    }
+    return end;
+  }
+  function wrap(fn){
+    return function(){
+      var end = begin(), p;
+      try{ p = fn.apply(this, arguments); }catch(e){ end(); throw e; }
+      if(p && typeof p.then === 'function') p.then(end, end); else end();
+      return p;
+    };
+  }
+  function hit(e){
+    var t = e.target;
+    var b = t && t.closest ? t.closest('button, .btn, input[type="submit"], input[type="button"]') : null;
+    if(!b) return;
+    if(b.classList.contains('k-busy')){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+    last = b; lastAt = Date.now();
+  }
+  document.addEventListener('click', hit, true);
+  document.addEventListener('submit', function(e){
+    var b = e.submitter || (e.target && e.target.querySelector ? e.target.querySelector('[type="submit"]') : null);
+    if(!b) return;
+    if(b.classList.contains('k-busy')){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+    last = b; lastAt = Date.now();
+  }, true);
+  try{
+    var F = window.firebase && firebase.firestore;
+    if(F){
+      [[F.DocumentReference, ['set', 'update', 'delete']], [F.CollectionReference, ['add']], [F.WriteBatch, ['commit']], [F.Firestore, ['runTransaction']]].forEach(function(x){
+        var P = x[0] && x[0].prototype; if(!P) return;
+        x[1].forEach(function(m){ if(typeof P[m] === 'function' && !P[m]._kWrap){ P[m] = wrap(P[m]); P[m]._kWrap = true; } });
+      });
+    }
+  }catch(e){ console.warn('k-busy firestore', e); }
+  if(window.fetch){
+    var of = window.fetch, wf = wrap(of);
+    window.fetch = function(u, o){ return (o && /^post$/i.test(o.method || '')) ? wf.apply(this, arguments) : of.apply(this, arguments); };
+  }
+  var st = document.createElement('style');
+  st.textContent = '.k-busy{opacity:.55!important;cursor:progress!important;}.k-busy::after{content:" ⏳";}';
+  (document.head || document.documentElement).appendChild(st);
+})();
+</script>
+<script>
 /* ===== 對照財務收入（供品贊助 v168／法會報名 v4.39 共用，同一份程式碼） =====
    用第二個 Firebase app 登入財務記帳（kuting-accounting115）的帳號，只讀
    entries 的收入（direction=in、沒刪除，現金＋銀行），和本場次未收款報名配對：
@@ -1077,8 +1138,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.19 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.20 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.20（2026-11-22）</b>：全站防連按、不跳頂（小朱：每次開新場次問題又出現）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，連按不會重複報名或重複傳；畫面重畫時不再先清成「載入中」，停在原本位置（切換分頁才回頂端）。和供品贊助用同一份程式碼。<br>
       <b>v5.19（2026-11-22）</b>：LINE 待確認帶入（小朱 iPhone 實測）：按「確認並產生報名資料」後按鈕先鎖住、顯示「產生中」，連按也只產生一次；按「帶入解析」不再跳回網頁頂端，直接到解析結果；匯入完停在原本位置。<br>
       <b>v5.18（2026-11-22）</b>：報名頁「🔁 內容和去年一樣」（小朱）：有匯入去年 Excel 的場次，信徒勾選、填姓名，只顯示去年幾筆、各位別幾位、依今年價格合計，不顯示姓名、地址、祖先；送出後是一筆「同去年」報名，後台按「🔁 照去年展開」填入完整內容再核對。提醒信徒：正確資料要等志工回覆後才完成報名程序。摘要在匯入去年 Excel、開放報名或按「🔁 更新網頁同去年摘要」時產生（需新資料庫規則 refsum）。<br>
       <b>v5.17（2026-11-22）</b>：「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存。<br>
@@ -5130,7 +5192,24 @@ async function renderKeepAnchor(id){
   const after = document.getElementById(id);
   if(after && top !== null) window.scrollBy(0, after.getBoundingClientRect().top - top);
 }
+/* v5.20（小朱 11-22：手機按任何按鈕後畫面常跳回頂端）：重畫時不再先把畫面清成「載入中…」（頁面瞬間變短，
+   iPhone 就把捲動位置拉回頂端）。改成舊畫面先留著（暫時不能點），新畫面好了才換上，再回到原本的捲動位置。
+   切換「我要報名／後台」分頁才回頂端（renderToTop）。 */
+let renderToTop = false;
 async function render(){
+  const el = document.getElementById('view');
+  const keepY = window.scrollY, toTop = renderToTop;
+  renderToTop = false;
+  const hadContent = !!(el && el.children.length && !el.querySelector(':scope > .empty:only-child'));
+  if(el){ el.style.minHeight = el.offsetHeight ? el.offsetHeight + 'px' : ''; el.style.pointerEvents = 'none'; }
+  try{ await renderInner(hadContent); }
+  finally{
+    if(el){ el.style.minHeight = ''; el.style.pointerEvents = ''; }
+    const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(0, toTop ? 0 : Math.min(keepY, maxY));
+  }
+}
+async function renderInner(hadContent){
   try{ if(fahuiFinMatcher.isOpen()) setTimeout(()=>fahuiFinMatcher.refresh(), 0); }catch(e){}
   document.getElementById('tabPublic').classList.toggle('active', view==='public');
   document.getElementById('tabAdmin').classList.toggle('active', view==='admin');
@@ -5149,7 +5228,7 @@ async function render(){
     </div>`;
     return;
   }
-  el.innerHTML = '<div class="empty">載入中…</div>';
+  if(!hadContent) el.innerHTML = '<div class="empty">載入中…</div>';   // v5.20 已有畫面就先留著，不清空
   if(PHOTO_TOKEN){   // v4.14：信眾的照片連結（?p=亂碼）只顯示照片頁
     if(!siteConfigLoaded){ await loadSiteConfig(); siteConfigLoaded = true; }
     applySiteConfig();
@@ -7173,9 +7252,9 @@ function bindEvents(){
     document.getElementById('tabAdmin').style.display = '';
     document.getElementById('versionInfo').style.display = '';   // v3：版本紀錄只在 ?admin 顯示
   }
-  document.getElementById('tabPublic').onclick = ()=>{view='public'; render();};
+  document.getElementById('tabPublic').onclick = ()=>{view='public'; renderToTop = true; render();};
   document.getElementById('tabAdmin').onclick = async ()=>{
-    if(staffActive()){ adminUnlocked = true; view='admin'; render(); return; }
+    if(staffActive()){ adminUnlocked = true; view='admin'; renderToTop = true; render(); return; }
     openLoginModal();
   };
 
