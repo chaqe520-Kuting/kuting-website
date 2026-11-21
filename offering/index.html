@@ -2390,8 +2390,8 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v202";
-  var APP_UPDATED = "2026-11-21";
+  var APP_VERSION = "v203";
+  var APP_UPDATED = "2026-11-22";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -2401,6 +2401,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v203", date: "2026-11-22", changes: [
+      "「🔗 報名網址／QR」的「QR 存成圖片」iPhone 按了沒反應（小朱實測）：改成按下跳出分享，選「儲存影像」存到照片；也可以直接長按 QR 圖案存"
+    ] },
     { version: "v202", date: "2026-11-21", changes: [
       "每一場有自己的報名網址（小朱）：kuting.tw/offering/?o=代碼，信徒打開就直接是那一場；準備中、已關閉照樣顯示「尚未開放」「已關閉報名」，不能送出",
       "後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 1129）、複製網址、QR 存成圖片，可貼到 LINE 或印在海報；原本 kuting.tw/offering 照常可用"
@@ -6755,6 +6758,32 @@ window.KutingFinMatch = function(opts){
     var srcs = ["https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js", "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"];
     return srcs.reduce(function(pr, u){ return pr.catch(function(){ return new Promise(function(ok, bad){ var sc = document.createElement("script"); sc.src = u; sc.onload = function(){ window.qrcode ? ok() : bad(new Error("no qrcode")); }; sc.onerror = function(){ bad(new Error("load")); }; document.head.appendChild(sc); }); }); }, Promise.reject()).catch(function(){ throw new Error("QR 工具載入失敗，請檢查網路"); });
   }
+  // v203（小朱 iPhone 實測「QR 存成圖片」沒反應）：iPhone／LINE 內建瀏覽器不支援 a.download；QR 改用 <img>（長按可存），按鈕先用分享，不行再下載或提示長按
+  function qrImgEl(canvas){
+    var img = document.createElement("img");
+    img.src = canvas.toDataURL("image/png"); img.alt = "報名 QR 碼";
+    img.style.cssText = "width:220px;height:220px;image-rendering:pixelated;-webkit-touch-callout:default;user-select:auto;";
+    try{ canvas.toBlob(function(b){ canvas._blob = b; }, "image/png"); }catch(_){}
+    return img;
+  }
+  function qrSaveImage(canvas, filename){
+    // 分享要在按下的當下呼叫（iPhone 規定），圖檔在畫 QR 時先準備好（canvas._blob）
+    function fallback(){
+      if(/iPhone|iPad|iPod|Line\//i.test(navigator.userAgent || "")){ showToast("請長按 QR 圖案 →「儲存影像」"); return; }
+      var a = document.createElement("a"); a.download = filename; a.href = canvas.toDataURL("image/png"); document.body.appendChild(a); a.click(); a.remove();
+    }
+    try{
+      var blob = canvas._blob;
+      if(blob && window.File && navigator.canShare){
+        var file = new File([blob], filename, { type: "image/png" });
+        if(navigator.canShare({ files: [file] })){
+          navigator.share({ files: [file] }).catch(function(e){ if(!(e && e.name === "AbortError")) fallback(); });
+          return;
+        }
+      }
+    }catch(e){ console.warn("qr share", e); }
+    fallback();
+  }
   function qrCanvas(text, px){
     var q = window.qrcode(0, "M"); q.addData(unescape(encodeURIComponent(text))); q.make();
     var n = q.getModuleCount(), quiet = 4, cell = Math.max(4, Math.floor(px / (n + quiet * 2)));
@@ -6789,7 +6818,7 @@ window.KutingFinMatch = function(opts){
       var url = occSignupUrl(occ);
       bg.querySelector("#ol_url").value = url;
       var box = bg.querySelector("#ol_qr");
-      loadQrLib().then(function(){ canvas = qrCanvas(url, 280); canvas.style.cssText = "width:220px;height:220px;image-rendering:pixelated;"; box.innerHTML = ""; box.appendChild(canvas); })
+      loadQrLib().then(function(){ canvas = qrCanvas(url, 600); box.innerHTML = ""; box.appendChild(qrImgEl(canvas)); box.insertAdjacentHTML("beforeend", '<div style="margin-top:4px;font-size:13px;color:#8A7A5C;">手機：長按 QR 圖案 →「儲存影像」或「加入照片」</div>'); })
         .catch(function(e){ canvas = null; box.textContent = "⚠️ " + (e && e.message || "QR 產生失敗"); });
     }
     draw();
@@ -6797,7 +6826,7 @@ window.KutingFinMatch = function(opts){
     bg.querySelector("#ol_copy").onclick = function(){ copyPlain(bg.querySelector("#ol_url").value).then(function(ok){ showToast(ok ? "已複製報名網址，可以貼到 LINE" : "複製失敗，請長按網址自己複製"); }); };
     bg.querySelector("#ol_saveQr").onclick = function(){
       if(!canvas){ showToast("QR 還沒產生好"); return; }
-      var a = document.createElement("a"); a.download = "供品報名QR_" + String(occ.slug || occ.label || "").replace(/[\\\/:*?"<>|\s]/g, "").slice(0, 30) + ".png"; a.href = canvas.toDataURL("image/png"); document.body.appendChild(a); a.click(); a.remove();
+      qrSaveImage(canvas, "供品報名QR_" + String(occ.slug || occ.label || "").replace(/[\\\/:*?"<>|\s]/g, "").slice(0, 30) + ".png");
     };
     bg.querySelector("#ol_saveSlug").onclick = function(){
       var v = bg.querySelector("#ol_slug").value.trim();
