@@ -1077,8 +1077,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.12 ・ 2026-11-21（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.13 ・ 2026-11-21（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.13（2026-11-21）</b>：「編輯報名欄位／費用」的費用項目設定：項目名稱整行顯示、單價框加寬並標「單價…元」（小朱：視窗窄時單價框太小，看不到數字、找不到在哪改）。<br>
       <b>v5.12（2026-11-21）</b>：梁皇寶懺 116 修正（小朱檢查發現）：① 用範本建場次時，費用單價被舊場次同名費用的價格蓋掉（已逝先人主蓮位變 3600、小蓮位 3600、地基主 1000）→ 這個範本固定用公告價格；② 在「編輯欄位」按儲存，姓氏祖先、已逝先人主蓮位的「數量依填寫內容自動算」會不見 → 選單加上這兩種算法、選單沒有的算法照原樣保留，已被洗掉的場次開網頁自動補回（儲存才寫回）。<br>
       <b>v5.11（2026-11-21）</b>：梁皇寶懺 116 範本欄位名稱標上價格（小朱）：「姓氏祖先主蓮位（每戶5000元）」「已逝先人姓名 主蓮位（每位3000元）」「小蓮位 已逝及倒房先人姓名（每位1000元）」「地基主小蓮位 姓名（戶長的地基主）」「陽世者姓名或公司行號（主牌位3600元，小牌位1000元）」。已建好的場次在「編輯欄位」改名稱即可，不用重建。<br>
       <b>v5.10（2026-11-21）</b>：梁皇寶懺 116 範本的主蓮位分成兩格（小朱：同一格寫祖先和已逝先人會搞錯）：「姓氏祖先主蓮位（5000）」「已逝先人主蓮位（3000）姓名」，各自依名字數量算份數；祖先格寫了沒有「祖先／歷代」的名字，算已逝先人。LINE 貼上、同去年、去年 Excel 的「主蓮位」一欄，沒有「祖先／歷代」的名字自動搬到已逝先人那格。已用 v5.08 範本建好的場次要用新範本重建才會有兩格。<br>
@@ -7960,12 +7961,12 @@ function openFieldEditor(eventId){
       row.dataset.key = fl.k;
       const isAmt = fl.mode==='amount';
       row.innerHTML = `
-        <input type="text" placeholder="項目名稱" value="${(fl.label||'').replace(/"/g,'&quot;')}" class="fl_label" style="flex:2">
-        <select class="fl_mode" style="flex:1">
+        <input type="text" placeholder="項目名稱" title="項目名稱" value="${(fl.label||'').replace(/"/g,'&quot;')}" class="fl_label" style="flex:1 1 100%;min-width:0;font-weight:700;">
+        <select class="fl_mode" title="計算方式" style="flex:1 1 130px;min-width:120px;">
           <option value="qty" ${!isAmt?'selected':''}>數量×單價</option>
           <option value="amount" ${isAmt?'selected':''}>直接輸入金額</option>
         </select>
-        <input type="number" placeholder="${isAmt?'建議金額(選填)':'單價'}" value="${fl.price||''}" class="fl_price" style="flex:1">
+        <label style="flex:1 1 150px;min-width:140px;display:flex;align-items:center;gap:6px;margin:0;font-weight:700;white-space:nowrap;">單價<input type="number" placeholder="${isAmt?'建議金額(選填)':'單價'}" value="${fl.price||''}" class="fl_price" title="單價（元）" style="flex:1;min-width:80px;">元</label>
         <input type="text" class="fl_keywords" placeholder="LINE比對關鍵字，逗號分隔" value="${(fl.keywords||[]).join(',').replace(/"/g,'&quot;')}" style="flex:2;min-width:140px;">
         ${autoSelHtml(fl)}
         ${choiceFields.length ? condSelHtml('fl_cond', fl, '') : ''}
