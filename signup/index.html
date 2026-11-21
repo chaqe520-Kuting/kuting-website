@@ -1138,8 +1138,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.20 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.21 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.21（2026-11-22）</b>：同類型多筆合成一筆（小朱）：同一位報名者、同類別、同位別（例如都是小牌位），地址、陽上人也一樣的幾筆，合成一筆多人（姓名用「、」接起來，份數加總）。報名頁送出、LINE 帶入確認、同去年展開時自動合併；後台新增「🧩 同類合併」整理已存的報名（先下載備份，只合未收款、未確認的）。<br>
       <b>v5.20（2026-11-22）</b>：全站防連按、不跳頂（小朱：每次開新場次問題又出現）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，連按不會重複報名或重複傳；畫面重畫時不再先清成「載入中」，停在原本位置（切換分頁才回頂端）。和供品贊助用同一份程式碼。<br>
       <b>v5.19（2026-11-22）</b>：LINE 待確認帶入（小朱 iPhone 實測）：按「確認並產生報名資料」後按鈕先鎖住、顯示「產生中」，連按也只產生一次；按「帶入解析」不再跳回網頁頂端，直接到解析結果；匯入完停在原本位置。<br>
       <b>v5.18（2026-11-22）</b>：報名頁「🔁 內容和去年一樣」（小朱）：有匯入去年 Excel 的場次，信徒勾選、填姓名，只顯示去年幾筆、各位別幾位、依今年價格合計，不顯示姓名、地址、祖先；送出後是一筆「同去年」報名，後台按「🔁 照去年展開」填入完整內容再核對。提醒信徒：正確資料要等志工回覆後才完成報名程序。摘要在匯入去年 Excel、開放報名或按「🔁 更新網頁同去年摘要」時產生（需新資料庫規則 refsum）。<br>
@@ -3682,7 +3683,8 @@ async function expandSameLastReg(ev, r){
   if(!hits.length){ showToast(`去年資料裡找不到「${name}」，請點「編輯」手動填`, 4000); return; }
   const keepShared = {};
   getSharedFields(ev).forEach(fl=>{ const v = (r.f||{})[fl.k]; if(String(v||'').trim()) keepShared[fl.k] = v; });
-  const recs = hits.map(h=>{ const x = refRecToReg(ev, h, name); const f = {...x.f, ...keepShared, reporter: r.f.reporter}; return {f, fee:x.fee, total: calcTotal(ev, f, x.fee, [])}; });
+  let recs = hits.map((h,i)=>{ const x = refRecToReg(ev, h, name); const f = {...x.f, ...keepShared, reporter: r.f.reporter}; return {id:'x'+i, f, fee:x.fee, total: calcTotal(ev, f, x.fee, [])}; });
+  recs = mergeSameKindRegs(ev, recs).list;   // v5.21 同類多筆合成一筆
   if(!(await showConfirm(`把「${escHtml(r.f.reporter)}」這筆「同去年」照去年資料展開成 <b>${recs.length} 筆</b>嗎？<br>（第一筆改寫這筆，其他新增；收款、確認狀態保留在第一筆）`))) return;
   const first = {...r, f: recs[0].f, fee: recs[0].fee, total: recs[0].total, sameLast: {...(r.sameLast||{}), done: Date.now(), by: (staff && staff.name) || ''}};
   if(!(await updateReg(ev.id, r.id, first))) return;
@@ -3695,6 +3697,74 @@ async function expandSameLastReg(ev, r){
   }
   render();
   showToast(`已照去年展開成 ${recs.length} 筆，地址、陽上人請再核對`, 4000);
+}
+/* v5.21（小朱 2026-11-22）：同類型分好幾筆報名 → 合成一筆（多人一筆）
+   條件：同一位報名者、同一個報名類別、報的位別（費用項目）一樣，而且地址、陽上人等其他欄位都一樣；
+   姓名欄（陽世者、先人、祖先…）用「、」接起來，份數加總，備註合併。都要是未收款、未確認、不是同去年待展開。
+   用在：報名頁送出、LINE 帶入確認、同去年展開；後台「🧩 同類合併」整理已存的報名。 */
+function mergeNameField(f){
+  if(!f || f.k==='reporter' || f.k==='note' || f.type==='radio' || f.type==='select' || isPhoneField(f) || isAddrField(f)) return false;
+  const L = String(f.label||'');
+  return /姓名|行號|祖先|先人/.test(L) && !/陽上|報恩/.test(L);
+}
+function mergeKey(ev, r){
+  if(!r || r.paid || r.confirmed || (r.sameLast && !r.sameLast.done) || ev.mode==='items') return null;
+  const f = r.f||{}, norm = v=>String(v||'').replace(/\s+/g,'');
+  const feeKeys = (ev.fees||[]).filter(fl=>Number((r.fee||{})[fl.k])).map(fl=>fl.k);
+  if(!feeKeys.length) return null;
+  const same = (ev.fields||[]).filter(fl=>fl.k!=='note' && !mergeNameField(fl)).map(fl=>fl.k+'='+norm(f[fl.k]));
+  return [r.test?'T':'', feeKeys.join(','), ...same].join('|');
+}
+function mergeSameKindRegs(ev, recs){
+  const out = [], byKey = {};
+  let merged = 0;
+  (recs||[]).forEach(r=>{
+    const k = mergeKey(ev, r);
+    if(!k || !byKey[k]){ const c = k ? {...r, f:{...(r.f||{})}, fee:{...(r.fee||{})}} : r; if(k) byKey[k] = c; out.push(c); if(k) c._mergedIds = [r.id]; return; }
+    const t = byKey[k];
+    (ev.fields||[]).forEach(fl=>{
+      const a = String(t.f[fl.k]||'').trim(), b = String((r.f||{})[fl.k]||'').trim();
+      if(!b) return;
+      if(mergeNameField(fl)){
+        const parts = a ? a.split(/[、,，]+/).map(x=>x.trim()).filter(Boolean) : [];
+        b.split(/[、,，]+/).map(x=>x.trim()).filter(Boolean).forEach(x=>{ parts.push(x); });
+        t.f[fl.k] = parts.join('、');
+      } else if(fl.k==='note' && a!==b){ t.f.note = a ? a + '；' + b : b; }
+    });
+    (ev.fees||[]).forEach(fl=>{ const q = Number((r.fee||{})[fl.k])||0; if(q) t.fee[fl.k] = (Number(t.fee[fl.k])||0) + q; });
+    t.total = calcTotal(ev, t.f, t.fee, []);
+    t._mergedIds.push(r.id);
+    merged++;
+  });
+  out.forEach(r=>{ if(r._mergedIds && r._mergedIds.length<2) delete r._mergedIds; });
+  return {list: out, merged};
+}
+// 後台：把這場已存的同類多筆合成一筆（先下載備份；第一筆改寫，其他刪掉）
+async function mergeSameKindAdmin(ev){
+  await loadRegs(ev.id);
+  const regs = regsCache[ev.id]||[];
+  const {list, merged} = mergeSameKindRegs(ev, regs);
+  const groups = list.filter(r=>r._mergedIds);
+  if(!merged){ showToast('沒有可以合併的報名（要同一位報名者、同類別、同位別、地址陽上人一樣，而且未收款、未確認）', 5000); return; }
+  const rows = groups.map(g=>`<li><b>${escHtml(g.f.reporter||'')}</b>：${g._mergedIds.length} 筆 → 1 筆（${escHtml(regSummaryText(ev, g))}）</li>`).join('');
+  if(!(await showConfirm(`可以合併 <b>${groups.length} 組、共 ${merged + groups.length} 筆 → ${groups.length} 筆</b>：<ul style="max-height:40vh;overflow:auto;margin:8px 0;padding-left:20px;font-size:13.5px;line-height:1.7;">${rows}</ul>按確定會先下載備份檔，再合併（每組保留第一筆、其他刪掉）。`))) return;
+  try{
+    const ids = new Set(groups.flatMap(g=>g._mergedIds));
+    const blob = new Blob([JSON.stringify({event:ev.name, eventId:ev.id, mergedAt:new Date().toISOString(), regs: regs.filter(r=>ids.has(r.id))}, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `法會同類合併前備份_${String(ev.name).replace(/[\\/:*?"<>|\s]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  }catch(e){ console.error('merge backup', e); if(!(await showConfirm('備份檔下載失敗，仍要合併嗎？'))) return; }
+  let ok = 0, fail = 0;
+  for(const g of groups){
+    const [keepId, ...rest] = g._mergedIds;
+    const rec = {...g}; delete rec._mergedIds; rec.id = keepId; rec.mergedFrom = (rec.mergedFrom||[]).concat(rest);
+    if(!(await updateReg(ev.id, keepId, rec))){ fail++; continue; }
+    for(const id of rest){ if(!(await deleteReg(ev.id, id))) fail++; }
+    ok++;
+  }
+  await loadRegs(ev.id); render();
+  showToast(fail ? `已合併 ${ok} 組，${fail} 筆失敗，請再按一次` : `已合併 ${ok} 組（備份檔已下載）`, 4500);
 }
 let sameLastLoading = false;
 function sameLastPreload(){
@@ -4507,6 +4577,12 @@ async function confirmImportRun(){
   }
   let allOk = true;
   for(const eventId of Object.keys(byEvent)){
+    const evM = events.find(e=>e.id===eventId);   // v5.21 同類多筆合成一筆（LINE 帶入）
+    if(evM && evM.mode!=='items' && byEvent[eventId].length>1){
+      const m = mergeSameKindRegs(evM, byEvent[eventId]);
+      count -= m.merged;
+      byEvent[eventId] = m.list.map(r=>{ delete r._mergedIds; return r; });
+    }
     const ok = await appendRegs(eventId, byEvent[eventId]);
     if(!ok) allOk = false;
   }
@@ -5942,6 +6018,7 @@ function renderEventManager(){
       ${ev.active!==false && ev.draft ? `<button class="btn btn-primary btn-sm" id="publishEventBtn">✅ 開放報名</button>` : `<button class="btn btn-ghost btn-sm" id="toggleActiveBtn">${ev.active===false?'重新開放報名':'關閉報名（結束場次）'}</button>`}
       ${ev.active!==false && !ev.draft ? `<button class="btn btn-ghost btn-sm" id="unpublishEventBtn">改回準備中</button>` : ''}
       ${ev.active!==false ? `<button class="btn btn-ghost btn-sm" id="refImportBtn">📥 匯入去年 Excel</button>` : ''}
+      ${ev.mode!=='items' ? `<button class="btn btn-ghost btn-sm" id="mergeKindBtn" title="同一位報名者、同類別、同位別、地址一樣的多筆合成一筆">🧩 同類合併</button>` : ''}
       ${ev.active!==false && ev.sameRef ? `<button class="btn btn-ghost btn-sm" id="refSumBtn" title="報名頁「內容和去年一樣」用的摘要（只有份數，沒有姓名地址）">🔁 更新網頁同去年摘要</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="eventLinkBtn">🔗 報名網址／QR</button>
       <button class="btn btn-ghost btn-sm" id="copyEventBtn">📋 複製成新場次</button>
@@ -7290,6 +7367,8 @@ function bindEvents(){
 
   const newBtn = document.getElementById('newEventBtn');
   if(newBtn) newBtn.onclick = openNewEventModal;
+  const mergeKindBtn = document.getElementById('mergeKindBtn');   // v5.21
+  if(mergeKindBtn) mergeKindBtn.onclick = ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(ev) mergeSameKindAdmin(ev); };
   const refSumBtn = document.getElementById('refSumBtn');   // v5.18
   if(refSumBtn) refSumBtn.onclick = async ()=>{ const ev = events.find(e=>e.id===adminSelectedEvent); if(!ev) return; refSumBtn.disabled = true; refSumBtn.textContent = '更新中…'; await refSumRebuild(ev); render(); };
   const refImportBtn = document.getElementById('refImportBtn');
@@ -7875,6 +7954,10 @@ async function submitPublicForm(pf){
       }
     }
 
+    if(ev.mode!=='items' && records.length>1){   // v5.21 同類多筆合成一筆
+      const m = mergeSameKindRegs(ev, records);
+      records.length = 0; m.list.forEach(r=>{ delete r._mergedIds; records.push(r); });
+    }
     if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = '送出中…'; }
     const ok = await appendRegs(ev.id, records);
     if(!ok) return;
