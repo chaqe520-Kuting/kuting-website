@@ -2390,8 +2390,8 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v201";
-  var APP_UPDATED = "2026-11-18";
+  var APP_VERSION = "v202";
+  var APP_UPDATED = "2026-11-21";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -2401,6 +2401,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v202", date: "2026-11-21", changes: [
+      "每一場有自己的報名網址（小朱）：kuting.tw/offering/?o=代碼，信徒打開就直接是那一場；準備中、已關閉照樣顯示「尚未開放」「已關閉報名」，不能送出",
+      "後台場次按鈕多「🔗 報名網址／QR」：設定網址代碼（英文、數字，例 1129）、複製網址、QR 存成圖片，可貼到 LINE 或印在海報；原本 kuting.tw/offering 照常可用"
+    ] },
     { version: "v201", date: "2026-11-18", changes: [
       "「💵 對照財務收入」的「只列紅包袋活動名稱對應本場次的收入」也認國曆日期：場次名稱有國曆月日（例如「11月29日」「11/29」），財務的活動、項目／摘要或備註寫同一天（例如「11/29日供品贊助」）就列出來（原本只認農曆月日和場次名稱裡的詞）"
     ] },
@@ -4068,6 +4072,15 @@ window.KutingFinMatch = function(opts){
   // （file:// 本機開啟視為管理者，方便開發測試）。注意：這只是「不顯示」，不是真正
   // 的安全機制，真正的擋法仍是後台密碼。
   var IS_ADMIN_VIEW = location.protocol === "file:" || /(^|[?&#])admin(\b|=|&|$)/i.test(location.search + location.hash);
+  // v202 — 每一場自己的報名網址 ?o=代碼（代碼在後台「🔗 報名網址／QR」設定，沒設就用場次編號）
+  var LINK_OCC = (function(){ try{ return (new URLSearchParams(location.search).get("o") || "").trim(); }catch(_){ return ""; } })();
+  var linkOccWarned = false;
+  function occByLink(code, list){
+    var c = String(code || "").trim().toLowerCase();
+    if(!c || !list) return null;
+    return list.filter(function(o){ return String(o.slug || "").toLowerCase() === c; })[0] || list.filter(function(o){ return o.id === code; })[0] || null;
+  }
+  function occSignupUrl(o){ return location.origin + location.pathname.replace(/index\.html$/, "") + "?o=" + encodeURIComponent(o.slug || o.id); }
   if(IS_ADMIN_VIEW) document.body.classList.add("admin-view");
 
   var tabBtnPublic = document.getElementById("tabBtnPublic");
@@ -4574,6 +4587,7 @@ window.KutingFinMatch = function(opts){
     });
     currentOccasionId = (data.currentOccasionId && occasions.some(function(o){ return o.id === data.currentOccasionId; }))
       ? data.currentOccasionId : occasions[0].id;
+    (function(){ var lo = occByLink(LINK_OCC, occasions); if(lo && !IS_ADMIN_VIEW) currentOccasionId = lo.id; })();   // v202
     editingRegId = null;
     setOccasion(currentOccasionId);
 
@@ -4999,7 +5013,8 @@ window.KutingFinMatch = function(opts){
       itemIdSeq: o.itemIdSeq, regSeq: o.regSeq,
       history: !!o.history, // v126 從 Excel 匯入的歷史場次（只給「打姓名帶出去年報名」參考）
       sourceFile: o.sourceFile || "", // v157 匯入時的 Excel 檔名，「目前參考」顯示用
-      histRefId: o.histRefId || "" // v163 「同去年」參考的場次（志工後台與 LINE 小幫手共用）
+      histRefId: o.histRefId || "", // v163 「同去年」參考的場次（志工後台與 LINE 小幫手共用）
+      slug: o.slug || "" // v202 這場報名網址的代碼（?o=代碼）
     };
   }
 
@@ -5042,6 +5057,7 @@ window.KutingFinMatch = function(opts){
       baseDeityQty: data.baseDeityQty || 0, baseDonationAmt: data.baseDonationAmt || 0,
       itemIdSeq: data.itemIdSeq || 1, regSeq: data.regSeq || 1,
       history: !!data.history, sourceFile: data.sourceFile || "", histRefId: data.histRefId || "",
+      slug: data.slug || "",
       items: [],
       registrations: []
     };
@@ -5863,6 +5879,10 @@ window.KutingFinMatch = function(opts){
     // v116 — 準備中（draft）的場次不能報名，信眾第一次打開時優先停在開放中、其次已關閉的場次
     // v126 — 從 Excel 匯入的歷史場次不當成信眾的預設場次
     var openFallback = occasions.filter(function(o){ return o.status === "open"; })[0] || occasions.filter(function(o){ return o.status !== "draft" && !o.history; })[0];
+    // v202 — 信徒用這場自己的網址（?o=代碼）打開：固定停在那一場（後台不受影響）
+    var linkOcc = occByLink(LINK_OCC, occasions);
+    if(linkOcc && !IS_ADMIN_VIEW) keepId = linkOcc.id;
+    else if(LINK_OCC && !IS_ADMIN_VIEW && !linkOccWarned && list.length){ linkOccWarned = true; showToast("找不到這個報名網址，先顯示目前開放中的場次"); }
     var resolvedId = keepId || (openFallback || occasions[0]).id;
     var occasionChanged = resolvedId !== currentOccasionId;
     // currentOccasionId itself is always updated synchronously — current(),
@@ -6729,6 +6749,67 @@ window.KutingFinMatch = function(opts){
     renderHistSource();
   }
 
+  // v202 — 這場的報名網址＋QR（QR 用 qrcode-generator，按下才載入）
+  function loadQrLib(){
+    if(window.qrcode) return Promise.resolve();
+    var srcs = ["https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js", "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"];
+    return srcs.reduce(function(pr, u){ return pr.catch(function(){ return new Promise(function(ok, bad){ var sc = document.createElement("script"); sc.src = u; sc.onload = function(){ window.qrcode ? ok() : bad(new Error("no qrcode")); }; sc.onerror = function(){ bad(new Error("load")); }; document.head.appendChild(sc); }); }); }, Promise.reject()).catch(function(){ throw new Error("QR 工具載入失敗，請檢查網路"); });
+  }
+  function qrCanvas(text, px){
+    var q = window.qrcode(0, "M"); q.addData(unescape(encodeURIComponent(text))); q.make();
+    var n = q.getModuleCount(), quiet = 4, cell = Math.max(4, Math.floor(px / (n + quiet * 2)));
+    var c = document.createElement("canvas"); c.width = c.height = cell * (n + quiet * 2);
+    var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#000";
+    for(var r = 0; r < n; r++) for(var k = 0; k < n; k++) if(q.isDark(r, k)) g.fillRect((k + quiet) * cell, (r + quiet) * cell, cell, cell);
+    return c;
+  }
+  function copyPlain(text){
+    if(navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(function(){ return true; }, function(){ return legacy(); });
+    return Promise.resolve(legacy());
+    function legacy(){ var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); var ok = false; try{ ok = document.execCommand("copy"); }catch(_){} ta.remove(); return ok; }
+  }
+  function openOccLinkModal(occ){
+    var bg = document.createElement("div");
+    bg.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:10000;overflow:auto;padding:16px;box-sizing:border-box;display:flex;align-items:flex-start;justify-content:center;";
+    var stat = occ.status === "draft" ? "<br><b style=\"color:var(--cinnabar);\">目前準備中：信徒打開會看到「準備中，尚未開放報名」，不能送出。</b>" : occ.status === "closed" ? "<br><b style=\"color:var(--cinnabar);\">這場已關閉：打開會顯示「已關閉報名」。</b>" : "";
+    bg.innerHTML = '<div style="background:#fffdf7;border-radius:14px;max-width:520px;width:100%;padding:18px;box-sizing:border-box;margin-top:4vh;">' +
+      '<h3 style="margin:0 0 6px;color:var(--cinnabar);">🔗 這場的報名網址</h3>' +
+      '<p class="pdesc" style="margin:0 0 10px;">' + escHtml(occ.label) + '<br>信徒打開這個網址就直接是這一場。' + stat + '</p>' +
+      '<label style="font-weight:700;display:block;margin:6px 0 4px;">網址代碼（英文、數字，例：1129）</label>' +
+      '<div style="display:flex;gap:8px;"><input type="text" id="ol_slug" maxlength="20" placeholder="不填就用場次編號" value="' + escAttr(occ.slug || "") + '" style="flex:1;min-height:44px;font-size:16px;"><button type="button" class="occ-action-btn" id="ol_saveSlug">儲存代碼</button></div>' +
+      '<p class="pdesc" style="margin:4px 0 10px;">短一點比較好記、貼到 LINE 不會變亂碼。改代碼後舊網址就打不開，海報印出去後就不要改。</p>' +
+      '<label style="font-weight:700;display:block;margin:6px 0 4px;">報名網址</label>' +
+      '<div style="display:flex;gap:8px;"><input type="text" id="ol_url" readonly style="flex:1;min-height:44px;font-size:16px;"><button type="button" class="occ-action-btn" id="ol_copy">複製</button></div>' +
+      '<div id="ol_qr" class="pdesc" style="text-align:center;margin:12px 0;min-height:60px;">QR 碼產生中…</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><button type="button" class="occ-action-btn" id="ol_saveQr">💾 QR 存成圖片</button><button type="button" class="occ-action-btn" id="ol_close">關閉</button></div>' +
+      '</div>';
+    document.body.appendChild(bg);
+    var canvas = null;
+    function draw(){
+      var url = occSignupUrl(occ);
+      bg.querySelector("#ol_url").value = url;
+      var box = bg.querySelector("#ol_qr");
+      loadQrLib().then(function(){ canvas = qrCanvas(url, 280); canvas.style.cssText = "width:220px;height:220px;image-rendering:pixelated;"; box.innerHTML = ""; box.appendChild(canvas); })
+        .catch(function(e){ canvas = null; box.textContent = "⚠️ " + (e && e.message || "QR 產生失敗"); });
+    }
+    draw();
+    bg.querySelector("#ol_close").onclick = function(){ bg.remove(); };
+    bg.querySelector("#ol_copy").onclick = function(){ copyPlain(bg.querySelector("#ol_url").value).then(function(ok){ showToast(ok ? "已複製報名網址，可以貼到 LINE" : "複製失敗，請長按網址自己複製"); }); };
+    bg.querySelector("#ol_saveQr").onclick = function(){
+      if(!canvas){ showToast("QR 還沒產生好"); return; }
+      var a = document.createElement("a"); a.download = "供品報名QR_" + String(occ.slug || occ.label || "").replace(/[\\\/:*?"<>|\s]/g, "").slice(0, 30) + ".png"; a.href = canvas.toDataURL("image/png"); document.body.appendChild(a); a.click(); a.remove();
+    };
+    bg.querySelector("#ol_saveSlug").onclick = function(){
+      var v = bg.querySelector("#ol_slug").value.trim();
+      if(v && !/^[A-Za-z0-9_-]{2,20}$/.test(v)){ showToast("代碼只能用英文、數字、- 或 _，2～20 個字"); return; }
+      if(v && occasions.some(function(o){ return o.id !== occ.id && String(o.slug || "").toLowerCase() === v.toLowerCase(); })){ showToast("這個代碼別的場次用過了，請換一個"); return; }
+      occ.slug = v;
+      scheduleMetaSync();
+      showToast(v ? "已儲存網址代碼" : "已改回用場次編號");
+      draw();
+    };
+  }
+
   function renderOccActions(){
     var occ = current();
     occActionRow.innerHTML =
@@ -6739,6 +6820,7 @@ window.KutingFinMatch = function(opts){
         ? '<button class="occ-action-btn" data-act="publish">✅ 開放報名</button>'
         : '<button class="occ-action-btn" data-act="toggleStatus">' + (occ.status === "open" ? "關閉報名" : "重新開放報名") + '</button>') +
       (occ.status === "open" ? '<button class="occ-action-btn" data-act="unpublish">改回準備中</button>' : '') +
+      '<button class="occ-action-btn" data-act="occLink">🔗 報名網址／QR</button>' +
       '<button class="occ-action-btn" data-act="copyOcc">📋 複製成新場次</button>' +
       '<button class="occ-action-btn" data-act="export">匯出 Excel</button>' +
       '<button class="occ-action-btn" data-act="redPaper">匯出紅紙（A3）</button>' +
@@ -6754,7 +6836,9 @@ window.KutingFinMatch = function(opts){
     var act = btn.getAttribute("data-act");
     var occ = current();
 
-    if(act === "editFields"){
+    if(act === "occLink"){
+      openOccLinkModal(occ);
+    } else if(act === "editFields"){
       scrollFlash(document.getElementById("occFieldsSection"));
     } else if(act === "editInfo"){
       scrollFlash(document.getElementById("occInfoSection"));
