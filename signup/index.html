@@ -1138,8 +1138,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.21 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.22 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.22（2026-11-22）</b>：LINE 帶入「地基主」不再錯位（小朱）：內容有「地基主」字眼時，地基主戶長姓名、地址一定放「地基主」的姓名／地址欄，不會跑到住家或祖先地址；姓名後面直接接地址、姓名寫在標題（例「1.王○明(地基主)」）、「地基主小牌位」這類寫法也認得；欄位改過名稱也一樣。「報名人」也當報名者。<br>
       <b>v5.21（2026-11-22）</b>：同類型多筆合成一筆（小朱）：同一位報名者、同類別、同位別（例如都是小牌位），地址、陽上人也一樣的幾筆，合成一筆多人（姓名用「、」接起來，份數加總）。報名頁送出、LINE 帶入確認、同去年展開時自動合併；後台新增「🧩 同類合併」整理已存的報名（先下載備份，只合未收款、未確認的）。<br>
       <b>v5.20（2026-11-22）</b>：全站防連按、不跳頂（小朱：每次開新場次問題又出現）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，連按不會重複報名或重複傳；畫面重畫時不再先清成「載入中」，停在原本位置（切換分頁才回頂端）。和供品贊助用同一份程式碼。<br>
       <b>v5.19（2026-11-22）</b>：LINE 待確認帶入（小朱 iPhone 實測）：按「確認並產生報名資料」後按鈕先鎖住、顯示「產生中」，連按也只產生一次；按「帶入解析」不再跳回網頁頂端，直接到解析結果；匯入完停在原本位置。<br>
@@ -2968,7 +2969,7 @@ function buildMappedEntries(entries, ev){
   const blockHasDaofang = normalizeKeyword(blockText).includes('倒房');
   // v4.60：依類別顯示的場次（梁皇）——小蓮位＝副蓮位、小牌位＝副牌位；「地址」跟著前一個姓名放
   const condEv = evHasCond(ev);
-  const syn = t=>condEv ? synLabel(ev, t) : t;
+  const syn = t=>(condEv ? synLabel(ev, t) : String(t||'')).replace(/報名人/g,'報名者');   // v5.22：「報名人」＝報名者
   const fdOf = k=>(ev.fields||[]).find(x=>x.k===k);
   const filled = k=>!!String(fields[k]||'').trim();
   let lastName = null;
@@ -3400,6 +3401,65 @@ function applyHeaderFee(ev, header, mapped, guessed){
   }
   return hit;
 }
+/* v5.22（小朱）：LINE 帶入有「地基主」字眼 → 地基主姓名、地址一定放地基主的欄位，不錯位到住家／祖先地址。
+   欄位用 key 或名稱裡的「地基主」找，所以小朱改了欄位名稱（例「地基主戶長的姓名小蓮位」）也一樣。 */
+function fixJijiPlacement(ev, b, mapped, guessed){
+  if(!ev || !evHasCond(ev)) return;
+  const fs = ev.fields||[], vals = mapped.fields;
+  const isJ = f=>f.k==='jijiName'||f.k==='jijiAddr'||/地基主/.test(f.label||'')||(f.keywords||[]).some(k=>/地基主/.test(k));
+  const jn = fs.find(f=>isJ(f) && !isAddrField(f) && (f.type||'text')==='text');
+  const ja = jn && (pairedAddrField(ev, jn.k) || fs.find(f=>isJ(f) && isAddrField(f)));
+  if(!jn || !ja) return;
+  const has = k=>!!String(vals[k]||'').trim();
+  const blockText = [b.header||''].concat((b.rawEntries||b.entries||[]).map(en=>en.raw!==undefined ? en.raw : ((en.label||'')+' '+(en.value||'')))).join('\n');
+  const ctx = /地基主/.test(blockText);
+  if(!ctx && !has(jn.k)) return;
+  const JUNK = /地基主|戶長的?|[主副小](?:蓮位|牌位)|蓮位|牌位|姓名|每[戶處]|[\d,]+\s*元|[x×X＊*]\s*\d+|[（(]\s*[)）]/g;
+  const clean = v=>String(v||'').replace(JUNK,'').replace(/^[\s、,，:：.．\-]+|[\s、,，:：.．\-]+$/g,'').replace(/[（(]\s*[)）]/g,'').trim();
+  const putAddr = v=>{ v = String(v||'').trim(); if(!v) return; const cur = String(vals[ja.k]||'').trim(); vals[ja.k] = !cur ? v : (cur.includes(v) ? cur : cur+'；'+v); };
+  // 1) 地基主姓名欄裡夾了費用字眼或地址（例「小蓮位、王小明」「王小明 台東縣…」）→ 拆開
+  if(has(jn.k)){
+    let v = clean(vals[jn.k]);
+    const m = v.match(/^(\S{2,5}?)[\s,，]+(.+)$/);
+    if(m && ADDR_RE.test(m[2]) && !ADDR_RE.test(m[1])){ v = m[1]; putAddr(m[2]); guessed[ja.k] = true; }
+    else if(ADDR_RE.test(v) && !isNameLike(v)){ putAddr(v); guessed[ja.k] = true; v = ''; }   // 整格都是地址
+    // 「王小明、王氏歷代祖先」→ 祖先放回祖先欄
+    const parts = v.split('、'), anc = parts.filter(x=>ANCESTOR_NAME_RE.test(x));
+    const af = anc.length && anc.length<parts.length && fs.find(f=>f!==jn && isAncestorField(f) && !has(f.k) && !/地基主/.test(f.label||'') && (!f.showIf || !has(f.showIf.k) || condOk(f, vals)));
+    if(af){ vals[af.k] = anc.join('、'); guessed[af.k] = true; v = parts.filter(x=>!ANCESTOR_NAME_RE.test(x)).join('、'); }
+    if(v) vals[jn.k] = v; else delete vals[jn.k];
+  }
+  // 2) 姓名寫在別的姓名欄，前面帶「地基主」（例「小蓮位地基主王小明」被放到小蓮位姓名）→ 搬過來
+  if(!has(jn.k)){
+    const src = fs.find(f=>f.k!==jn.k && !isAddrField(f) && f.type!=='radio' && f.type!=='select' && /地基主/.test(String(vals[f.k]||'')));
+    if(src){ const v = clean(vals[src.k]); if(v){ vals[jn.k] = v; guessed[jn.k] = true; delete vals[src.k]; delete guessed[src.k]; const sa = pairedAddrField(ev, src.k); if(sa && has(sa.k) && !has(ja.k)){ vals[ja.k] = vals[sa.k]; delete vals[sa.k]; delete guessed[sa.k]; guessed[ja.k] = true; } } }
+  }
+  // 3) 標題或某一行寫「王小明(地基主)」「1.地基主王小明」→ 那個名字就是地基主戶長
+  if(!has(jn.k)){
+    for(const line of blockText.split('\n')){
+      if(!/地基主/.test(line)) continue;
+      const v = clean(line.replace(/^[\s\d０-９.．、)）]+/,''));
+      if(isNameLike(v)){ vals[jn.k] = v; guessed[jn.k] = true; break; }
+      const m = v.match(/^(\S{2,5}?)[\s,，]+(.+)$/);   // 「地基主王小明 台東縣…」
+      if(m && isNameLike(m[1]) && ADDR_RE.test(m[2])){ vals[jn.k] = m[1]; guessed[jn.k] = true; if(!has(ja.k)){ vals[ja.k] = m[2].trim(); guessed[ja.k] = true; } break; }
+    }
+  }
+  // 4) 只有一個人名、被猜成報名者，其他姓名欄都沒填 → 也是地基主戶長（報名者保留）
+  if(!has(jn.k) && ctx){
+    const rep = fs.find(f=>f.k==='reporter' || /報名者/.test(f.label||''));
+    const others = fs.some(f=>f!==rep && f!==jn && !isAddrField(f) && !isPhoneField(f) && (f.type||'text')==='text' && !/備註/.test(f.label||'') && has(f.k));
+    if(rep && has(rep.k) && !others && isNameLike(vals[rep.k])){ vals[jn.k] = String(vals[rep.k]).trim(); guessed[jn.k] = true; }
+  }
+  // 5) 地址：地基主地址空著，別的地址欄有「沒有對應姓名」的地址（例：住家地址、主蓮位地址，但那格姓名是空的）→ 搬到地基主地址
+  if(has(jn.k) && !has(ja.k)){
+    const orphan = fs.find(f=>f.k!==ja.k && isAddrField(f) && has(f.k) && (()=>{ const n = pairedNameField(ev, f.k); return n ? !has(n.k) : !!guessed[f.k]; })());
+    if(orphan){ vals[ja.k] = vals[orphan.k]; delete vals[orphan.k]; delete guessed[orphan.k]; guessed[ja.k] = true; }
+  }
+  // 6) 類別：系統猜的類別跟地基主不合 → 改成地基主那一類
+  if(has(jn.k) && jn.showIf && jn.showIf.k && !condOk(jn, vals) && (!has(jn.showIf.k) || guessed[jn.showIf.k])){
+    vals[jn.showIf.k] = (jn.showIf.v||[])[0]; guessed[jn.showIf.k] = true;
+  }
+}
 function analyzeBlock(b, ev){
   const mapped = buildMappedEntries(b.rawEntries || b.entries, ev);
   fixMislabeled(ev, mapped);
@@ -3408,6 +3468,7 @@ function analyzeBlock(b, ev){
   if(ev){
     const hit = applyHeaderFee(ev, b.header||'', mapped, guessed);   // v4.58
     const hf = hit && hit.fl;
+    fixJijiPlacement(ev, b, mapped, guessed);   // v5.22
     inferShowIfChoice(ev, mapped.fields).forEach(k=>{ guessed[k] = true; });   // v4.51
     Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
     Object.assign(fee, guessFees(b.header||'', ev));
