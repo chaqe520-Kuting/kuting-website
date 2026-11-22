@@ -956,6 +956,18 @@ window.KutingFinMatch = function(opts){
   th{color:var(--muted);font-size:11.5px;font-weight:700;background:var(--paper-2);position:sticky;top:0;}
   tr:hover td{background:#FBF6EA;}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;}
+  /* v5.23（小朱 iPhone）：報名清單手機改卡片，不用左右滑也看得到「編輯／📨 LINE 報名成功／刪除」 */
+  @media (max-width:720px){
+    .reg-tbl thead{display:none;}
+    .reg-tbl,.reg-tbl tbody{display:block;width:100%;}
+    .reg-tbl tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:10px 10px 12px;border-bottom:1px solid var(--line);}
+    .reg-tbl td{display:block;border:0;padding:0;}
+    .reg-tbl td:nth-child(3){flex:1;min-width:6em;font-weight:700;font-size:15px;}
+    .reg-tbl td:nth-child(4){order:10;flex-basis:100%;font-size:14px;line-height:1.6;}
+    .reg-tbl td:nth-child(5){font-weight:700;}
+    .reg-tbl td:nth-child(8){order:20;flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+    .reg-tbl td:nth-child(8) .btn{min-height:40px;}
+  }
   /* v4.11：統計分頁 */
   .subtabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .subtabs button{border:1px solid var(--line);background:#FFFDF7;color:var(--muted);padding:8px 18px;border-radius:999px;font-family:'Noto Sans TC';font-weight:700;font-size:14px;cursor:pointer;}
@@ -1138,8 +1150,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.22 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.23 ・ 2026-11-22（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.23（2026-11-22）</b>：報名成功通知補齊（小朱 iPhone）：① 手機的報名清單改成卡片，「編輯／📨 LINE 報名成功／💰 收款確認／刪除」按鈕都看得到（原本在表格最右邊被切掉）；② LINE 帶入確認後直接跳出「✅ 已匯入」，每位報名者一個「📨 報名成功通知」（小幫手私訊或產生報名成功圖），比照供品贊助；③ 志工登入代報名送出後，核對視窗下方也有「📨 報名成功通知」。<br>
       <b>v5.22（2026-11-22）</b>：LINE 帶入「地基主」不再錯位（小朱）：內容有「地基主」字眼時，地基主戶長姓名、地址一定放「地基主」的姓名／地址欄，不會跑到住家或祖先地址；姓名後面直接接地址、姓名寫在標題（例「1.王○明(地基主)」）、「地基主小牌位」這類寫法也認得；欄位改過名稱也一樣。「報名人」也當報名者。<br>
       <b>v5.21（2026-11-22）</b>：同類型多筆合成一筆（小朱）：同一位報名者、同類別、同位別（例如都是小牌位），地址、陽上人也一樣的幾筆，合成一筆多人（姓名用「、」接起來，份數加總）。報名頁送出、LINE 帶入確認、同去年展開時自動合併；後台新增「🧩 同類合併」整理已存的報名（先下載備份，只合未收款、未確認的）。<br>
       <b>v5.20（2026-11-22）</b>：全站防連按、不跳頂（小朱：每次開新場次問題又出現）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，連按不會重複報名或重複傳；畫面重畫時不再先清成「載入中」，停在原本位置（切換分頁才回頂端）。和供品贊助用同一份程式碼。<br>
@@ -4655,6 +4668,53 @@ async function confirmImportRun(){
   importForceEventId = '';
   showToast((allOk ? `已匯入 ${count} 筆報名資料` : '部分資料匯入失敗，請檢查網路後再試一次') + (learnedEvents.size ? '，並記住新的欄位說法' : ''), 3500);
   await renderHoldScroll();
+  if(allOk && count) openRegDoneNoticeModal(byEvent, `✅ 已匯入 ${count} 筆報名`);   // v5.23
+}
+/* v5.23（小朱）：報名完成（LINE 帶入確認、後台代報名送出）後，比照供品贊助直接跳出「報名成功」：
+   每位報名者一行，按「📨 報名成功通知」→ 選小幫手私訊給哪個 LINE，或改產生報名成功圖自己傳。 */
+function regDoneRowsHtml(byEvent){
+  const rows = [];
+  Object.keys(byEvent).forEach(eid=>{
+    const ev = events.find(e=>e.id===eid);
+    const groups = {};
+    (byEvent[eid]||[]).forEach(r=>{ const k = regReporterKey(r) || r.id; (groups[k] = groups[k] || []).push(r); });
+    Object.values(groups).forEach(g=>{
+      const total = g.reduce((a,r)=>a+(Number(r.total)||0),0);
+      rows.push(`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px dashed var(--line);">
+        <div style="flex:1;min-width:150px;"><b>${escHtml((g[0].f||{}).reporter||'（沒有報名者姓名）')}</b>
+          <span class="hint" style="margin:0;">${Object.keys(byEvent).length>1 && ev ? escHtml(ev.name)+'・' : ''}${g.length} 筆・${money(total)} 元</span></div>
+        <button class="btn btn-primary btn-sm" data-donepush="${escHtml(g[0].id)}" data-doneev="${escHtml(eid)}">📨 報名成功通知</button>
+      </div>`);
+    });
+  });
+  return rows.join('');
+}
+function bindRegDoneButtons(root){
+  root.querySelectorAll('[data-donepush]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const eid = btn.dataset.doneev;
+      if(adminSelectedEvent!==eid || !regsCache[eid]){ adminSelectedEvent = eid; await loadRegs(eid); }
+      const ok = await fahuiLinePush(btn.dataset.donepush, '');
+      if(ok){ btn.textContent = '✓ 已傳報名成功'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost'); }
+      renderHoldScroll();
+    };
+  });
+}
+function openRegDoneNoticeModal(byEvent, title){
+  if(!staff) return;
+  const rows = regDoneRowsHtml(byEvent);
+  if(!rows) return;
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="max-width:520px;">
+    <h2 style="font-family:'Noto Serif TC';margin:0 0 4px;">${escHtml(title)}</h2>
+    <p class="hint" style="margin:0 0 6px;">要通知信徒報名成功，按每位後面的「📨 報名成功通知」：可以用小幫手私訊 LINE，或產生報名成功圖自己傳。之後也可以在報名清單按「📨 LINE 報名成功」。</p>
+    ${rows}
+    <div class="row-actions" style="margin-top:14px;"><button class="btn btn-ghost" data-doneclose>關閉</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('[data-doneclose]').onclick = ()=>bg.remove();
+  bindRegDoneButtons(bg);
 }
 
 /* ---------------- v4.38：LINE 小幫手待確認 ----------------
@@ -6183,7 +6243,7 @@ function renderRegTable(ev){
     <span style="font-size:13px;">第 ${regPageState.page} / ${totalPages} 頁</span>
     <button class="btn btn-ghost btn-sm" id="regNextPage" ${regPageState.page>=totalPages?'disabled':''}>下一頁 ›</button>
   </div>`;
-  html += `<div class="tbl-wrap"><table><thead><tr>
+  html += `<div class="tbl-wrap"><table class="reg-tbl"><thead><tr>
     <th><input type="checkbox" id="selectAllRegs"></th><th>#</th><th>姓名</th><th>內容摘要</th><th>金額</th><th>收款</th><th>確認</th><th>操作</th>
   </tr></thead><tbody>`;
   pageRegs.forEach((r,i)=>{
@@ -6291,11 +6351,15 @@ function openSubmissionPreviewModal(ev, records){
   records.forEach((r,i)=>{ inner += renderRegDetailBlock(ev, r, i); });
   if(records.some(r=>r.sameLast)) inner += `<div style="margin:8px 0;padding:10px 12px;background:#FFF4D6;border:1.5px dashed var(--gold);border-radius:10px;line-height:1.8;">🔁 您選了「內容和去年一樣」：上面是去年的份數，金額依今年價格計算。<br><b style="color:var(--vermilion);">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</b></div>`;
   inner += `<div style="text-align:right;font-family:'Noto Serif TC';font-weight:900;font-size:18px;color:var(--vermilion);padding-top:8px;border-top:2px double var(--gold);">總計：${money(grandTotal)} 元</div>`;
+  // v5.23：志工登入代報名 → 直接可以傳報名成功通知（小幫手私訊或報名成功圖）
+  if(staff && records.length && records.every(r=>r.id)) inner += `<div style="margin-top:12px;padding:8px 12px;background:#FFF8E8;border:1.5px solid var(--gold);border-radius:10px;">
+    <div style="font-weight:700;">📨 通知信徒報名成功</div>${regDoneRowsHtml({[ev.id]: records})}</div>`;
   inner += `<div class="row-actions" style="margin-top:18px;">
     <button class="btn btn-primary" id="sp_close">關閉</button>
   </div>`;
   bg.innerHTML = `<div class="modal" style="max-width:640px;">${inner}</div>`;
   document.body.appendChild(bg);
+  if(staff) bindRegDoneButtons(bg);
   bg.querySelector('#sp_close').onclick = ()=>{ bg.remove(); render(); };
 }
 
