@@ -1178,8 +1178,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.30 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.31 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.31（2026-11-23）</b>：場次管理新增「📜 唱名名單（A3）」（小朱）：給法師唱名用，一次產出超薦拔度主蓮位、副蓮位、副蓮位-地基主、消災功德名單主牌位、副牌位 5 種，A3 橫式直書、由右到左、每頁重複標題，照 115 年 6 月唱名名單格式；可改標題、每頁欄數、只印某幾種，份數和姓名數對不上的會列出來讓志工核對（不會印出）。<br>
       <b>v5.30（2026-11-23）</b>：修正字放大（中／大字）時「📥 匯入去年 Excel」視窗超出螢幕，拉不到最下面的欄位和「匯入」按鈕。<br>
       <b>v5.29（2026-11-23）</b>：上線前檢查（小朱）：報名頁某一格只選了牌位／蓮位或位別、沒填姓名就送出，原本會多一筆 0 元的空白報名；現在會提示「第 N 個牌位還沒填姓名，請填寫，或按移除此位」並捲到那一格。<br>
       <b>v5.28（2026-11-23）</b>：梁皇報名頁照樣板改版（小朱）：上方「價格一覽」分 🟥 紅色牌位（消災延壽）、🟨 黃色蓮位（超薦拔度）；下方「＋ 加一個紅色牌位」「＋ 加一個黃色蓮位」；每一格先選牌位或蓮位，再按位別（主牌位、小牌位、姓氏祖先、已逝先人、小蓮位、地基主），只出現那個位別要填的欄位，份數和小計自動算（牌位依姓名人數，可修改）。報名資料格式不變，後台、LINE 帶入、Excel、同去年照常。<br>
@@ -6423,6 +6424,7 @@ function renderEventManager(){
       <button class="btn btn-ghost btn-sm" id="comboBtn">📨 LINE 彙整通知</button>
       <button class="btn btn-ghost btn-sm" id="exportBtn">匯出 Excel</button>
       <button class="btn btn-ghost btn-sm" id="printA3Btn">🖨️ 列印報名表（A3）</button>
+      ${chantAvailable(ev) ? `<button class="btn btn-ghost btn-sm" id="chantBtn" title="給法師唱名用：主蓮位、副蓮位、地基主、消災主牌位、副牌位 5 種，A3 橫式直書">📜 唱名名單（A3）</button>` : ''}
       <button class="btn btn-ghost btn-sm" id="exportCfgBtn">⚙️ 匯出設定</button>
       <button class="btn btn-danger btn-sm" id="deleteEventBtn">刪除此場次</button>
     </div>`;
@@ -7786,6 +7788,8 @@ function bindEvents(){
   if(lineFmtBtn) lineFmtBtn.onclick = ()=>openLineFormatModal(adminSelectedEvent);
   const printA3Btn = document.getElementById('printA3Btn');
   if(printA3Btn) printA3Btn.onclick = async ()=>{ if(!regsCache[adminSelectedEvent]) await loadRegs(adminSelectedEvent); printRegFormA3(adminSelectedEvent); };
+  const chantBtn = document.getElementById('chantBtn');
+  if(chantBtn) chantBtn.onclick = async ()=>{ if(!regsCache[adminSelectedEvent]) await loadRegs(adminSelectedEvent); printChantListA3(adminSelectedEvent); };
   const exportCfgBtn = document.getElementById('exportCfgBtn');
   if(exportCfgBtn) exportCfgBtn.onclick = ()=>openExportSettings(adminSelectedEvent);
 
@@ -9710,6 +9714,194 @@ function printRegFormA3(eventId){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
   showToast('瀏覽器擋住新視窗，已改成下載報名表檔案，開啟後按列印', 4500);
+}
+/* v5.31（小朱）：梁皇唱名名單（A3 橫式、直書、由右到左），給法師唱名用，共 5 種：
+   超薦拔度 主蓮位／超薦拔度 副蓮位／超薦拔度 副蓮位-地基主／消災功德名單 主牌位／消災功德名單 副牌位。
+   格式照 115 年 6 月唱名名單 Excel：最右邊是標題欄＋列名欄，每一欄一位，每頁重複標題。 */
+const CHANT_FEES = ['mainHousehold','mainDeceased','subDeceased','jijiFee','personMain','personSub'];
+function chantAvailable(ev){ return !!ev && ev.mode!=='items' && (ev.fees||[]).some(fl=>CHANT_FEES.includes(fl.k)); }
+function chantNames(v){
+  return String(v||'').split(/[、,，;；\n\/…。．]+/)
+    .flatMap(p=>{ const ws = p.trim().split(/\s+/); return ws.length>1 && ws.every(w=>/^[一-鿿○〇Ｏ]{2,4}$/.test(w)) ? ws : [p]; })
+    .map(x=>x.replace(/^[\s\d０-９.．、)）(（\-]+/,'').trim())
+    .filter(x=>/[A-Za-z一-鿿À-ỹ]/.test(x));
+}
+function chantBuild(ev, regs){
+  const out = {main:[], sub:[], jiji:[], pmain:[], psub:[]}, warn = [];
+  const q = (r,k)=>Number((r.fee||{})[k])||0;
+  const one = s=>String(s||'').replace(/\s*\n\s*/g,'　').trim();
+  regs.forEach(r=>{
+    const f = r.f||{}, who = one(f.reporter);
+    const yang = one(f.yangshang) || who;
+    // 主蓮位：姓氏祖先＋已逝先人；份數夠就一位一欄，份數比姓名少就合在同一欄
+    const anc = lotusParts(f.mainAncestor), per = chantNames(f.mainPerson);
+    const mainN = anc.length + per.length, mainQ = q(r,'mainHousehold') + q(r,'mainDeceased');
+    if(mainN){
+      const addr = one(f.mainAddr);
+      if(mainQ && mainQ < mainN){ out.main.push({name:[...anc,...per].join('、'), addr, yang}); warn.push(`${who}：主蓮位寫了 ${mainN} 位、繳 ${mainQ} 份，已合在同一欄`); }
+      else [...anc,...per].forEach(n=>out.main.push({name:n, addr, yang}));
+    } else if(mainQ) warn.push(`${who}：主蓮位 ${mainQ} 份，但沒有填祖先／先人姓名`);
+    // 副蓮位（已逝及倒房）
+    const subs = chantNames(f.subName), subQ = q(r,'subDeceased');
+    if(subs.length){
+      const addr = one(f.subAddr) || one(f.mainAddr);
+      if(subQ && subQ < subs.length){ out.sub.push({name:subs.join('、'), addr, yang}); warn.push(`${who}：副蓮位寫了 ${subs.length} 位、繳 ${subQ} 份，已合在同一欄`); }
+      else subs.forEach(n=>out.sub.push({name:n, addr, yang}));
+    } else if(subQ) warn.push(`${who}：副蓮位 ${subQ} 份，但沒有填先人姓名`);
+    // 地基主：陽上人＝地基主戶長，地址＝地基主地址
+    // 去年 Excel／LINE 常寫成「王小明地基主：○○路○號」一格，多戶用換行 → 拆成姓名＋地址、一戶一欄
+    const jq = q(r,'jijiFee'), jAddr = one(f.jijiAddr);
+    const jList = String(f.jijiName||'').split(/\n+|　+|\s{2,}/).map(x=>x.trim()).filter(Boolean)
+      .reduce((a,x)=>{ const pv = a[a.length-1]; if(pv!=null && (/^[:：(（]/.test(x) || /(?:地基主|地祇主|地基公|[:：])$/.test(pv))) a[a.length-1] = pv + x; else a.push(x); return a; }, []).map(x=>{
+      const m = x.match(/^(.*?)\s*(?:之)?(?:地基主|地祇主|地基公)?\s*[:：]\s*(.+)$/);
+      return m && m[1] ? {yang:m[1].replace(/(?:之)?(?:地基主|地祇主|地基公)$/,'').trim(), addr:m[2].trim()} : {yang:x.replace(/(?:之)?(?:地基主|地祇主|地基公)$/,'').trim(), addr:''};
+    }).filter(x=>x.yang);
+    if(!jList.length && jq) warn.push(`${who}：地基主 ${jq} 份，但沒有填戶長姓名`);
+    jList.forEach(x=>{
+      if(!x.addr) x.addr = jAddr;
+      if(!x.addr) warn.push(`${who}：地基主「${x.yang}」沒有填地址`);
+      out.jiji.push(x);
+    });
+    if(jq && jList.length && jq !== jList.length) warn.push(`${who}：地基主寫了 ${jList.length} 戶、繳 ${jq} 份，請核對`);
+    // 消災牌位：前面「主牌位份數」個名字放主牌位，其餘放副牌位
+    const lives = chantNames(f.liveName), pm = q(r,'personMain'), ps = q(r,'personSub');
+    if(lives.length){
+      const addr = one(f.liveAddr);
+      let mainNames, subNames;
+      if(pm && !ps){ mainNames = lives; subNames = []; }
+      else if(ps && !pm){ mainNames = []; subNames = lives; }
+      else if(!pm && !ps){ mainNames = lives; subNames = []; warn.push(`${who}：消災姓名沒有份數，先放主牌位`); }
+      else { mainNames = lives.slice(0, pm); subNames = lives.slice(pm); if(!subNames.length) subNames = []; }
+      if(lives.length !== pm + ps && (pm || ps)) warn.push(`${who}：消災寫了 ${lives.length} 位、主牌位 ${pm}＋副牌位 ${ps} 份，請核對`+(pm && ps ? `（前 ${pm} 位放主牌位，其餘放副牌位）` : ''));
+      mainNames.forEach(n=>out.pmain.push({name:n, addr}));
+      subNames.forEach(n=>out.psub.push({name:n, addr}));
+    } else if(pm || ps) warn.push(`${who}：消災牌位 ${pm+ps} 份，但沒有填陽世者姓名`);
+  });
+  return {lists:out, warn};
+}
+function printChantListA3(eventId){
+  const ev = events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const regs = (regsCache[eventId]||[]).filter(r=>!r.deleted && (ev.draft || !r.test)).slice()
+    .sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
+  if(!regs.length){ showToast('這個場次還沒有報名資料'); return; }
+  const {lists, warn} = chantBuild(ev, regs);
+  const gz = (String(ev.name||'').match(/[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]年/)||[''])[0];
+  const title = `古亭院　${gz}梁皇寶懺法會`;
+  const html = chantHtml(title, lists, warn, ev.name);
+  const w = window.open('', '_blank');
+  if(w){ w.document.open(); w.document.write(html); w.document.close(); return; }
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${ev.name}_唱名名單A3.html`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  showToast('瀏覽器擋住新視窗，已改成下載唱名名單檔案，開啟後按列印', 4500);
+}
+function chantHtml(title, lists, warn, evName){
+  const data = JSON.stringify({title, lists}).replace(/</g,'\\u003c');
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escHtml(evName)} 唱名名單</title>
+<style>
+  @page{size:A3 landscape;margin:8mm;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eee;font-family:"DFKai-SB","BiauKai","標楷體","Kaiti TC","Noto Serif TC",serif;color:#000;}
+  .bar{position:sticky;top:0;z-index:5;background:#fff8e6;border-bottom:1px solid #c9a54a;padding:10px 14px;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:15px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bar button{font-size:16px;min-height:44px;padding:0 18px;border-radius:8px;border:0;background:#9b2c1f;color:#fff;cursor:pointer;}
+  .bar label{display:flex;gap:6px;align-items:center;}
+  .bar input,.bar select{font-size:16px;min-height:40px;padding:0 8px;border:1px solid #c9a54a;border-radius:6px;}
+  .bar input[type=checkbox]{min-height:0;width:20px;height:20px;}
+  .warn{background:#FDF1EC;border-bottom:1px dashed #9b2c1f;padding:8px 14px;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:14px;line-height:1.7;}
+  .warn summary{cursor:pointer;font-weight:700;color:#9b2c1f;}
+  .page{width:404mm;height:281mm;margin:10px auto;background:#fff;padding:0;overflow:hidden;page-break-after:always;break-after:page;}
+  .page:last-child{page-break-after:auto;break-after:auto;}
+  table{border-collapse:collapse;direction:rtl;height:100%;width:100%;table-layout:fixed;border:2px solid #000;}
+  td{border:1px solid #000;padding:1.2mm .4mm;vertical-align:top;overflow:hidden;}
+  .sv{display:flex;flex-direction:row-reverse;justify-content:center;gap:.6mm;line-height:1.06;overflow:hidden;}
+  .sv>div{display:flex;flex-direction:column;align-items:center;}
+  .sv span{display:block;text-align:center;}
+  td.num{vertical-align:middle;text-align:center;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-weight:700;padding:0;}
+  td.tt{border-left:2px solid #000;vertical-align:middle;}
+  td.lb{vertical-align:middle;}
+  td.foot{vertical-align:middle;text-align:center;}
+  @media print{ body{background:#fff;} .bar,.warn,.sec-h{display:none;} .page{margin:0;box-shadow:none;} .page.off{display:none;} }
+  .sec-h{max-width:404mm;margin:18px auto 0;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:17px;font-weight:700;color:#9b2c1f;}
+  .sec-h.off,.page.off{display:none;}
+</style></head><body>
+<div class="bar">
+  <button onclick="window.print()">🖨️ 列印／另存 PDF</button>
+  <span>列印時選「A3」、「橫向」、邊界「無」或「預設」。</span>
+  <label>標題 <input id="ttl" size="18"></label>
+  <label>每頁 <select id="per"><option>20</option><option>25</option><option>30</option><option>35</option><option selected>40</option><option>45</option><option>50</option></select> 欄</label>
+  <span id="secs"></span>
+</div>
+<div id="warn"></div>
+<div id="out"></div>
+<script>
+const D = ${data};
+const SECS = [
+  {k:'main', name:'超薦拔度　主蓮位', rows:[['超薦拔度先人','name',50],['地　　　址','addr',150],['陽上報恩人','yang',54]]},
+  {k:'sub', name:'超薦拔度　副蓮位', rows:[['超薦拔度先人','name',50],['地　　　址','addr',150],['陽上報恩人','yang',54]]},
+  {k:'jiji', name:'超薦拔度　副蓮位－地基主', rows:[['陽上人','yang',58],['拔度　地基主　地址','addr',178]], foot:'之地祇主'},
+  {k:'pmain', name:'消災功德名單　主牌位', rows:[['消災功德名單','name',70],['地　　　址','addr',184]]},
+  {k:'psub', name:'消災功德名單　副牌位', rows:[['消災功德名單','name',70],['地　　　址','addr',184]]}
+];
+const esc = s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// 直書：半形數字、英文字母、- 轉全形才會直立（越南文等保留原樣）
+const fw = s=>String(s||'').replace(/[0-9\\-()]/g,c=>String.fromCharCode(c.charCodeAt(0)+0xFEE0)).replace(/\\uff0d/g,'－');
+// 直書用「一字一行」堆疊（和 Excel 的直排文字一樣），不靠 writing-mode，各種電腦字型都不會疊字
+function stack(text, hmm, wmm, maxFs, bold){
+  const VF = {'（':'︵','）':'︶','「':'﹁','」':'﹂','『':'﹃','』':'﹄','：':'︰','－':'︱','—':'︱','~':'︴','～':'︴','【':'︻','】':'︼','〔':'︹','〕':'︺'};
+  const ch = [...fw(text)].map(x=>VF[x]||x);
+  const n = Math.max(1, ch.length);
+  let best = null;
+  for(let k=1; k<=3; k++){
+    const fs = Math.min(maxFs, wmm/(k*1.12), (hmm-3)/(Math.ceil(n/k)*1.06));
+    if(!best || fs > best.fs + 0.05) best = {k, fs};
+  }
+  const per = Math.ceil(n/best.k), cols = [];
+  for(let c=0; c<best.k; c++) cols.push(ch.slice(c*per, (c+1)*per));
+  return '<div class="sv" style="font-size:'+best.fs.toFixed(2)+'mm;max-height:'+(hmm-2)+'mm'+(bold?';font-weight:700':'')+'">'
+    + cols.map(cl=>'<div>'+cl.map(x=>'<span>'+(x==='　'||x===' '?'&nbsp;':esc(x))+'</span>').join('')+'</div>').join('') + '</div>';
+}
+function cell(text, hmm, wmm){ return stack(text, hmm, wmm, Math.min(5.4, wmm*0.62)); }
+function render(){
+  const per = +document.getElementById('per').value, ttl = document.getElementById('ttl').value;
+  let h = '';
+  SECS.forEach(s=>{
+    const on = document.getElementById('on_'+s.k).checked;
+    const items = D.lists[s.k]||[];
+    h += '<div class="sec-h'+(on?'':' off')+'">'+esc(s.name)+'　共 '+items.length+' 位</div>';
+    if(!items.length) return;
+    const wmm = (404 - 4 - 15 - 12) / per;
+    const numH = 9, footH = s.foot ? 14 : 0;
+    for(let p=0; p<items.length; p+=per){
+      const pg = items.slice(p, p+per);
+      const pad = per - pg.length;
+      let t = '<div class="page'+(on?'':' off')+'"><table><colgroup><col style="width:15mm"><col style="width:12mm">'+'<col>'.repeat(per)+'</colgroup>';
+      const totalRows = 1 + s.rows.length + (s.foot?1:0);
+      const totalH = numH + s.rows.reduce((a,r)=>a+r[2],0) + footH;
+      t += '<tr style="height:'+numH+'mm"><td class="tt" rowspan="'+totalRows+'">'+stack(ttl+'　'+s.name, totalH-4, 15, 9, true)+'</td><td class="num">編號</td>'
+        + pg.map((it,i)=>'<td class="num" style="font-size:'+Math.min(4.2,wmm*0.45).toFixed(1)+'mm">'+(p+i+1)+'</td>').join('') + '<td></td>'.repeat(pad) + '</tr>';
+      s.rows.forEach(([lb,key,hmm])=>{
+        t += '<tr style="height:'+hmm+'mm"><td class="lb">'+stack(lb, hmm, 12, 6, true)+'</td>'
+          + pg.map(it=>'<td>'+cell(it[key], hmm, wmm)+'</td>').join('') + '<td></td>'.repeat(pad) + '</tr>';
+      });
+      if(s.foot) t += '<tr style="height:'+footH+'mm"><td></td><td class="foot" colspan="'+per+'"><div style="font-size:6mm;letter-spacing:3mm;">'+esc(s.foot)+'</div></td></tr>';
+      t += '</table></div>';
+      h += t;
+    }
+  });
+  document.getElementById('out').innerHTML = h;
+}
+document.getElementById('ttl').value = D.title;
+document.getElementById('secs').innerHTML = SECS.map(s=>'<label><input type="checkbox" id="on_'+s.k+'" checked> '+esc(s.name.replace(/　/g,' '))+'（'+(D.lists[s.k]||[]).length+'）</label>').join('');
+const W = ${JSON.stringify(warn).replace(/</g,'\\u003c')};
+if(W.length) document.getElementById('warn').innerHTML = '<details class="warn"><summary>⚠️ 有 '+W.length+' 筆要人工核對（不會印出來，點開看）</summary>'+W.map(x=>'<div>'+esc(x)+'</div>').join('')+'</details>';
+document.addEventListener('change', e=>{ if(e.target.matches('#per, .bar input[type=checkbox]')) render(); });
+document.getElementById('ttl').addEventListener('input', render);
+render();
+<\/script></body></html>`;
 }
 function exportExcel(eventId){
   const ev = events.find(e=>e.id===eventId);
