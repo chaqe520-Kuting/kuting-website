@@ -1151,8 +1151,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.26 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.27 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.27（2026-11-23）</b>：「🔁 比照上次報名」查詢紀錄（小朱）：志工每查一次去年資料，就記下是誰、什麼時間、查了哪個姓名；管理者在後台最下方「🔍 比照上次報名查詢紀錄」看，紀錄不能改也不能刪（需要新的資料庫規則）。<br>
       <b>v5.26（2026-11-23）</b>：報名表字眼（小朱）：陽世者說明改「外籍姓名依護照填寫」（已建好的場次也一樣）；主牌位、小牌位這類要自己填份數的，單價後面加「（填寫幾位）」。<br>
       <b>v5.25（2026-11-23）</b>：報名表每一位的報名類別旁多「🧹 清空重填」（小朱）：把這一位下面填的姓名、地址、份數清掉重寫（報名類別、報名者姓名、電話保留）；有填內容時會先問一次。信徒、志工都看得到。<br>
       <b>v5.24（2026-11-23）</b>：LINE 貼上快速匯入學會小朱給信徒的 6 種梁皇報名格式（範例1～6，一次貼好幾則也可以）：① 主牌位／小牌位依陽世者人數算份數（「王○明、王○華」＝2 份）；② 姓氏祖先寫兩戶＝2 份（原本被標題蓋成 1 份）；③ 範例6「陽世者(戶長)地址姓名」的地址放進地基主地址（原本跑到陽上人）；④ 信眾自己標了欄位名稱、依標題搬到正確欄位的，不再標「🤔 系統猜的」。<br>
@@ -1905,6 +1906,40 @@ function refPickBtnHtml(bi){
 function refPickPanelHtml(bi){
   return `<div class="ref-pick-panel" data-refpanel="${bi}" style="display:none;"></div>`;
 }
+/* v5.27（小朱）：「比照上次報名」查詢紀錄——誰、何時、查了哪個姓名（只增不改，只有管理者看得到）；寫不進去不影響報名 */
+function logRefLookup(ev, name, count){
+  try{
+    if(!db || !auth || !auth.currentUser) return;
+    db.collection('lookupLogs').add({uid: auth.currentUser.uid, staffName: String((staff && staff.name) || '').slice(0,40),
+      eventId: String(ev.id||''), eventName: String(ev.name||'').slice(0,80), name: String(name||'').slice(0,40), count: Number(count)||0,
+      at: firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.warn('lookupLogs', e && e.code));
+  }catch(e){ console.warn('lookupLogs', e); }
+}
+let lookupLogOpen = false;
+function lookupLogCardHtml(){
+  return `<details class="card" id="lookupLogCard" ${lookupLogOpen?'open':''}>
+    <summary style="cursor:pointer;list-style:none;"><h2 style="display:inline;">🔍 比照上次報名查詢紀錄</h2>　<span class="hint">只有管理者看得到・點標題展開／收合</span></summary>
+    <p class="hint" style="margin:8px 0;">志工每按一次「🔁 比照上次報名」查去年資料，就記下是誰、什麼時間、查了哪個姓名。紀錄不能修改或刪除。</p>
+    <div id="lookupLogBody" class="hint">展開後讀取…</div></details>`;
+}
+async function loadLookupLogs(){
+  const body = document.getElementById('lookupLogBody');
+  if(!body) return;
+  const t0 = Date.now();
+  body.textContent = '讀取中…';
+  try{
+    const snap = await db.collection('lookupLogs').get();
+    const rows = []; snap.forEach(d=>rows.push(d.data()));
+    const ms = x=>x && x.toMillis ? x.toMillis() : 0;
+    rows.sort((a,b)=>ms(b.at)-ms(a.at));
+    if(!rows.length){ body.textContent = '目前還沒有查詢紀錄。'; return; }
+    const fmt = x=>{ const d = new Date(ms(x)); return ms(x) ? `${d.getFullYear()-1911}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : ''; };
+    body.innerHTML = `<div style="margin-bottom:6px;">共 ${rows.length} 筆（${Math.round((Date.now()-t0)/100)/10} 秒）</div><div style="max-height:360px;overflow:auto;">` + rows.map(r=>
+      `<div style="padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px;color:var(--ink,#3a2a14);">${escHtml(fmt(r.at))}　<b>${escHtml(r.staffName||'')}</b> 查「${escHtml(r.name||'')}」<span class="hint" style="margin:0;">　${escHtml(r.eventName||'')}・找到 ${Number(r.count)||0} 筆</span></div>`).join('') + '</div>';
+  }catch(e){
+    body.textContent = '讀不到查詢紀錄（' + (e && e.code === 'permission-denied' ? '資料庫規則還沒更新，或您不是管理者' : (e && e.message || '網路問題')) + '）';
+  }
+}
 function bindRefPick(pf, ev){
   if(!pf || pf._refPickBound || !staffActive()) return;
   pf._refPickBound = true;
@@ -1947,6 +1982,7 @@ function bindRefPick(pf, ev){
       }
       const list = (refs||[]).filter(r=>statName(r)===name || refNameParts(r).includes(name));
       panel._list = list;
+      logRefLookup(ev, name, list.length);   // v5.27 查詢紀錄
       if(!list.length){
         panel.innerHTML = `去年（${escHtml(ev.sameRef.file||'去年 Excel')}）沒有找到「${escHtml(name)}」的報名。請確認姓名有沒有打錯，或照信徒說的內容手動填。`;
         return;
@@ -5721,6 +5757,7 @@ async function renderAdminAsync(){
     html += renderRegTable(ev);
   }
   if(staffIsAdmin()) html += await renderAccountCard();   // v4.56：小朱：帳號管理不常用，放最下面、預設收合
+  if(staffIsAdmin()) html += lookupLogCardHtml();   // v5.27
   return html;
 }
 
@@ -7581,6 +7618,8 @@ function bindEvents(){
   const lockAdminBtn = document.getElementById('lockAdminBtn');
   if(lockAdminBtn) lockAdminBtn.onclick = async ()=>{ try{ fahuiFinMatcher.logout(); }catch(e){} try{ await auth.signOut(); }catch(e){} adminUnlocked=false; staff=null; regsCache={}; view='public'; render(); showToast('已登出後台管理'); };
   document.querySelectorAll('[data-staff-toggle]').forEach(b=>{ b.onclick = ()=>toggleStaff(b.dataset.staffToggle, b.dataset.field); });
+  const llCard = document.getElementById('lookupLogCard');
+  if(llCard){ llCard.ontoggle = ()=>{ lookupLogOpen = llCard.open; if(llCard.open) loadLookupLogs(); }; if(llCard.open) loadLookupLogs(); }
   const addStaffBtn = document.getElementById('addStaffBtn');
   if(addStaffBtn) addStaffBtn.onclick = adminCreateStaff;
   const refreshDataBtn = document.getElementById('refreshDataBtn');
