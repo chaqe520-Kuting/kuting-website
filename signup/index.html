@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.38 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.39 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.39（2026-11-23）</b>：從數位服務中心點「法會報名」（signup/?admin）還沒登入時，「請使用法會的報名網址」下方多一個「🔐 登入後台管理」按鈕（小朱）。<br>
       <b>v5.38（2026-11-23）</b>：手機（Android）打字到「備註」後往上滑要改姓名、地址，畫面會自己跳回備註；改成滑到看不到正在輸入的格子時先收起鍵盤，就能停在上面點要改的格子（小朱）。<br>
       <b>v5.37（2026-11-23）</b>：進後台管理時，預設選「開放報名中」的場次（原本固定選第一場，會停在已結束的舊場次）（小朱）。<br>
       <b>v5.36（2026-11-23）</b>：信徒只能用各場的報名網址（signup?e=代碼）報名（小朱）：沒帶代碼的 kuting.tw/signup/ 不再列出場次和報名表，改成「請使用法會的報名網址」並提供前往各場的按鈕；各場報名頁拿掉「看其他開放中的法會」。登入志工照舊可選場次測試。<br>
@@ -5634,7 +5635,8 @@ function renderPublic(){
     const open = activeEvents();
     return `<div class="card"><div class="empty" style="font-family:'Noto Serif TC',serif;font-size:clamp(22px,5.5vw,32px);font-weight:700;color:var(--vermilion);line-height:1.6;padding:40px 12px 16px;letter-spacing:1px;">請使用法會的報名網址</div>
       <p class="hint" style="text-align:center;margin:0 0 18px;line-height:1.8;">每一場法會都有自己的報名網址，請點古亭院在 LINE 公告或小幫手提供的連結報名。</p>
-      ${open.length ? `<div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin:0 0 24px;">${open.map(e=>`<a class="btn btn-primary" style="min-height:48px;display:inline-flex;align-items:center;" href="${escHtml(eventSignupUrl(e))}">前往「${escHtml(e.name)}」報名</a>`).join('')}</div>` : ''}</div>`;
+      ${open.length ? `<div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin:0 0 24px;">${open.map(e=>`<a class="btn btn-primary" style="min-height:48px;display:inline-flex;align-items:center;" href="${escHtml(eventSignupUrl(e))}">前往「${escHtml(e.name)}」報名</a>`).join('')}</div>` : ''}
+      ${new URLSearchParams(location.search).has('admin') ? `<div style="border-top:1px dashed var(--line);margin:0 0 6px;padding:16px 0 4px;text-align:center;"><p class="hint" style="margin:0 0 10px;">志工、工作人員請登入後台管理（登入後這裡也會列出所有場次，方便測試）</p><button type="button" class="btn btn-ghost" style="min-height:44px;" onclick="document.getElementById('tabAdmin').click()">🔐 登入後台管理</button></div>` : ''}</div>`;
   }
   const list = activeEvents();
   if(!publicSelectedEvent || !list.find(e=>e.id===publicSelectedEvent)){
