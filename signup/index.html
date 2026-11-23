@@ -1178,8 +1178,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.29 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.30 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.30（2026-11-23）</b>：修正字放大（中／大字）時「📥 匯入去年 Excel」視窗超出螢幕，拉不到最下面的欄位和「匯入」按鈕。<br>
       <b>v5.29（2026-11-23）</b>：上線前檢查（小朱）：報名頁某一格只選了牌位／蓮位或位別、沒填姓名就送出，原本會多一筆 0 元的空白報名；現在會提示「第 N 個牌位還沒填姓名，請填寫，或按移除此位」並捲到那一格。<br>
       <b>v5.28（2026-11-23）</b>：梁皇報名頁照樣板改版（小朱）：上方「價格一覽」分 🟥 紅色牌位（消災延壽）、🟨 黃色蓮位（超薦拔度）；下方「＋ 加一個紅色牌位」「＋ 加一個黃色蓮位」；每一格先選牌位或蓮位，再按位別（主牌位、小牌位、姓氏祖先、已逝先人、小蓮位、地基主），只出現那個位別要填的欄位，份數和小計自動算（牌位依姓名人數，可修改）。報名資料格式不變，後台、LINE 帶入、Excel、同去年照常。<br>
       <b>v5.27（2026-11-23）</b>：「🔁 比照上次報名」查詢紀錄（小朱）：志工每查一次去年資料，就記下是誰、什麼時間、查了哪個姓名；管理者在後台最下方「🔍 比照上次報名查詢紀錄」看，紀錄不能改也不能刪（需要新的資料庫規則）。<br>
@@ -4206,7 +4207,7 @@ function refImportModal(ev, fileName, sheets){
     (ev.mode!=='items' ? (ev.fees||[]).map(f=>`<option value="x:${escHtml(f.k)}">數量：${escHtml(f.label)}</option>`).join('') : '');
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
-  bg.innerHTML = `<div class="modal" style="max-width:640px;max-height:88vh;overflow-y:auto;">
+  bg.innerHTML = `<div class="modal" style="max-width:640px;">
     <h3 style="margin:0 0 6px;color:var(--vermilion);">📥 匯入去年 Excel（同去年參考）</h3>
     <p class="hint" style="margin:0 0 10px;">場次：<b>${escHtml(ev.name)}</b>　檔案：${escHtml(fileName)}<br>信徒說「同去年」時，只會從這份資料找。重新匯入會取代這場原本的參考資料；不會動到報名名單。請勾要用的工作表，並看一下每一欄對到哪裡。</p>
     ${sheets.map((sh,si)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff;">
