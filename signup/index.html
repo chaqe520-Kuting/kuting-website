@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.39 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.40 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.40（2026-11-23）</b>：手機報名修正：選好位別後，游標在「備註」或「地址」時，點別的格子（姓名、地址、陽上人）游標會被拉回空白的格子，改好了，點哪格就到哪格（小朱錄影）。<br>
       <b>v5.39（2026-11-23）</b>：從數位服務中心點「法會報名」（signup/?admin）還沒登入時，「請使用法會的報名網址」下方多一個「🔐 登入後台管理」按鈕（小朱）。<br>
       <b>v5.38（2026-11-23）</b>：手機（Android）打字到「備註」後往上滑要改姓名、地址，畫面會自己跳回備註；改成滑到看不到正在輸入的格子時先收起鍵盤，就能停在上面點要改的格子（小朱）。<br>
       <b>v5.37（2026-11-23）</b>：進後台管理時，預設選「開放報名中」的場次（原本固定選第一場，會停在已結束的舊場次）（小朱）。<br>
@@ -8147,7 +8148,7 @@ function bindEvents(){
     updatePersonRemoveVisibility();
     if(kindMode(evForFees)){   // v5.28 位別按鈕
       pf.addEventListener('click', e=>{
-        const chip = e.target.closest('[data-kind]'); if(!chip) return;
+        const chip = e.target.closest('.kchip[data-kind]'); if(!chip) return;
         e.preventDefault();
         const blk = chip.closest('.person-block'); if(!blk) return;
         kindPick(evForFees, blk, chip.dataset.kind);
