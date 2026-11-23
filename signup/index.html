@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.42 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.43 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.43（2026-11-23）</b>：報名頁勾「同去年」不再顯示去年有沒有報、幾筆、多少錢（打別人姓名也看得到），改成送出後由志工核對回覆；要看詳細用 LINE 小幫手專屬連結（小朱）。<br>
       <b>v5.42（2026-11-23）</b>：LINE 小幫手認得是本人後，私訊的專屬報名連結（6 小時有效）打開報名頁，會列出去年每一筆詳細內容，可一鍵帶入報名表再自己修改（小朱；需小幫手 v1.84）。<br>
       <b>v5.41（2026-11-23）</b>：報名頁勾「內容和去年一樣」後多一顆「💬 用 LINE 小幫手看去年詳細內容」，點了開 LINE 小幫手並帶好「姓名 同去年」；網頁仍只顯示份數和金額（小朱）。<br>
       <b>v5.40（2026-11-23）</b>：手機報名修正：選好位別後，游標在「備註」或「地址」時，點別的格子（姓名、地址、陽上人）游標會被拉回空白的格子，改好了，點哪格就到哪格（小朱錄影）。<br>
@@ -3915,17 +3916,12 @@ function bindSameLastPublic(pf, ev){
     if(!cb.checked){ info.innerHTML = ''; if(wrap) wrap.style.display = ''; if(add) add.style.display = ''; updatePublicTotal(); return; }
     if(wrap) wrap.style.display = 'none'; if(add) add.style.display = 'none';
     const name = rep ? rep.value : '';
-    if(refSumName(name).length<2){ info.innerHTML = '請先在上面填「報名者姓名」。'; updatePublicTotal(); return; }
-    info.innerHTML = '查詢中…';
-    const sum = await refSumLookup(ev, name);
-    if(!cb.checked || (rep && rep.value!==name)) return;
-    if(sum===undefined){ info.innerHTML = '⚠️ 網路不穩，查不到去年資料，請稍後再試，或取消勾選照欄位填寫。'; updatePublicTotal(); return; }
-    if(!sum){ info.innerHTML = `去年資料裡沒有找到「${escHtml(refSumName(name))}」。請確認姓名和去年報名時一樣，或取消勾選，照下面的欄位填寫。`; updatePublicTotal(); return; }
-    const t = refSumText(ev, sum);
-    pf._sameLastSum = {sum, total: t.total};
-    const lineAsk = 'https://line.me/R/oaMessage/%40154ssvzj/?' + encodeURIComponent(refSumName(name) + ' 同去年');   // v5.41 用 LINE 小幫手看詳細（小幫手認得本人才給看姓名地址）
-    info.innerHTML = t.html + '<br><span class="hint">地址、陽上人有變動，送出後請告訴志工。</span>' +
-      `<div style="margin-top:8px;"><a class="btn btn-ghost btn-sm" href="${lineAsk}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">💬 用 LINE 小幫手看去年詳細內容</a><div style="margin-top:6px;background:#fff;border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.7;color:#3b1d12;"><b>想看去年每一筆、自己修改，照這 3 步：</b><br>① 按上面按鈕，打開 LINE 小幫手，<b>直接按送出</b><br>② 小幫手回覆後，點回覆最下面的<b>「專屬連結」</b><br>③ 回到報名頁按<b>「📥 帶入」</b>，核對、修改後按「送出報名」<div class="hint" style="margin-top:2px;">為了保護個資，網頁不直接顯示姓名、地址；要先加小幫手好友，而且小幫手認得是本人（志工傳過報名成功通知給您）才會給連結。</div></div></div>` +
+    // v5.43（小朱 11-23）：網頁不再顯示別人去年有沒有報、幾筆、多少錢（打別人姓名也看得到）。
+    // 只說明送出後志工核對；要看詳細，用 LINE 小幫手的專屬連結（小幫手認得本人才給）。
+    const lineAsk = 'https://line.me/R/oaMessage/%40154ssvzj/?' + encodeURIComponent((refSumName(name).length>=2 ? refSumName(name) + ' ' : '') + '同去年');
+    info.innerHTML = (refSumName(name).length<2 ? '<div style="color:var(--vermilion);font-weight:700;">請先在上面填「報名者姓名」。</div>' : '') +
+      '送出後，志工會照您去年的報名資料核對，再回覆您項目和金額。<br><span class="hint">地址、陽上人有變動，送出後請告訴志工。為了保護個資，網頁不顯示去年的內容。</span>' +
+      `<div style="margin-top:8px;"><a class="btn btn-ghost btn-sm" href="${lineAsk}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">💬 用 LINE 小幫手看去年詳細內容</a><div style="margin-top:6px;background:#fff;border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.7;color:#3b1d12;"><b>想先看去年每一筆、自己修改，照這 3 步：</b><br>① 按上面按鈕，打開 LINE 小幫手，<b>直接按送出</b><br>② 小幫手回覆後，點回覆最下面的<b>「專屬連結」</b><br>③ 回到報名頁按<b>「📥 帶入」</b>，核對、修改後按「送出報名」<div class="hint" style="margin-top:2px;">要先加小幫手好友，而且小幫手認得是本人（志工傳過報名成功通知給您）才會給連結。</div></div></div>` +
       '<div style="margin-top:6px;padding:6px 10px;background:#FFF4D6;border-radius:8px;color:#6E1F1C;font-weight:700;">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</div>';
     updatePublicTotal();
   };
@@ -8419,7 +8415,7 @@ function autoFillBlockFees(ev, blockEl){
 function updatePublicTotal(){
   const pf = document.getElementById('publicForm');
   if(pf && pf._sameLastSum){ document.getElementById('publicTotal').textContent = money(pf._sameLastSum.total)+' 元（同去年）'; return; }
-  if(pf && pf.querySelector('#pubSameLast:checked')){ document.getElementById('publicTotal').textContent = '0 元'; return; }
+  if(pf && pf.querySelector('#pubSameLast:checked')){ document.getElementById('publicTotal').textContent = '同去年（志工核對後回覆金額）'; return; }   // v5.43
   let total = 0;
   pf.querySelectorAll('[data-feeinput]').forEach(inp=>{
     const v = Number(inp.value)||0;
@@ -8465,12 +8461,11 @@ async function submitPublicForm(pf){
       const name = refSumName(sharedF.reporter);
       if(name.length<2){ showToast('請填寫報名者姓名'); return; }
       const sum = await refSumLookup(ev, name);
-      if(sum===undefined){ showToast('網路不穩，查不到去年資料，請稍後再試', 3500); return; }
-      if(!sum){ showToast(`去年資料裡沒有「${name}」，請取消勾選「內容和去年一樣」，照欄位填寫`, 4500); return; }
+      // v5.43：查不到也照樣送出（不透露去年有沒有這位），志工後台核對
       const fee = {};
-      (ev.fees||[]).forEach(fl=>{ const q = Number((sum.q||{})[fl.k])||0; if(q) fee[fl.k] = q; });
+      if(sum) (ev.fees||[]).forEach(fl=>{ const q = Number((sum.q||{})[fl.k])||0; if(q) fee[fl.k] = q; });
       const f = {...sharedF};
-      records.push({id: uid(), f, paid:false, confirmed:false, createdAt: Date.now(), fee, total: calcTotal(ev, f, fee, []), sameLast: {n: Number(sum.n)||0, at: Date.now()}});
+      records.push({id: uid(), f, paid:false, confirmed:false, createdAt: Date.now(), fee, total: calcTotal(ev, f, fee, []), sameLast: {n: sum ? (Number(sum.n)||0) : 0, at: Date.now()}});
     } else {
       const blocks = Array.from(pf.querySelectorAll('.person-block'));
       for(const blockEl of blocks){
