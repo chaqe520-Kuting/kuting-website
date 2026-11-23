@@ -1150,8 +1150,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.23 ・ 2026-11-22（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.24 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.24（2026-11-23）</b>：LINE 貼上快速匯入學會小朱給信徒的 6 種梁皇報名格式（範例1～6，一次貼好幾則也可以）：① 主牌位／小牌位依陽世者人數算份數（「王○明、王○華」＝2 份）；② 姓氏祖先寫兩戶＝2 份（原本被標題蓋成 1 份）；③ 範例6「陽世者(戶長)地址姓名」的地址放進地基主地址（原本跑到陽上人）；④ 信眾自己標了欄位名稱、依標題搬到正確欄位的，不再標「🤔 系統猜的」。<br>
       <b>v5.23（2026-11-22）</b>：報名成功通知補齊（小朱 iPhone）：① 手機的報名清單改成卡片，「編輯／📨 LINE 報名成功／💰 收款確認／刪除」按鈕都看得到（原本在表格最右邊被切掉）；② LINE 帶入確認後直接跳出「✅ 已匯入」，每位報名者一個「📨 報名成功通知」（小幫手私訊或產生報名成功圖），比照供品贊助；③ 志工登入代報名送出後，核對視窗下方也有「📨 報名成功通知」。<br>
       <b>v5.22（2026-11-22）</b>：LINE 帶入「地基主」不再錯位（小朱）：內容有「地基主」字眼時，地基主戶長姓名、地址一定放「地基主」的姓名／地址欄，不會跑到住家或祖先地址；姓名後面直接接地址、姓名寫在標題（例「1.王○明(地基主)」）、「地基主小牌位」這類寫法也認得；欄位改過名稱也一樣。「報名人」也當報名者。<br>
       <b>v5.21（2026-11-22）</b>：同類型多筆合成一筆（小朱）：同一位報名者、同類別、同位別（例如都是小牌位），地址、陽上人也一樣的幾筆，合成一筆多人（姓名用「、」接起來，份數加總）。報名頁送出、LINE 帶入確認、同去年展開時自動合併；後台新增「🧩 同類合併」整理已存的報名（先下載備份，只合未收款、未確認的）。<br>
@@ -3332,7 +3333,8 @@ function applyHeaderFee(ev, header, mapped, guessed){
   if(!ev || !evHasCond(ev)) return null;
   const vals = mapped.fields;
   const has = k=>!!String(vals[k]||'').trim();
-  const move = (from, to)=>{ vals[to] = vals[from]; delete vals[from]; guessed[to] = true; delete guessed[from]; };
+  // v5.24：信眾自己標了欄位名稱、依標題費用搬到同類別欄位的，不再標「系統猜的」（原本就是猜的才保留黃色）
+  const move = (from, to)=>{ vals[to] = vals[from]; delete vals[from]; if(guessed[from]) guessed[to] = true; else delete guessed[to]; delete guessed[from]; };
   const fields = ev.fields||[];
   const setCat = fl=>{
     if(!fl.showIf || !fl.showIf.k) return true;
@@ -3463,6 +3465,12 @@ function fixJijiPlacement(ev, b, mapped, guessed){
     const others = fs.some(f=>f!==rep && f!==jn && !isAddrField(f) && !isPhoneField(f) && (f.type||'text')==='text' && !/備註/.test(f.label||'') && has(f.k));
     if(rep && has(rep.k) && !others && isNameLike(vals[rep.k])){ vals[jn.k] = String(vals[rep.k]).trim(); guessed[jn.k] = true; }
   }
+  // 4b) v5.24：「陽世者(戶長)地址姓名：台東縣…」地址被放進姓名欄 → 搬到地基主地址
+  if(has(jn.k) && !has(ja.k) && ctx){
+    const af = fs.find(f=>f!==jn && !isAddrField(f) && !isPhoneField(f) && f.type!=='radio' && f.type!=='select' && !/備註|報名者/.test(f.label||'') && f.k!=='reporter' && has(f.k)
+      && ADDR_RE.test(String(vals[f.k])) && !isNameLike(vals[f.k]) && !ANCESTOR_NAME_RE.test(String(vals[f.k])));
+    if(af){ vals[ja.k] = String(vals[af.k]).trim(); delete vals[af.k]; if(guessed[af.k]) guessed[ja.k] = true; delete guessed[af.k]; }
+  }
   // 5) 地址：地基主地址空著，別的地址欄有「沒有對應姓名」的地址（例：住家地址、主蓮位地址，但那格姓名是空的）→ 搬到地基主地址
   if(has(jn.k) && !has(ja.k)){
     const orphan = fs.find(f=>f.k!==ja.k && isAddrField(f) && has(f.k) && (()=>{ const n = pairedNameField(ev, f.k); return n ? !has(n.k) : !!guessed[f.k]; })());
@@ -3484,10 +3492,10 @@ function analyzeBlock(b, ev){
     fixJijiPlacement(ev, b, mapped, guessed);   // v5.22
     inferShowIfChoice(ev, mapped.fields).forEach(k=>{ guessed[k] = true; });   // v4.51
     Object.assign(fee, autoInferFeeQuantities(ev, mapped.fields));
-    Object.assign(fee, guessFees(b.header||'', ev));
+    { const gf = guessFees(b.header||'', ev); Object.keys(gf).forEach(k=>{ if(!(Number(fee[k])>0)) fee[k] = gf[k]; }); }   // v5.24：不蓋掉依人數算好的份數（兩戶祖先＝2）
     if(hit) Object.assign(fee, hit.qtys||{});
     if(hf && hit.qty>0) fee[hf.k] = hit.qty;
-    else if(hf && !(Number(fee[hf.k])>0)){
+    else if(hf && (!(Number(fee[hf.k])>0) || (!(hf.auto && hf.auto.k) && Number(fee[hf.k])===1))){   // v5.24：標題猜到 1 份時也依人數
       fee[hf.k] = 1;
       // v4.59／v4.68（小朱）：主牌位、副牌位都是一人一份 → 依陽世者姓名人數算
       if(!(hf.auto && hf.auto.k)){
@@ -3503,7 +3511,15 @@ function analyzeBlock(b, ev){
       // v4.60：數量欄寫「1000元x3」「3600元」→ 把單價拿掉，剩下的才是份數（沒寫份數＝1）
       if(fl && fl.mode!=='amount' && /\d\s*元/.test(v)){
         v = v.replace(/[\d,]+\s*元/g, m=>Number(m.replace(/[^\d]/g,''))===Number(fl.price) ? '' : m);
-        fee[k] = /[\d一二兩三四五六七八九十]/.test(v) ? parseFeeValue(v) : 1;
+        if(/[\d一二兩三四五六七八九十]/.test(v)){ fee[k] = parseFeeValue(v); return; }
+        // v5.24：標題只寫「主牌位3600元」→ 依姓名人數（王小明、王小華＝2 份）
+        let n1 = 1;
+        if(evHasCond(ev) && !(fl.auto && fl.auto.k)){
+          const nf = (ev.fields||[]).find(f=>f.showIf && f.showIf.k && condOk(f, mapped.fields) && String(mapped.fields[f.k]||'').trim()
+            && (f.type||'text')!=='radio' && !isAddrField(f) && !isPhoneField(f) && !isAncestorField(f) && !f.isShared);
+          if(nf) n1 = Math.max(1, countNames(mapped.fields[nf.k]));
+        }
+        fee[k] = Math.max(Number(fee[k])||0, n1);
         return;
       }
       if(fl && fl.mode!=='amount' && !v.trim()){
