@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.36 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.37 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.37（2026-11-23）</b>：進後台管理時，預設選「開放報名中」的場次（原本固定選第一場，會停在已結束的舊場次）（小朱）。<br>
       <b>v5.36（2026-11-23）</b>：信徒只能用各場的報名網址（signup?e=代碼）報名（小朱）：沒帶代碼的 kuting.tw/signup/ 不再列出場次和報名表，改成「請使用法會的報名網址」並提供前往各場的按鈕；各場報名頁拿掉「看其他開放中的法會」。登入志工照舊可選場次測試。<br>
       <b>v5.35（2026-11-23）</b>：「🔗 報名網址／QR」的網址改成 kuting.tw/signup?e=代碼（signup 後面不加斜線），QR 也一樣；舊網址照常可用（小朱）。<br>
       <b>v5.34（2026-11-23）</b>：LINE 傳報名網址時，連結預覽原本抓到頁面裡的灰色版本說明；加上網頁說明，預覽改顯示「法會線上報名」介紹（小朱）。<br>
@@ -5571,6 +5572,8 @@ async function renderInner(hadContent){
 
 // v4.31：準備中（draft）不在報名網站出現；v4.49：登入中的啟用志工看得到（🧪 測試中），送出的報名自動標成測試
 function activeEvents(){ const open = events.filter(e=>e.active!==false); return [...open.filter(e=>!e.draft), ...(staffActive() ? open.filter(e=>e.draft) : [])]; }
+// v5.37（小朱）：進後台預設選「開放報名中」最新的一場，沒有才選準備中，再沒有才選已結束（原本固定選第一場，會停在舊的已結束場次）
+function defaultAdminEvent(){ const pick = l=>l.length ? l[l.length-1].id : null; return pick(events.filter(e=>e.active!==false && !e.draft)) || pick(events.filter(e=>e.active!==false)) || (events[0] ? events[0].id : null); }
 function adminOpenEvents(){ return events.filter(e=>e.active!==false); }  // 後台匯入用：準備中＋開放中
 
 async function renderPublicAsync(){
@@ -5944,7 +5947,7 @@ async function renderAdminAsync(){
     delete siteConfig.adminPassword; delete siteConfig.adminPasswordHash;
     await saveSiteConfig();
   }
-  if(!adminSelectedEvent && events.length) adminSelectedEvent = events[0].id;
+  if(!adminSelectedEvent && events.length) adminSelectedEvent = defaultAdminEvent();
   let html = '';
   if(staffActive()){
     // v4.14：加「📷 照片傳送」（工作人員都可用）；「📊 統計」仍只有管理者看得到
@@ -7900,7 +7903,7 @@ function bindEvents(){
     if(typed===null) return;
     if(typed.trim()!==String(ev.name).trim()){ showToast('場次名稱不符，沒有刪除', 3000); return; }
     events = events.filter(e=>e.id!==adminSelectedEvent);
-    adminSelectedEvent = events[0]?.id || null;
+    adminSelectedEvent = defaultAdminEvent();
     await saveEvents(); render();
   };
   const comboBtn = document.getElementById('comboBtn');   // v4.80 LINE 彙整通知（需小幫手 v1.57）
@@ -9129,7 +9132,7 @@ function openRestoreBackupModal(){
       return;
     }
     bg.remove();
-    adminSelectedEvent = events[0] ? events[0].id : null;
+    adminSelectedEvent = defaultAdminEvent();
     applySiteConfig();
     render();
     showToast('已還原備份資料');
