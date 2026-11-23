@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.41 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.42 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.42（2026-11-23）</b>：LINE 小幫手認得是本人後，私訊的專屬報名連結（6 小時有效）打開報名頁，會列出去年每一筆詳細內容，可一鍵帶入報名表再自己修改（小朱；需小幫手 v1.84）。<br>
       <b>v5.41（2026-11-23）</b>：報名頁勾「內容和去年一樣」後多一顆「💬 用 LINE 小幫手看去年詳細內容」，點了開 LINE 小幫手並帶好「姓名 同去年」；網頁仍只顯示份數和金額（小朱）。<br>
       <b>v5.40（2026-11-23）</b>：手機報名修正：選好位別後，游標在「備註」或「地址」時，點別的格子（姓名、地址、陽上人）游標會被拉回空白的格子，改好了，點哪格就到哪格（小朱錄影）。<br>
       <b>v5.39（2026-11-23）</b>：從數位服務中心點「法會報名」（signup/?admin）還沒登入時，「請使用法會的報名網址」下方多一個「🔐 登入後台管理」按鈕（小朱）。<br>
@@ -3851,6 +3852,57 @@ function sameLastBoxHtml(ev){
     <div class="hint" style="margin-top:4px;">去年報過、內容都一樣：勾這裡、填好上面的姓名和電話就可以送出，不用一格一格填。正確的報名資料要等志工回覆後才完成報名程序。</div>
     <div id="pubSameInfo" style="margin-top:6px;font-size:14.5px;line-height:1.8;"></div></div>`;
 }
+/* v5.42（小朱 11-23）：LINE 小幫手認得是本人後，私訊專屬連結 signup?e=代碼&st=小幫手代號.代碼（6 小時有效）。
+   用這個連結打開報名頁，向小幫手讀這位去年的詳細內容（只存在小幫手，網頁和資料庫都不公開），可一鍵帶入報名表再自己修改。 */
+const SAMEREF_ST = (()=>{ try{ const v = (new URLSearchParams(location.search).get('st')||'').trim(); return /^[A-Za-z0-9_-]{20,120}\.[0-9a-f]{40}$/.test(v) ? v : ''; }catch(_){ return ''; } })();
+let sameRefData = null;   // {ok, ev, name, recs, total} 或 {ok:false, error}
+async function loadSameRef(){
+  if(sameRefData) return sameRefData;
+  const i = SAMEREF_ST.lastIndexOf('.');
+  const url = 'https://script.google.com/macros/s/' + SAMEREF_ST.slice(0, i) + '/exec';
+  try{
+    const res = await fetch(url, {method:'POST', body: JSON.stringify({action:'sameref', t: SAMEREF_ST.slice(i+1)})});
+    sameRefData = await res.json();
+  }catch(e){ return {ok:false, error:'網路不穩，讀不到去年的資料，請重新整理再試一次。'}; }
+  return sameRefData;
+}
+function sameRefDesc(ev, r){
+  const short = l=>String(l||'').replace(/[（(][^）)]*[）)]/g,'').replace(/\s+/g,'');
+  const f = r.f||{}, fee = r.fee||{};
+  const skip = new Set(['reporter']);
+  (ev.fields||[]).forEach(fd=>{ if(isPhoneField(fd)) skip.add(fd.k); });
+  const bits = (ev.fields||[]).filter(fd=>!skip.has(fd.k) && String(f[fd.k]||'').trim()).map(fd=>`${escHtml(short(fd.label)||fd.k)}：<b>${escHtml(f[fd.k])}</b>`);
+  const fees = (ev.fees||[]).filter(fl=>Number(fee[fl.k])).map(fl=>`${escHtml(short(fl.label))} ${fl.mode==='amount' ? money(fee[fl.k])+' 元' : fee[fl.k]+' 位'}`);
+  return bits.join('<br>') + (fees.length ? `<br><span style="color:#8A7A5C;">（${fees.join('、')}）</span>` : '');
+}
+async function bindSameRefLink(pf, ev){
+  const box = pf.querySelector('#sameRefBox');
+  if(!box || !SAMEREF_ST) return;
+  const d = await loadSameRef();
+  if(!document.body.contains(box)) return;
+  if(!d || !d.ok){ box.innerHTML = '⚠️ ' + escHtml((d && d.error) || '讀不到去年的資料') ; return; }
+  if(String(d.ev)!==String(ev.id)){ box.innerHTML = '⚠️ 這個專屬連結是別的法會場次的，請用小幫手重新取得連結。'; return; }
+  const recs = d.recs||[];
+  if(pf._sameRefDone){ box.innerHTML = `✅ 已帶入「${escHtml(d.name)}」去年的 ${pf._sameRefDone} 筆報名，請在下面核對、修改後送出。`; return; }
+  box.innerHTML = `<div style="font-weight:700;color:#2f6a2c;margin-bottom:6px;">🔁 ${escHtml(d.name)} 去年的報名（${recs.length} 筆）</div>` +
+    recs.map((r,i)=>`<div style="background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:14.5px;line-height:1.6;"><b>${i+1}.</b> ${sameRefDesc(ev, r)}</div>`).join('') +
+    (d.total > recs.length ? `<div class="hint">去年共 ${d.total} 筆，這裡列前 ${recs.length} 筆，其餘請告訴志工。</div>` : '') +
+    `<button type="button" class="btn btn-primary" id="sameRefFill" style="margin-top:6px;width:100%;">📥 帶入下面的報名表（帶入後可以再修改）</button>` +
+    `<div style="margin-top:6px;font-size:14px;line-height:1.7;"><b>接下來：</b>① 按上面「📥 帶入」 ② 往下核對每一格，地址、陽上人有變動直接改；不要的那一筆按「移除此位」 ③ 按最下面「送出報名」</div>` +
+    `<div class="hint" style="margin-top:4px;">這是您專屬的連結，6 小時內有效，請不要轉傳給別人。</div>`;
+  box.querySelector('#sameRefFill').onclick = ()=>{
+    const rep = pf.querySelector('[name="reporter"]');
+    if(rep && !rep.value.trim()) rep.value = d.name;
+    const cb = pf.querySelector('#pubSameLast');
+    if(cb && cb.checked){ cb.checked = false; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    const first = pf.querySelector('.person-block');
+    const n = fillFromRef(pf, ev, recs, first);
+    try{ applyKindVisibility(ev, pf); }catch(_){}
+    pf._sameRefDone = n;
+    box.innerHTML = `✅ 已帶入「${escHtml(d.name)}」去年的 ${n} 筆報名，請在下面核對、修改後再按「送出報名」。`;
+    showToast('已帶入去年的報名，請核對後送出');
+  };
+}
 function bindSameLastPublic(pf, ev){
   const cb = pf.querySelector('#pubSameLast');
   if(!cb) return;
@@ -3873,7 +3925,7 @@ function bindSameLastPublic(pf, ev){
     pf._sameLastSum = {sum, total: t.total};
     const lineAsk = 'https://line.me/R/oaMessage/%40154ssvzj/?' + encodeURIComponent(refSumName(name) + ' 同去年');   // v5.41 用 LINE 小幫手看詳細（小幫手認得本人才給看姓名地址）
     info.innerHTML = t.html + '<br><span class="hint">地址、陽上人有變動，送出後請告訴志工。</span>' +
-      `<div style="margin-top:8px;"><a class="btn btn-ghost btn-sm" href="${lineAsk}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">💬 用 LINE 小幫手看去年詳細內容</a><div class="hint" style="margin-top:4px;">網頁不顯示姓名、地址；用 LINE 問小幫手，認得是本人才會列出每一筆詳細內容。</div></div>` +
+      `<div style="margin-top:8px;"><a class="btn btn-ghost btn-sm" href="${lineAsk}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">💬 用 LINE 小幫手看去年詳細內容</a><div style="margin-top:6px;background:#fff;border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.7;color:#3b1d12;"><b>想看去年每一筆、自己修改，照這 3 步：</b><br>① 按上面按鈕，打開 LINE 小幫手，<b>直接按送出</b><br>② 小幫手回覆後，點回覆最下面的<b>「專屬連結」</b><br>③ 回到報名頁按<b>「📥 帶入」</b>，核對、修改後按「送出報名」<div class="hint" style="margin-top:2px;">為了保護個資，網頁不直接顯示姓名、地址；要先加小幫手好友，而且小幫手認得是本人（志工傳過報名成功通知給您）才會給連結。</div></div></div>` +
       '<div style="margin-top:6px;padding:6px 10px;background:#FFF4D6;border-radius:8px;color:#6E1F1C;font-weight:700;">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</div>';
     updatePublicTotal();
   };
@@ -5947,6 +5999,7 @@ function renderPublicForm(ev){
   });
 
   html += sameLastBoxHtml(ev);   // v5.18
+  if(SAMEREF_ST && ev.mode!=='items') html += `<div class="field" id="sameRefBox" style="background:#EEF7EE;border:1.5px solid #3d7a3a;border-radius:10px;padding:10px 12px;">讀取您去年的報名資料中…</div>`;   // v5.42
   if(ev.mode==='items'){
     html += `<label>選擇供品並填寫數量</label>`;
     (ev.items||[]).forEach((it,idx)=>{
@@ -8125,6 +8178,7 @@ function bindEvents(){
   if(pf){
     bindContactHint(pf);   // v4.48
     { const evS = events.find(e=>e.id===publicSelectedEvent); if(evS) bindSameLastPublic(pf, evS); }   // v5.18
+    { const evR = events.find(e=>e.id===publicSelectedEvent); if(evR) bindSameRefLink(pf, evR); }   // v5.42
     pf.querySelectorAll('[data-feeinput], [data-itemqty]').forEach(inp=>{
       inp.addEventListener('input', updatePublicTotal);
     });
