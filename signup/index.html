@@ -1178,8 +1178,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.28 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.29 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.29（2026-11-23）</b>：上線前檢查（小朱）：報名頁某一格只選了牌位／蓮位或位別、沒填姓名就送出，原本會多一筆 0 元的空白報名；現在會提示「第 N 個牌位還沒填姓名，請填寫，或按移除此位」並捲到那一格。<br>
       <b>v5.28（2026-11-23）</b>：梁皇報名頁照樣板改版（小朱）：上方「價格一覽」分 🟥 紅色牌位（消災延壽）、🟨 黃色蓮位（超薦拔度）；下方「＋ 加一個紅色牌位」「＋ 加一個黃色蓮位」；每一格先選牌位或蓮位，再按位別（主牌位、小牌位、姓氏祖先、已逝先人、小蓮位、地基主），只出現那個位別要填的欄位，份數和小計自動算（牌位依姓名人數，可修改）。報名資料格式不變，後台、LINE 帶入、Excel、同去年照常。<br>
       <b>v5.27（2026-11-23）</b>：「🔁 比照上次報名」查詢紀錄（小朱）：志工每查一次去年資料，就記下是誰、什麼時間、查了哪個姓名；管理者在後台最下方「🔍 比照上次報名查詢紀錄」看，紀錄不能改也不能刪（需要新的資料庫規則）。<br>
       <b>v5.26（2026-11-23）</b>：報名表字眼（小朱）：陽世者說明改「外籍姓名依護照填寫」（已建好的場次也一樣）；主牌位、小牌位這類要自己填份數的，單價後面加「（填寫幾位）」。<br>
@@ -8377,6 +8378,25 @@ async function submitPublicForm(pf){
 
         const hasAnyValue = Object.values(blockF).some(v=>v) || Object.values(blockFee).some(v=>v);
         if(!hasAnyValue) continue;
+        // v5.29（上線前檢查）：只選了類別／位別、沒填任何內容 → 不可送出一筆 0 元的空白報名
+        const blkName = ((blockEl.querySelector('.kblk-title')||{}).textContent || `第 ${Number(idx)+1} 位`).replace(/[🟥🟨]\s*/g,'');
+        const hasText = repeatFields.some(fl=>fl.type!=='radio' && fl.type!=='select' && blockF[fl.k]);
+        if(!hasText && !Object.values(blockFee).some(v=>v)){
+          showToast(`${blkName}還沒填姓名，請填寫，或按「移除此位」`, 4000);
+          blockEl.scrollIntoView({block:'center', behavior:'smooth'});
+          return;
+        }
+        const kmS = kindMode(ev);
+        if(kmS && blockEl.dataset.kind && blockEl.dataset.kind!=='*'){
+          const kf = kmS.fees.find(x=>x.k===blockEl.dataset.kind);
+          const nk = kf && kf.auto && kf.auto.k ? kf.auto.k : (repeatFields.find(fl=>fl.showIf && fl.showIf.k===kmS.pk && condOk(fl, allVals) && !kindFieldOwners(kmS, fl.k).length && fl.type!=='radio' && !isAddrField(fl) && !/陽上|報恩|備註/.test(fl.label||''))||{}).k;
+          const nf = nk && repeatFields.find(fl=>fl.k===nk);
+          if(nf && !blockF[nk]){
+            showToast(`${blkName}（${kf.label}）還沒填「${nf.label.replace(/[（(].*$/,'')}」`, 4000);
+            blockEl.scrollIntoView({block:'center', behavior:'smooth'});
+            return;
+          }
+        }
 
         const missingBlock = visibleFields.filter(fl=>fl.required && !blockF[fl.k]);
         if(missingBlock.length){
