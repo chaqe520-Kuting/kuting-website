@@ -1178,8 +1178,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.32 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.33 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.33（2026-11-23）</b>：姓氏祖先主蓮位的範例改成「例：王氏祖先」，拿掉「歷代」字眼（小朱；已建好的場次也一樣）。<br>
       <b>v5.32（2026-11-23）</b>：唱名名單「副蓮位／副牌位」改稱「小蓮位／小牌位」（小朱）。<br>
       <b>v5.31（2026-11-23）</b>：場次管理新增「📜 唱名名單（A3）」（小朱）：給法師唱名用，一次產出超薦拔度主蓮位、小蓮位、小蓮位-地基主、消災功德名單主牌位、小牌位 5 種，A3 橫式直書、由右到左、每頁重複標題，照 115 年 6 月唱名名單格式；可改標題、每頁欄數、只印某幾種，份數和姓名數對不上的會列出來讓志工核對（不會印出）。<br>
       <b>v5.30（2026-11-23）</b>：修正字放大（中／大字）時「📥 匯入去年 Excel」視窗超出螢幕，拉不到最下面的欄位和「匯入」按鈕。<br>
@@ -2354,7 +2355,7 @@ const TEMPLATES = {
       {k:'phone', label:'聯絡電話', type:'tel', isShared:true, help:'手機或市話，可不填', keywords:['電話','手機']},
       {k:'regType', label:'報名類別', type:'radio', required:true, options:['超薦祖先／已逝先人/地基主','消災個人／公司'], keywords:['報名類別','類別']},
       {k:'yangshang', label:'陽上報恩人姓名', type:'text', help:'在世的子孫，多位用「、」分開', keywords:['陽上人','陽上報恩人'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
-      {k:'mainAncestor', label:'姓氏祖先主蓮位（每戶5000元）', type:'text', help:'例：王氏歷代祖先；兩個姓氏用「、」分開，一戶一份', keywords:['姓氏祖先','歷代祖先','主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
+      {k:'mainAncestor', label:'姓氏祖先主蓮位（每戶5000元）', type:'text', help:'例：王氏祖先；兩個姓氏用「、」分開，一戶一份', keywords:['姓氏祖先','歷代祖先','主蓮位','祖先'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'mainPerson', label:'已逝先人姓名 主蓮位（每位3000元）', type:'textarea', help:'寫先人全名，多位用「、」分開，一位一份', keywords:['已逝先人主蓮位'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'mainAddr', label:'主蓮位 祖先牌位地址（已逝先人也寫這裡）', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'subName', label:'小蓮位 已逝及倒房先人姓名（每位1000元）', type:'textarea', help:'一人一份，多位用「、」分開，女性可加（女）', keywords:['小蓮位','副蓮位','倒房'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
@@ -2376,7 +2377,7 @@ const TEMPLATES = {
     lineKeywords: ['梁皇','寶懺','蓮位','牌位','地基主'],
     fixedPrices: true,   // v5.12：照公告價格，不要被舊場次同名費用的價格蓋掉
     addLabel: '＋ 再加一個蓮位／牌位',
-    exampleNote: '先選「報名類別」，一格填一種，再按「＋ 再加一個蓮位／牌位」繼續填。（以下姓名、地址都是範例）\n【超薦祖先／已逝先人/地基主（黃色蓮位）】\n① 姓氏祖先主蓮位 5000：寫在「姓氏祖先主蓮位」，例「王氏歷代祖先」，牌位地址「○○縣○○鄉○○寶塔」。\n② 已逝先人主蓮位 3000：寫在「已逝先人主蓮位」，寫先人全名，例「王○德」。\n③ 已逝先人（含倒房）小蓮位 1000：寫「王○美(女)、王○成」，會自動算 2 份。\n④ 地基主小蓮位 1600：姓名「王○明」，地址「○○市○○區○○路○號」。\n【消災個人／公司（紅色牌位）】\n⑤ 陽世者「王○明、陳○英」，住家地址寫到門牌號；主牌位 3600、小牌位 1000，一人一份，請填份數。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
+    exampleNote: '先選「報名類別」，一格填一種，再按「＋ 再加一個蓮位／牌位」繼續填。（以下姓名、地址都是範例）\n【超薦祖先／已逝先人/地基主（黃色蓮位）】\n① 姓氏祖先主蓮位 5000：寫在「姓氏祖先主蓮位」，例「王氏祖先」，牌位地址「○○縣○○鄉○○寶塔」。\n② 已逝先人主蓮位 3000：寫在「已逝先人主蓮位」，寫先人全名，例「王○德」。\n③ 已逝先人（含倒房）小蓮位 1000：寫「王○美(女)、王○成」，會自動算 2 份。\n④ 地基主小蓮位 1600：姓名「王○明」，地址「○○市○○區○○路○號」。\n【消災個人／公司（紅色牌位）】\n⑤ 陽世者「王○明、陳○英」，住家地址寫到門牌號；主牌位 3600、小牌位 1000，一人一份，請填份數。\n去年有報過、內容一樣：用 LINE 傳「您的姓名 梁皇 同去年」就可以。',
   },
   birthday: {
     label: '聖誕供品贊助',
@@ -5652,7 +5653,7 @@ function renderFieldInput(f, name){
 }
 // v4.33：欄位標題＋說明文字（說明顯示在標題下方，小字）
 function fieldLabelHtml(f){
-  const help = String(f.help||'').replace('外籍姓名照護照寫','外籍姓名依護照填寫');   // v5.26（小朱）：已建好的場次也顯示新字眼
+  const help = String(f.help||'').replace('外籍姓名照護照寫','外籍姓名依護照填寫').replace(/王氏歷代祖先/g,'王氏祖先');   // v5.33（小朱）：範例拿掉「歷代」   // v5.26（小朱）：已建好的場次也顯示新字眼
   return `<label>${escHtml(f.label)}${f.required?' *':''}</label>${help?`<div class="field-help">${escHtml(help)}</div>`:''}`;
 }
 // v4.33：讀取欄位值（單選按鈕要找被勾的那一個）
@@ -5884,11 +5885,11 @@ function renderPublicForm(ev){
     html += `<div style="background:#FBF6EA;border:1px dashed var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:15px;line-height:1.8;">
       <div style="font-weight:700;color:var(--vermilion);">📝 怎麼填</div>
       1. 先填「報名者」（繳費、聯絡的人）。<br>2. 按「＋ 加一個紅色牌位」或「＋ 加一個黃色蓮位」，一格填一個，選好位別再填姓名地址。<br>3. 多人用「、」分開，份數和金額會自動算。<br>4. 兩種都可以一起報，最後一次送出、一次繳費。
-      ${ev.exampleNote ? `<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--vermilion);font-weight:600;">📝 填寫範例參考（點開看）</summary><div style="font-size:13.5px;white-space:pre-wrap;line-height:1.7;margin-top:4px;">${ev.exampleNote.replace(/</g,'&lt;')}</div></details>` : ''}</div>`;
+      ${ev.exampleNote ? `<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--vermilion);font-weight:600;">📝 填寫範例參考（點開看）</summary><div style="font-size:13.5px;white-space:pre-wrap;line-height:1.7;margin-top:4px;">${ev.exampleNote.replace(/王氏歷代祖先/g,'王氏祖先').replace(/</g,'&lt;')}</div></details>` : ''}</div>`;
   } else if(ev.exampleNote){
     html += `<div style="background:#FBF6EA;border:1px dashed var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;">
       <div style="font-weight:700;font-size:12.5px;color:var(--vermilion);margin-bottom:4px;">📝 填寫範例參考</div>
-      <div style="font-size:13px;white-space:pre-wrap;line-height:1.7;color:var(--ink);">${ev.exampleNote.replace(/</g,'&lt;')}</div>
+      <div style="font-size:13px;white-space:pre-wrap;line-height:1.7;color:var(--ink);">${ev.exampleNote.replace(/王氏歷代祖先/g,'王氏祖先').replace(/</g,'&lt;')}</div>
     </div>`;
   }
   html += `<form id="publicForm">`;
