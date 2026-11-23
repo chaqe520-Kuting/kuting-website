@@ -9,7 +9,6 @@
 <meta property="og:site_name" content="古亭院-法會報名平台">
 <meta property="og:title" content="古亭院-法會線上報名">
 <meta property="og:description" content="嘉義番路鄉古亭院 昇龍觀世音菩薩 法會線上報名：選位別、填姓名地址，送出後由志工核對回覆。">
-<meta property="og:url" content="https://kuting.tw/signup/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1184,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.34 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.35 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.35（2026-11-23）</b>：「🔗 報名網址／QR」的網址改成 kuting.tw/signup?e=代碼（signup 後面不加斜線），QR 也一樣；舊網址照常可用（小朱）。<br>
       <b>v5.34（2026-11-23）</b>：LINE 傳報名網址時，連結預覽原本抓到頁面裡的灰色版本說明；加上網頁說明，預覽改顯示「法會線上報名」介紹（小朱）。<br>
       <b>v5.33（2026-11-23）</b>：姓氏祖先主蓮位的範例改成「例：王氏祖先」，拿掉「歷代」字眼（小朱；已建好的場次也一樣）。<br>
       <b>v5.32（2026-11-23）</b>：唱名名單「副蓮位／副牌位」改稱「小蓮位／小牌位」（小朱）。<br>
@@ -5587,7 +5587,8 @@ async function renderPublicAsync(){
    打開就是那一場的報名表，看不到其他場次；準備中只有登入志工看得到，已結束顯示已截止。原本的網址照常列出所有場次。 */
 const LINK_EVENT = (()=>{ try{ return (new URLSearchParams(location.search).get('e')||'').trim(); }catch(_){ return ''; } })();
 function eventByLink(code){ const c = String(code||'').trim().toLowerCase(); return c ? events.find(e=>String(e.slug||'').toLowerCase()===c) || events.find(e=>e.id===code) : null; }
-function eventSignupUrl(ev){ return location.origin + location.pathname + '?e=' + encodeURIComponent(ev.slug || ev.id); }
+// v5.35（小朱）：網址寫成 kuting.tw/signup?e=代碼（signup 後面不加斜線），LINE 會重新抓連結預覽
+function eventSignupUrl(ev){ const pth = /^https?:/.test(location.origin) ? location.pathname.replace(/\/(index\.html)?$/,'') : location.pathname; return location.origin + pth + '?e=' + encodeURIComponent(ev.slug || ev.id); }
 function linkClosedHtml(title, msg){
   return `<div class="card"><div class="empty" style="font-family:'Noto Serif TC',serif;font-size:clamp(22px,5.5vw,34px);font-weight:700;color:var(--vermilion);line-height:1.6;padding:44px 12px 20px;letter-spacing:1px;">${title}</div>
     <p class="hint" style="text-align:center;margin:0 0 24px;">${msg}</p>
