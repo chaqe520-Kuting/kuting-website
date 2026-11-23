@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.35 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.36 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.36（2026-11-23）</b>：信徒只能用各場的報名網址（signup?e=代碼）報名（小朱）：沒帶代碼的 kuting.tw/signup/ 不再列出場次和報名表，改成「請使用法會的報名網址」並提供前往各場的按鈕；各場報名頁拿掉「看其他開放中的法會」。登入志工照舊可選場次測試。<br>
       <b>v5.35（2026-11-23）</b>：「🔗 報名網址／QR」的網址改成 kuting.tw/signup?e=代碼（signup 後面不加斜線），QR 也一樣；舊網址照常可用（小朱）。<br>
       <b>v5.34（2026-11-23）</b>：LINE 傳報名網址時，連結預覽原本抓到頁面裡的灰色版本說明；加上網頁說明，預覽改顯示「法會線上報名」介紹（小朱）。<br>
       <b>v5.33（2026-11-23）</b>：姓氏祖先主蓮位的範例改成「例：王氏祖先」，拿掉「歷代」字眼（小朱；已建好的場次也一樣）。<br>
@@ -5592,7 +5593,7 @@ function eventSignupUrl(ev){ const pth = /^https?:/.test(location.origin) ? loca
 function linkClosedHtml(title, msg){
   return `<div class="card"><div class="empty" style="font-family:'Noto Serif TC',serif;font-size:clamp(22px,5.5vw,34px);font-weight:700;color:var(--vermilion);line-height:1.6;padding:44px 12px 20px;letter-spacing:1px;">${title}</div>
     <p class="hint" style="text-align:center;margin:0 0 24px;">${msg}</p>
-    <p style="text-align:center;margin:0 0 20px;"><a href="${location.pathname}" class="btn btn-ghost">看其他開放中的法會</a></p></div>`;
+</div>`;
 }
 function renderPublic(){
   if(LINK_EVENT){
@@ -5601,7 +5602,14 @@ function renderPublic(){
     if(lev.active===false) return linkClosedHtml(`${escHtml(lev.name)}<br>已截止報名`, '感謝您的護持。');
     if(lev.draft && !staffActive()) return linkClosedHtml(`${escHtml(lev.name)}<br>尚未開放報名`, '開放後就可以用這個網址報名，請稍後再來。');
     publicSelectedEvent = lev.id;
-    return renderPublicForm(lev) + `<p style="text-align:center;margin:10px 0 0;"><a href="${location.pathname}" class="hint">看其他開放中的法會 ›</a></p>`;
+    return renderPublicForm(lev);
+  }
+  // v5.36（小朱）：信徒只能用各場的報名網址（signup?e=代碼）報名；沒帶代碼的網址不再列出場次、不顯示報名表（登入志工照舊可選場次測試）
+  if(!staffActive()){
+    const open = activeEvents();
+    return `<div class="card"><div class="empty" style="font-family:'Noto Serif TC',serif;font-size:clamp(22px,5.5vw,32px);font-weight:700;color:var(--vermilion);line-height:1.6;padding:40px 12px 16px;letter-spacing:1px;">請使用法會的報名網址</div>
+      <p class="hint" style="text-align:center;margin:0 0 18px;line-height:1.8;">每一場法會都有自己的報名網址，請點古亭院在 LINE 公告或小幫手提供的連結報名。</p>
+      ${open.length ? `<div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin:0 0 24px;">${open.map(e=>`<a class="btn btn-primary" style="min-height:48px;display:inline-flex;align-items:center;" href="${escHtml(eventSignupUrl(e))}">前往「${escHtml(e.name)}」報名</a>`).join('')}</div>` : ''}</div>`;
   }
   const list = activeEvents();
   if(!publicSelectedEvent || !list.find(e=>e.id===publicSelectedEvent)){
