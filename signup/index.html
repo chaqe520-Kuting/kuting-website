@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.40 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.41 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.41（2026-11-23）</b>：報名頁勾「內容和去年一樣」後多一顆「💬 用 LINE 小幫手看去年詳細內容」，點了開 LINE 小幫手並帶好「姓名 同去年」；網頁仍只顯示份數和金額（小朱）。<br>
       <b>v5.40（2026-11-23）</b>：手機報名修正：選好位別後，游標在「備註」或「地址」時，點別的格子（姓名、地址、陽上人）游標會被拉回空白的格子，改好了，點哪格就到哪格（小朱錄影）。<br>
       <b>v5.39（2026-11-23）</b>：從數位服務中心點「法會報名」（signup/?admin）還沒登入時，「請使用法會的報名網址」下方多一個「🔐 登入後台管理」按鈕（小朱）。<br>
       <b>v5.38（2026-11-23）</b>：手機（Android）打字到「備註」後往上滑要改姓名、地址，畫面會自己跳回備註；改成滑到看不到正在輸入的格子時先收起鍵盤，就能停在上面點要改的格子（小朱）。<br>
@@ -3870,7 +3871,9 @@ function bindSameLastPublic(pf, ev){
     if(!sum){ info.innerHTML = `去年資料裡沒有找到「${escHtml(refSumName(name))}」。請確認姓名和去年報名時一樣，或取消勾選，照下面的欄位填寫。`; updatePublicTotal(); return; }
     const t = refSumText(ev, sum);
     pf._sameLastSum = {sum, total: t.total};
+    const lineAsk = 'https://line.me/R/oaMessage/%40154ssvzj/?' + encodeURIComponent(refSumName(name) + ' 同去年');   // v5.41 用 LINE 小幫手看詳細（小幫手認得本人才給看姓名地址）
     info.innerHTML = t.html + '<br><span class="hint">地址、陽上人有變動，送出後請告訴志工。</span>' +
+      `<div style="margin-top:8px;"><a class="btn btn-ghost btn-sm" href="${lineAsk}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">💬 用 LINE 小幫手看去年詳細內容</a><div class="hint" style="margin-top:4px;">網頁不顯示姓名、地址；用 LINE 問小幫手，認得是本人才會列出每一筆詳細內容。</div></div>` +
       '<div style="margin-top:6px;padding:6px 10px;background:#FFF4D6;border-radius:8px;color:#6E1F1C;font-weight:700;">⚠️ 正確的報名資料，要等志工核對、回覆您之後，才算完成報名程序。</div>';
     updatePublicTotal();
   };
