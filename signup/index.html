@@ -1021,6 +1021,33 @@ window.KutingFinMatch = function(opts){
   .radio-group label{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:500;cursor:pointer;margin:0;}
   .radio-group input{width:auto;min-height:0;margin:0;}
   .ref-pick-btn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;color:#6E1F1C;font-weight:600;font-size:16px;cursor:pointer;width:auto;}
+  /* v5.28（小朱）：梁皇報名頁照樣板：紅色牌位／黃色蓮位 */
+  .kprice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 14px;}
+  @media (max-width:520px){.kprice{grid-template-columns:1fr;}}
+  .kprice .pl{border-radius:12px;padding:10px 14px;border:2px solid;font-size:15px;line-height:1.8;}
+  .kprice .pl.r{background:#FCE9E5;border-color:#B02418;} .kprice .pl.y{background:#FFF6CF;border-color:#D4A017;}
+  .kprice .pl b{font-size:16.5px;} .kprice .pl.r b{color:#B02418;} .kprice .pl.y b{color:#8A6400;}
+  .kprice .pl .sub{font-size:14px;color:#6E5A3A;}
+  .person-block.kblk{border-width:2px !important;}
+  .person-block.kside-r{background:#FFF8F6 !important;border-color:#B02418 !important;}
+  .person-block.kside-y{background:#FFFCEC !important;border-color:#D4A017 !important;}
+  .kblk .kblk-title{font-size:15.5px !important;}
+  .kside-r .kblk-title{color:#B02418 !important;} .kside-y .kblk-title{color:#8A6400 !important;}
+  .kchips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px;}
+  .kchip{border:1.5px solid var(--gold);border-radius:22px;padding:8px 14px;background:#fff;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;min-height:44px;}
+  .kside-r .kchip.on{background:#B02418;border-color:#B02418;color:#fff;}
+  .kside-y .kchip.on{background:#D4A017;border-color:#D4A017;color:#fff;}
+  .khint{font-size:15px;color:#6E5A3A;margin:0 0 8px;}
+  .kcalc{background:#F3EAD7;border-radius:8px;padding:8px 12px;font-size:15.5px;font-variant-numeric:tabular-nums;margin-top:6px;}
+  .kcalc b{color:var(--vermilion);}
+  .khide{display:none !important;}
+  .kadds{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .kadd{border:2px dashed;border-radius:12px;padding:12px 8px;font:inherit;font-weight:700;font-size:16px;cursor:pointer;min-height:56px;}
+  .kadd.r{border-color:#B02418;color:#B02418;background:#FCE9E5;} .kadd.y{border-color:#D4A017;color:#8A6400;background:#FFF6CF;}
+  .kblk .radio-group label{font-weight:700;}
+  .kblk .radio-group label.kopt-r{border:2px solid #B02418;background:#FCE9E5;color:#B02418;}
+  .kblk .radio-group label.kopt-y{border:2px solid #D4A017;background:#FFF6CF;color:#8A6400;}
+  body.pub #addPersonBtn.kadds{border:0;background:none;min-height:0;padding:0;}
   .blk-clear-btn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#6E5A3A;font-weight:600;font-size:16px;cursor:pointer;width:auto;}
   .ref-pick-btn.on{background:var(--vermilion,#9e2b25);color:#fff;}
   .ref-pick-panel{margin-top:8px;padding:10px 12px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:14px;line-height:1.7;color:#4A3A22;}
@@ -1151,8 +1178,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.27 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.28 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.28（2026-11-23）</b>：梁皇報名頁照樣板改版（小朱）：上方「價格一覽」分 🟥 紅色牌位（消災延壽）、🟨 黃色蓮位（超薦拔度）；下方「＋ 加一個紅色牌位」「＋ 加一個黃色蓮位」；每一格先選牌位或蓮位，再按位別（主牌位、小牌位、姓氏祖先、已逝先人、小蓮位、地基主），只出現那個位別要填的欄位，份數和小計自動算（牌位依姓名人數，可修改）。報名資料格式不變，後台、LINE 帶入、Excel、同去年照常。<br>
       <b>v5.27（2026-11-23）</b>：「🔁 比照上次報名」查詢紀錄（小朱）：志工每查一次去年資料，就記下是誰、什麼時間、查了哪個姓名；管理者在後台最下方「🔍 比照上次報名查詢紀錄」看，紀錄不能改也不能刪（需要新的資料庫規則）。<br>
       <b>v5.26（2026-11-23）</b>：報名表字眼（小朱）：陽世者說明改「外籍姓名依護照填寫」（已建好的場次也一樣）；主牌位、小牌位這類要自己填份數的，單價後面加「（填寫幾位）」。<br>
       <b>v5.25（2026-11-23）</b>：報名表每一位的報名類別旁多「🧹 清空重填」（小朱）：把這一位下面填的姓名、地址、份數清掉重寫（報名類別、報名者姓名、電話保留）；有填內容時會先問一次。信徒、志工都看得到。<br>
@@ -2034,6 +2062,7 @@ document.addEventListener('click', async e=>{
     if(el.tagName==='SELECT'){ el.selectedIndex = 0; return; }
     el.value = '';
   });
+  delete blk.dataset.kind;   // v5.28 位別也重選
   const panel = blk.querySelector('.ref-pick-panel'); if(panel){ panel.style.display = 'none'; panel.dataset.open = ''; panel.innerHTML = ''; }
   const rb = blk.querySelector('[data-refpick]'); if(rb) rb.classList.remove('on');
   if(pf) applyCondVisibility(ev, pf);
@@ -5651,11 +5680,155 @@ function condEmptyHint(ev, f, repeat){
   if(!kids.length) return '';
   return `<div class="field-help" data-cond-empty="${escHtml(f.k)}" style="color:var(--vermilion);font-weight:600;">請先選「${escHtml(f.label)}」，下面才會出現要填的欄位</div>`;
 }
+/* v5.28（小朱）：報名頁照「梁皇寶懺網頁報名樣板」——紅色牌位／黃色蓮位
+   只要場次是「報名類別二選一＋每個費用都依類別顯示」（梁皇範本）就用這個版面；資料格式完全不變（後台、LINE、Excel、同去年照常）。
+   每一格：先選紅色牌位或黃色蓮位 → 再選位別（主牌位、小蓮位…）→ 只出現那個位別的欄位，份數金額自動算。 */
+function kindMode(ev){
+  if(!ev || ev.mode==='items' || !evHasCond(ev)) return null;
+  const pk = refPickFieldKey(ev);
+  const pf = (ev.fields||[]).find(f=>f.k===pk);
+  if(!pf || (pf.options||[]).length!==2) return null;
+  const fees = (ev.fees||[]).filter(fl=>fl.mode!=='amount');
+  if(!fees.length || !fees.every(fl=>fl.showIf && fl.showIf.k===pk)) return null;
+  const sideOf = o=>/消災|牌位|陽世|個人|公司/.test(String(o||'')) ? 'r' : 'y';
+  if(sideOf(pf.options[0])===sideOf(pf.options[1])) return null;
+  const claim = {};   // 欄位 → 屬於哪個位別（費用）
+  fees.forEach(fl=>{
+    const k = fl.auto && fl.auto.k; if(!k) return;
+    claim[k] = fl.k;
+    const a = pairedAddrField(ev, k);
+    if(a && !claim[a.k]) claim[a.k] = fl.k;
+  });
+  // 主蓮位兩格（姓氏祖先、已逝先人）共用一個地址欄：地址欄給兩個位別都用
+  const shareAddr = {};
+  fees.forEach(fl=>{ const k = fl.auto && fl.auto.k; if(!k) return; const a = pairedAddrField(ev, k); if(!a){ const i = (ev.fields||[]).findIndex(f=>f.k===k); for(let j=i+1;j<(ev.fields||[]).length;j++){ const f = ev.fields[j]; if(isAddrField(f)){ (shareAddr[f.k] = shareAddr[f.k] || []).push(fl.k); break; } if(!claim[f.k]) break; } } });
+  Object.keys(shareAddr).forEach(k=>{ if(claim[k]) shareAddr[k].push(claim[k]); });
+  return {pk, opts: pf.options, sideOf, fees, claim, shareAddr};
+}
+function kindFieldOwners(km, k){
+  if(km.shareAddr[k]) return km.shareAddr[k];
+  return km.claim[k] ? [km.claim[k]] : [];
+}
+function kindPriceCardHtml(ev){
+  const km = kindMode(ev); if(!km) return '';
+  const col = side=>{
+    const opt = km.opts.find(o=>km.sideOf(o)===side);
+    const lines = km.fees.filter(fl=>(fl.showIf.v||[]).includes(opt)).map(fl=>`${escHtml(fl.label)} ${money(fl.price)} 元`);
+    return side==='r'
+      ? `<div class="pl r"><b>🟥 紅色牌位（消災延壽）</b><br><span class="sub">給在世的人、公司行號</span><br>${lines.join('<br>')}</div>`
+      : `<div class="pl y"><b>🟨 黃色蓮位（超薦拔度）</b><br><span class="sub">給祖先、已逝先人、地基主</span><br>${lines.join('<br>')}</div>`;
+  };
+  return `<div style="font-family:'Noto Serif TC';font-weight:900;font-size:19px;color:var(--vermilion);margin:4px 0 8px;">價格一覽</div><div class="kprice">${col('r')}${col('y')}</div>`;
+}
+function kindBlockKind(ev, km, blk){
+  const bi = blk.dataset.block;
+  const cat = readFieldValue(blk, `pf_${bi}_${km.pk}`);
+  const inCat = km.fees.filter(fl=>(fl.showIf.v||[]).includes(cat));
+  if(!cat) return {cat:'', kind:'', inCat};
+  let kind = blk.dataset.kind || '';
+  if(kind && kind!=='*' && !inCat.some(fl=>fl.k===kind)) kind = '';
+  if(!kind){
+    // 沒選過位別（例：比照上次報名、LINE 帶入）→ 看哪一個位別有資料
+    const hasData = inCat.filter(fl=>{
+      const q = Number((blk.querySelector(`[name="pf_${bi}_fee_${fl.k}"]`)||{}).value)||0;
+      const own = Object.keys(km.claim).filter(k=>km.claim[k]===fl.k && !km.shareAddr[k]);
+      return q>0 || own.some(k=>readFieldValue(blk, `pf_${bi}_${k}`));
+    });
+    if(hasData.length===1) kind = hasData[0].k;
+    else if(hasData.length>1) kind = '*';
+    if(kind) blk.dataset.kind = kind;
+  }
+  return {cat, kind, inCat};
+}
+function applyKindVisibility(ev, pf){
+  const km = kindMode(ev); if(!km || !pf) return;
+  const blocks = Array.from(pf.querySelectorAll('.person-block'));
+  const cnt = {r:0, y:0};
+  blocks.forEach((blk, i)=>{
+    const bi = blk.dataset.block;
+    const {cat, kind, inCat} = kindBlockKind(ev, km, blk);
+    const side = cat ? km.sideOf(cat) : '';
+    blk.classList.add('kblk');
+    blk.querySelectorAll(`input[type="radio"][name="pf_${bi}_${km.pk}"]`).forEach(rb=>{ const lb = rb.closest('label'); if(lb){ const sd = km.sideOf(rb.value); lb.classList.toggle('kopt-r', sd==='r'); lb.classList.toggle('kopt-y', sd==='y'); if(!/[🟥🟨]/.test(lb.textContent)) rb.insertAdjacentText('afterend', sd==='r' ? ' 🟥 紅色牌位：' : ' 🟨 黃色蓮位：'); } });
+    blk.classList.toggle('kside-r', side==='r'); blk.classList.toggle('kside-y', side==='y');
+    const t = blk.querySelector('.kblk-title');
+    if(t){ if(side){ cnt[side]++; t.textContent = side==='r' ? `🟥 第 ${cnt[side]} 個牌位` : `🟨 第 ${cnt[side]} 個蓮位`; } else t.textContent = `第 ${i+1} 格：請先選紅色牌位或黃色蓮位`; }
+    blk.querySelectorAll('[data-kind]').forEach(c=>{ const on = c.dataset.kind===kind; c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    const hint = blk.querySelector('.khint'); if(hint) hint.classList.toggle('khide', !cat || !!kind);
+    blk.querySelectorAll('[data-fk]').forEach(el=>{
+      const k = el.dataset.fk;
+      const fd = (ev.fields||[]).find(f=>f.k===k) || {};
+      const owners = kindFieldOwners(km, k);
+      let hide = false;
+      if(fd.showIf && fd.showIf.k===km.pk){
+        if(!kind) hide = true;
+        else if(kind!=='*' && owners.length && !owners.includes(kind)) hide = true;
+        else if(kind!=='*' && !owners.length && fd.k!==km.pk){
+          // 這一類共用的欄位（陽上人、陽世者姓名）：地基主不用陽上人
+          const kf = km.fees.find(fl=>fl.k===kind);
+          if(kf && kf.auto && kf.auto.how==='filled' && /陽上|報恩/.test(fd.label||'')) hide = true;
+        }
+      }
+      el.classList.toggle('khide', hide);
+    });
+    blk.querySelectorAll('[data-feek]').forEach(el=>{
+      const k = el.dataset.feek;
+      const fl = km.fees.find(x=>x.k===k);
+      el.classList.toggle('khide', !!fl && (!kind || (kind!=='*' && kind!==k)));
+    });
+    const fl = blk.querySelector('.kfee-label'); if(fl) fl.classList.toggle('khide', !kind);
+  });
+}
+// 牌位（不自動算的位別）：份數＝陽世者姓名人數
+function kindAutoQty(ev, blk){
+  const km = kindMode(ev); if(!km) return;
+  const bi = blk.dataset.block;
+  const {cat, kind, inCat} = kindBlockKind(ev, km, blk);
+  if(!cat || !kind || kind==='*') return;
+  const fl = inCat.find(x=>x.k===kind);
+  if(!fl || (fl.auto && fl.auto.k)) return;
+  const nameF = getRepeatFields(ev).find(f=>f.showIf && f.showIf.k===km.pk && condOk(f, {[km.pk]:cat}) && !kindFieldOwners(km, f.k).length
+    && (f.type||'text')!=='radio' && !isAddrField(f) && !isPhoneField(f) && !/陽上|報恩|備註/.test(f.label||''));
+  const n = nameF ? countNames(readFieldValue(blk, `pf_${bi}_${nameF.k}`)) : 0;
+  inCat.forEach(x=>{
+    if(x.auto && x.auto.k) return;
+    const inp = blk.querySelector(`[name="pf_${bi}_fee_${x.k}"]`); if(!inp) return;
+    inp.value = x.k===kind ? n : 0;
+  });
+}
+function kindCalcUpdate(ev, pf){
+  const km = kindMode(ev); if(!km || !pf) return;
+  pf.querySelectorAll('.person-block').forEach(blk=>{
+    const box = blk.querySelector('.kcalc'); if(!box) return;
+    const bi = blk.dataset.block;
+    const {cat, kind, inCat} = kindBlockKind(ev, km, blk);
+    if(!cat || !kind){ box.classList.add('khide'); return; }
+    box.classList.remove('khide');
+    const parts = inCat.map(fl=>{ const q = Number((blk.querySelector(`[name="pf_${bi}_fee_${fl.k}"]`)||{}).value)||0; return q ? {fl, q} : null; }).filter(Boolean);
+    if(!parts.length){ box.innerHTML = '填好姓名後自動算金額'; return; }
+    box.innerHTML = parts.map(x=>`${escHtml(x.fl.label)} ${x.q} ${/地基主/.test(x.fl.label)?'處':(/祖先/.test(x.fl.label)?'戶':'份')} × ${money(x.fl.price)} ＝ <b>${money(x.q*x.fl.price)} 元</b>`).join('<br>');
+  });
+}
+function kindPick(ev, blk, feeK){
+  const km = kindMode(ev); if(!km) return;
+  const bi = blk.dataset.block;
+  const prev = blk.dataset.kind || '';
+  if(prev===feeK) return;
+  blk.dataset.kind = feeK;
+  // 換位別：別的位別專用的欄位清掉、份數歸 0（共用的地址、陽上人保留）
+  Object.keys(km.claim).forEach(k=>{
+    const owners = kindFieldOwners(km, k);
+    if(owners.includes(feeK)) return;
+    const el = blk.querySelector(`[name="pf_${bi}_${k}"]`); if(el && el.type!=='radio') el.value = '';
+  });
+  km.fees.forEach(fl=>{ if(fl.k===feeK) return; const inp = blk.querySelector(`[name="pf_${bi}_fee_${fl.k}"]`); if(inp) inp.value = 0; });
+}
 function renderPersonBlockHtml(ev, blockIdx){
   const repeatFields = getRepeatFields(ev);
-  let html = `<div class="person-block" data-block="${blockIdx}" style="background:#FBF6EA;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">`;
+  const km = kindMode(ev);   // v5.28
+  let html = `<div class="person-block${km ? ' kblk' : ''}" data-block="${blockIdx}" style="background:#FBF6EA;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <div style="font-weight:700;font-size:13px;color:var(--vermilion);">第 ${blockIdx+1} 位</div>
+    <div class="kblk-title" style="font-weight:700;font-size:13px;color:var(--vermilion);">第 ${blockIdx+1} 位</div>
     <button type="button" class="btn btn-danger btn-sm person-remove-btn" data-block="${blockIdx}" style="display:none;">移除此位</button>
   </div>`;
   // v4.86（小朱）：報名類別旁多一個「🔁 比照上次報名」（只有登入中的啟用志工看得到）
@@ -5667,22 +5840,27 @@ function renderPersonBlockHtml(ev, blockIdx){
     let inp = renderFieldInput(f, `pf_${blockIdx}_${f.k}`);
     let panel = '';
     if(f.k===pickK){ inp = inp.replace(/<\/div>$/, (staffActive() ? refPickBtnHtml(blockIdx) : '') + clearBtn + '</div>'); if(staffActive()) panel = refPickPanelHtml(blockIdx); }
-    html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${inp}${panel}${condEmptyHint(ev, f)}</div>`;
+    html += `<div class="field"${condAttr(f)}${km ? ` data-fk="${escHtml(f.k)}"` : ''}>${fieldLabelHtml(f)}${inp}${panel}${condEmptyHint(ev, f)}</div>`;
+    // v5.28：類別下面放位別按鈕（主牌位、小牌位／姓氏祖先、已逝先人、小蓮位、地基主）
+    if(km && f.k===km.pk) html += `<div class="kchips" role="radiogroup" aria-label="選位別">` +
+      km.fees.map(fl=>`<button type="button" class="kchip" role="radio" aria-checked="false" data-kind="${escHtml(fl.k)}"${condAttr(fl)}>${escHtml(fl.label)} ${money(fl.price)}</button>`).join('') +
+      `</div><div class="khint khide">👆 先選這格要報哪一種</div>`;
   });
   if((ev.fees||[]).length){
-    html += `<label>費用項目</label>`;
+    html += `<label class="${km ? 'kfee-label' : ''}">費用項目</label>`;
     ev.fees.forEach(fl=>{
       const isAmt = fl.mode==='amount';
       const autoOn = !!(fl.auto && fl.auto.how && fl.auto.how!=='none');
-      const askN = !isAmt && !autoOn && /位/.test(fl.label||'') ? '（填寫幾位）' : '';   // v5.26（小朱）：主牌位／小牌位請信徒自己填份數
+      const askN = !isAmt && !autoOn && /位/.test(fl.label||'') ? (km ? '（依姓名人數自動算，可修改）' : '（填寫幾位）') : '';   // v5.26（小朱）：主牌位／小牌位請信徒自己填份數；v5.28 樣板版面自動算
       const hint = isAmt ? (fl.price ? `<div class="price">建議金額 ${money(fl.price)} 元（可自行調整）</div>` : '') : `<div class="price">單價 ${money(fl.price)} 元${askN}</div>`;
       const autoTip = autoOn ? `<div class="price" style="color:var(--gold-dark,#8a6d1f);">數量依填寫內容自動算</div>` : '';
-      html += `<div class="fee-row"${condAttr(fl)}>
+      html += `<div class="fee-row"${condAttr(fl)}${km ? ` data-feek="${escHtml(fl.k)}"` : ''}>
         <div><div class="name">${fl.label}</div>${hint}${autoTip}</div>
         <input type="number" min="0" name="pf_${blockIdx}_fee_${fl.k}" data-feeinput data-mode="${fl.mode||'qty'}" data-price="${fl.price||0}" value="${isAmt?(fl.price||0):0}">
       </div>`;
     });
   }
+  if(km) html += `<div class="kcalc khide"></div>`;
   html += `</div>`;
   return html;
 }
@@ -5697,7 +5875,13 @@ function renderPublicForm(ev){
       `</div>`;
   }
   if(ev.date) html += `<p class="hint">日期：${ev.date}${ev.note?'　·　'+ev.note:''}</p>`;
-  if(ev.exampleNote){
+  html += kindPriceCardHtml(ev);   // v5.28 紅色牌位／黃色蓮位價格一覽
+  if(kindMode(ev)){
+    html += `<div style="background:#FBF6EA;border:1px dashed var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:15px;line-height:1.8;">
+      <div style="font-weight:700;color:var(--vermilion);">📝 怎麼填</div>
+      1. 先填「報名者」（繳費、聯絡的人）。<br>2. 按「＋ 加一個紅色牌位」或「＋ 加一個黃色蓮位」，一格填一個，選好位別再填姓名地址。<br>3. 多人用「、」分開，份數和金額會自動算。<br>4. 兩種都可以一起報，最後一次送出、一次繳費。
+      ${ev.exampleNote ? `<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--vermilion);font-weight:600;">📝 填寫範例參考（點開看）</summary><div style="font-size:13.5px;white-space:pre-wrap;line-height:1.7;margin-top:4px;">${ev.exampleNote.replace(/</g,'&lt;')}</div></details>` : ''}</div>`;
+  } else if(ev.exampleNote){
     html += `<div style="background:#FBF6EA;border:1px dashed var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;">
       <div style="font-weight:700;font-size:12.5px;color:var(--vermilion);margin-bottom:4px;">📝 填寫範例參考</div>
       <div style="font-size:13px;white-space:pre-wrap;line-height:1.7;color:var(--ink);">${ev.exampleNote.replace(/</g,'&lt;')}</div>
@@ -5723,7 +5907,8 @@ function renderPublicForm(ev){
     });
   } else {
     html += `<div id="personBlocksWrap" data-next-idx="1">` + renderPersonBlockHtml(ev, 0) + `</div>`;
-    html += `<button type="button" class="btn btn-ghost" id="addPersonBtn" style="margin-bottom:14px;">${escHtml(ev.addLabel || '＋ 新增一位（一次報名多位）')}</button>`;   // v4.51：按鈕文字可依場次自訂
+    if(kindMode(ev)) html += `<div id="addPersonBtn" class="kadds"><button type="button" class="kadd r" data-addside="r">＋ 加一個<br>紅色牌位</button><button type="button" class="kadd y" data-addside="y">＋ 加一個<br>黃色蓮位</button></div>`;   // v5.28
+    else html += `<button type="button" class="btn btn-ghost" id="addPersonBtn" style="margin-bottom:14px;">${escHtml(ev.addLabel || '＋ 新增一位（一次報名多位）')}</button>`;   // v4.51：按鈕文字可依場次自訂
   }
 
   html += `<div style="margin:16px 0;">總金額：<span class="total-badge" id="publicTotal">0 元</span></div>`;
@@ -7909,16 +8094,44 @@ function bindEvents(){
     }
     bindPersonRemoveButtons(pf);
     updatePersonRemoveVisibility();
+    if(kindMode(evForFees)){   // v5.28 位別按鈕
+      pf.addEventListener('click', e=>{
+        const chip = e.target.closest('[data-kind]'); if(!chip) return;
+        e.preventDefault();
+        const blk = chip.closest('.person-block'); if(!blk) return;
+        kindPick(evForFees, blk, chip.dataset.kind);
+        autoFillBlockFees(evForFees, blk);
+        applyKindVisibility(evForFees, pf);
+        updatePublicTotal();
+        const first = Array.from(blk.querySelectorAll('[data-fk] input[type="text"], [data-fk] textarea')).find(el=>el.offsetParent && !el.value);
+        if(first) first.focus({preventScroll:true});
+      });
+      applyKindVisibility(evForFees, pf);
+    }
     updatePublicTotal();
     pf.onsubmit = async (e)=>{
       e.preventDefault();
       await submitPublicForm(pf);
     };
     const addPersonBtn = document.getElementById('addPersonBtn');
-    if(addPersonBtn) addPersonBtn.onclick = ()=>{
+    if(addPersonBtn) addPersonBtn.onclick = (clickEv)=>{
       const ev = events.find(e=>e.id===publicSelectedEvent);
       const wrap = document.getElementById('personBlocksWrap');
       if(!ev || !wrap) return;
+      const kmA = kindMode(ev);   // v5.28：「＋ 加一個紅色牌位／黃色蓮位」
+      const sideBtn = clickEv && clickEv.target && clickEv.target.closest ? clickEv.target.closest('[data-addside]') : null;
+      if(kmA && clickEv && clickEv.isTrusted && !sideBtn) return;
+      // 第一格還沒選類別也沒填 → 直接用第一格
+      if(kmA && sideBtn){
+        const opt = kmA.opts.find(o=>kmA.sideOf(o)===sideBtn.dataset.addside);
+        const empty = Array.from(wrap.querySelectorAll('.person-block')).find(b=>!readFieldValue(b, `pf_${b.dataset.block}_${kmA.pk}`) && getRepeatFields(ev).every(f=>!readFieldValue(b, `pf_${b.dataset.block}_${f.k}`)));
+        if(empty){
+          const rb = empty.querySelector(`input[type="radio"][name="pf_${empty.dataset.block}_${kmA.pk}"][value="${CSS.escape(opt)}"]`);
+          if(rb){ rb.checked = true; rb.dispatchEvent(new Event('change', {bubbles:true})); }
+          empty.scrollIntoView({block:'center', behavior:'smooth'});
+          return;
+        }
+      }
       const nextIdx = Number(wrap.dataset.nextIdx || wrap.querySelectorAll('.person-block').length);
       wrap.insertAdjacentHTML('beforeend', renderPersonBlockHtml(ev, nextIdx));
       wrap.dataset.nextIdx = String(nextIdx+1);
@@ -7929,6 +8142,13 @@ function bindEvents(){
       applyCondVisibility(ev, document.getElementById('publicForm'));
       bindPersonRemoveButtons(newBlock);
       updatePersonRemoveVisibility();
+      if(kmA && sideBtn){
+        const opt = kmA.opts.find(o=>kmA.sideOf(o)===sideBtn.dataset.addside);
+        const rb = newBlock.querySelector(`input[type="radio"][name="pf_${nextIdx}_${kmA.pk}"][value="${CSS.escape(opt)}"]`);
+        if(rb){ rb.checked = true; rb.dispatchEvent(new Event('change', {bubbles:true})); }
+        newBlock.scrollIntoView({block:'center', behavior:'smooth'});
+      }
+      applyKindVisibility(ev, document.getElementById('publicForm'));
       updatePublicTotal();
     };
   }
@@ -8039,6 +8259,7 @@ function bindPersonRemoveButtons(container){
       const block = btn.closest('.person-block');
       if(block) block.remove();
       updatePersonRemoveVisibility();
+      { const evR = events.find(e=>e.id===publicSelectedEvent); if(evR) applyKindVisibility(evR, document.getElementById('publicForm')); }   // v5.28 重新編號
       updatePublicTotal();
     };
   });
@@ -8072,6 +8293,7 @@ function applyCondVisibility(ev, pf){
     el.style.display = show ? '' : 'none';
     if(!show) el.querySelectorAll('[data-feeinput]').forEach(inp=>{ if(inp.dataset.mode!=='amount') inp.value = 0; });
   });
+  applyKindVisibility(ev, pf);   // v5.28
 }
 function autoFillBlockFees(ev, blockEl){
   if(!ev || ev.mode==='items') return;
@@ -8082,6 +8304,7 @@ function autoFillBlockFees(ev, blockEl){
     const feeInp = blockEl.querySelector(`[name="pf_${blockIdx}_fee_${feeKey}"]`);
     if(feeInp) feeInp.value = inferred[feeKey];
   });
+  kindAutoQty(ev, blockEl);   // v5.28 牌位份數依姓名人數
 }
 
 function updatePublicTotal(){
@@ -8097,6 +8320,7 @@ function updatePublicTotal(){
     total += (Number(inp.value)||0) * Number(inp.dataset.price);
   });
   document.getElementById('publicTotal').textContent = money(total)+' 元';
+  try{ kindCalcUpdate(events.find(e=>e.id===publicSelectedEvent), pf); }catch(_){}   // v5.28 每格小計
 }
 
 async function submitPublicForm(pf){
