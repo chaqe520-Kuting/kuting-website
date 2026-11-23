@@ -1021,6 +1021,7 @@ window.KutingFinMatch = function(opts){
   .radio-group label{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:500;cursor:pointer;margin:0;}
   .radio-group input{width:auto;min-height:0;margin:0;}
   .ref-pick-btn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;color:#6E1F1C;font-weight:600;font-size:16px;cursor:pointer;width:auto;}
+  .blk-clear-btn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#6E5A3A;font-weight:600;font-size:16px;cursor:pointer;width:auto;}
   .ref-pick-btn.on{background:var(--vermilion,#9e2b25);color:#fff;}
   .ref-pick-panel{margin-top:8px;padding:10px 12px;border:1px dashed var(--vermilion,#9e2b25);border-radius:10px;background:#FDF1EC;font-size:14px;line-height:1.7;color:#4A3A22;}
   .ref-pick-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dotted #E3C9B8;font-weight:400;cursor:pointer;margin:0;}
@@ -1150,8 +1151,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.24 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.25 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.25（2026-11-23）</b>：報名表每一位的報名類別旁多「🧹 清空重填」（小朱）：把這一位下面填的姓名、地址、份數清掉重寫（報名類別、報名者姓名、電話保留）；有填內容時會先問一次。信徒、志工都看得到。<br>
       <b>v5.24（2026-11-23）</b>：LINE 貼上快速匯入學會小朱給信徒的 6 種梁皇報名格式（範例1～6，一次貼好幾則也可以）：① 主牌位／小牌位依陽世者人數算份數（「王○明、王○華」＝2 份）；② 姓氏祖先寫兩戶＝2 份（原本被標題蓋成 1 份）；③ 範例6「陽世者(戶長)地址姓名」的地址放進地基主地址（原本跑到陽上人）；④ 信眾自己標了欄位名稱、依標題搬到正確欄位的，不再標「🤔 系統猜的」。<br>
       <b>v5.23（2026-11-22）</b>：報名成功通知補齊（小朱 iPhone）：① 手機的報名清單改成卡片，「編輯／📨 LINE 報名成功／💰 收款確認／刪除」按鈕都看得到（原本在表格最右邊被切掉）；② LINE 帶入確認後直接跳出「✅ 已匯入」，每位報名者一個「📨 報名成功通知」（小幫手私訊或產生報名成功圖），比照供品贊助；③ 志工登入代報名送出後，核對視窗下方也有「📨 報名成功通知」。<br>
       <b>v5.22（2026-11-22）</b>：LINE 帶入「地基主」不再錯位（小朱）：內容有「地基主」字眼時，地基主戶長姓名、地址一定放「地基主」的姓名／地址欄，不會跑到住家或祖先地址；姓名後面直接接地址、姓名寫在標題（例「1.王○明(地基主)」）、「地基主小牌位」這類寫法也認得；欄位改過名稱也一樣。「報名人」也當報名者。<br>
@@ -1977,6 +1979,33 @@ function bindRefPick(pf, ev){
     }
   });
 }
+// v5.24：「🧹 清空重填」清掉這一位下面填的內容（報名類別保留）
+document.addEventListener('click', async e=>{
+  const btn = e.target.closest && e.target.closest('[data-blkclear]');
+  if(!btn) return;
+  e.preventDefault();
+  const blk = btn.closest('.person-block'), pf = btn.closest('form');
+  const ev = events.find(x=>x.id===publicSelectedEvent);
+  if(!blk || !ev) return;
+  const bi = blk.dataset.block, keepK = refPickFieldKey(ev);
+  const filled = Array.from(blk.querySelectorAll('input[type="text"],input[type="tel"],textarea,input:not([type])')).some(el=>String(el.value||'').trim());
+  if(filled && !(await showConfirm('要清空第 '+(Number(bi)+1)+' 位填的內容，重新填寫嗎？（報名類別保留）'))) return;
+  blk.querySelectorAll('input,textarea,select').forEach(el=>{
+    if(keepK && el.name===`pf_${bi}_${keepK}`) return;
+    if(el.type==='radio' || el.type==='checkbox'){ el.checked = false; return; }
+    if(el.dataset && el.dataset.feeinput!==undefined){ el.value = el.defaultValue; return; }
+    if(el.tagName==='SELECT'){ el.selectedIndex = 0; return; }
+    el.value = '';
+  });
+  const panel = blk.querySelector('.ref-pick-panel'); if(panel){ panel.style.display = 'none'; panel.dataset.open = ''; panel.innerHTML = ''; }
+  const rb = blk.querySelector('[data-refpick]'); if(rb) rb.classList.remove('on');
+  if(pf) applyCondVisibility(ev, pf);
+  try{ autoFillBlockFees(ev, blk); }catch(_){}
+  updatePublicTotal();
+  const first = Array.from(blk.querySelectorAll('input[type="text"],textarea')).find(el=>el.offsetParent);
+  if(first) first.focus({preventScroll:true});
+  showToast('已清空第 '+(Number(bi)+1)+' 位，請重新填寫');
+});
 function fillFromRef(pf, ev, recs, firstBlk){
   const wrap = document.getElementById('personBlocksWrap');
   const addBtn = document.getElementById('addPersonBtn');
@@ -5592,12 +5621,14 @@ function renderPersonBlockHtml(ev, blockIdx){
     <button type="button" class="btn btn-danger btn-sm person-remove-btn" data-block="${blockIdx}" style="display:none;">移除此位</button>
   </div>`;
   // v4.86（小朱）：報名類別旁多一個「🔁 比照上次報名」（只有登入中的啟用志工看得到）
+  // v5.24（小朱）：每一位多「🧹 清空重填」，把這一位下面填的內容清掉（報名類別保留），信徒、志工都看得到
   const pickK = refPickFieldKey(ev);
-  if(staffActive() && !pickK) html += `<div class="field">${refPickBtnHtml(blockIdx)}${refPickPanelHtml(blockIdx)}</div>`;
+  const clearBtn = `<button type="button" class="blk-clear-btn" data-blkclear="${blockIdx}" title="清空這一位下面填的內容，重新填寫">🧹 清空重填</button>`;
+  if(!pickK) html += `<div class="field" style="display:flex;flex-wrap:wrap;gap:8px;">${staffActive() ? refPickBtnHtml(blockIdx) : ''}${clearBtn}</div>${staffActive() ? refPickPanelHtml(blockIdx) : ''}`;
   repeatFields.forEach(f=>{
     let inp = renderFieldInput(f, `pf_${blockIdx}_${f.k}`);
     let panel = '';
-    if(staffActive() && f.k===pickK){ inp = inp.replace(/<\/div>$/, refPickBtnHtml(blockIdx) + '</div>'); panel = refPickPanelHtml(blockIdx); }
+    if(f.k===pickK){ inp = inp.replace(/<\/div>$/, (staffActive() ? refPickBtnHtml(blockIdx) : '') + clearBtn + '</div>'); if(staffActive()) panel = refPickPanelHtml(blockIdx); }
     html += `<div class="field"${condAttr(f)}>${fieldLabelHtml(f)}${inp}${panel}${condEmptyHint(ev, f)}</div>`;
   });
   if((ev.fees||[]).length){
