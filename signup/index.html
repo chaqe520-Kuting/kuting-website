@@ -1151,8 +1151,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.25 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.26 ・ 2026-11-23（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.26（2026-11-23）</b>：報名表字眼（小朱）：陽世者說明改「外籍姓名依護照填寫」（已建好的場次也一樣）；主牌位、小牌位這類要自己填份數的，單價後面加「（填寫幾位）」。<br>
       <b>v5.25（2026-11-23）</b>：報名表每一位的報名類別旁多「🧹 清空重填」（小朱）：把這一位下面填的姓名、地址、份數清掉重寫（報名類別、報名者姓名、電話保留）；有填內容時會先問一次。信徒、志工都看得到。<br>
       <b>v5.24（2026-11-23）</b>：LINE 貼上快速匯入學會小朱給信徒的 6 種梁皇報名格式（範例1～6，一次貼好幾則也可以）：① 主牌位／小牌位依陽世者人數算份數（「王○明、王○華」＝2 份）；② 姓氏祖先寫兩戶＝2 份（原本被標題蓋成 1 份）；③ 範例6「陽世者(戶長)地址姓名」的地址放進地基主地址（原本跑到陽上人）；④ 信眾自己標了欄位名稱、依標題搬到正確欄位的，不再標「🤔 系統猜的」。<br>
       <b>v5.23（2026-11-22）</b>：報名成功通知補齊（小朱 iPhone）：① 手機的報名清單改成卡片，「編輯／📨 LINE 報名成功／💰 收款確認／刪除」按鈕都看得到（原本在表格最右邊被切掉）；② LINE 帶入確認後直接跳出「✅ 已匯入」，每位報名者一個「📨 報名成功通知」（小幫手私訊或產生報名成功圖），比照供品贊助；③ 志工登入代報名送出後，核對視窗下方也有「📨 報名成功通知」。<br>
@@ -2258,7 +2259,7 @@ const TEMPLATES = {
       {k:'mainAddr', label:'主蓮位 祖先牌位地址', type:'textarea', help:'牌位所在的寺廟、塔位或住家地址', keywords:['牌位地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
       {k:'subName', label:'副蓮位 已逝及倒房先人姓名', type:'textarea', help:'多位用「、」分開，女性可加（女）', keywords:['副蓮位','倒房'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
       {k:'subAddr', label:'副蓮位 已逝及倒房先人住址', type:'textarea', help:'和主蓮位一樣可寫「同上」', keywords:['副蓮位住址'], showIf:{k:'regType', v:['超薦祖先／已逝先人']}},
-      {k:'liveName', label:'陽世者姓名或公司行號', type:'textarea', help:'一戶多人用「、」分開，外籍姓名照護照寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
+      {k:'liveName', label:'陽世者姓名或公司行號', type:'textarea', help:'一戶多人用「、」分開，外籍姓名依護照填寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
       {k:'liveAddr', label:'住家或公司地址', type:'textarea', help:'寫到門牌號', keywords:['住家地址','公司地址'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
       {k:'jijiName', label:'地基主姓名', type:'text', help:'地基主是誰家的，例：朱士仁', keywords:['地基主'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
       {k:'jijiAddr', label:'地基主地址', type:'textarea', help:'兩處以上請再加一個牌位寫', keywords:['地基主地址'], showIf:{k:'regType', v:['消災個人／公司／地基主']}},
@@ -2291,7 +2292,7 @@ const TEMPLATES = {
       {k:'subAddr', label:'小蓮位 已逝及倒房先人住址', type:'textarea', help:'和主蓮位一樣可寫「同上」', keywords:['小蓮位住址','副蓮位住址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'jijiName', label:'地基主小蓮位 姓名（戶長的地基主）', type:'text', help:'例：王○明（每處1600元），一個地址一份', keywords:['地基主'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
       {k:'jijiAddr', label:'地基主地址', type:'textarea', help:'兩處以上請再加一個寫', keywords:['地基主地址'], showIf:{k:'regType', v:['超薦祖先／已逝先人/地基主']}},
-      {k:'liveName', label:'陽世者姓名或公司行號（主牌位3600元，小牌位1000元）', type:'textarea', help:'一人（一間公司）一份，多人用「、」分開，外籍姓名照護照寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司']}},
+      {k:'liveName', label:'陽世者姓名或公司行號（主牌位3600元，小牌位1000元）', type:'textarea', help:'一人（一間公司）一份，多人用「、」分開，外籍姓名依護照填寫', keywords:['陽世','公司'], showIf:{k:'regType', v:['消災個人／公司']}},
       {k:'liveAddr', label:'住家或公司地址', type:'textarea', help:'寫到門牌號', keywords:['住家地址','公司地址'], showIf:{k:'regType', v:['消災個人／公司']}},
       {k:'note', label:'備註', type:'textarea', help:'其他交代，例如多一紮大壽金', keywords:['備註']},
     ],
@@ -5582,7 +5583,8 @@ function renderFieldInput(f, name){
 }
 // v4.33：欄位標題＋說明文字（說明顯示在標題下方，小字）
 function fieldLabelHtml(f){
-  return `<label>${escHtml(f.label)}${f.required?' *':''}</label>${f.help?`<div class="field-help">${escHtml(f.help)}</div>`:''}`;
+  const help = String(f.help||'').replace('外籍姓名照護照寫','外籍姓名依護照填寫');   // v5.26（小朱）：已建好的場次也顯示新字眼
+  return `<label>${escHtml(f.label)}${f.required?' *':''}</label>${help?`<div class="field-help">${escHtml(help)}</div>`:''}`;
 }
 // v4.33：讀取欄位值（單選按鈕要找被勾的那一個）
 function readFieldValue(root, name){
@@ -5635,8 +5637,10 @@ function renderPersonBlockHtml(ev, blockIdx){
     html += `<label>費用項目</label>`;
     ev.fees.forEach(fl=>{
       const isAmt = fl.mode==='amount';
-      const hint = isAmt ? (fl.price ? `<div class="price">建議金額 ${money(fl.price)} 元（可自行調整）</div>` : '') : `<div class="price">單價 ${money(fl.price)} 元</div>`;
-      const autoTip = fl.auto && fl.auto.how && fl.auto.how!=='none' ? `<div class="price" style="color:var(--gold-dark,#8a6d1f);">數量依填寫內容自動算</div>` : '';
+      const autoOn = !!(fl.auto && fl.auto.how && fl.auto.how!=='none');
+      const askN = !isAmt && !autoOn && /位/.test(fl.label||'') ? '（填寫幾位）' : '';   // v5.26（小朱）：主牌位／小牌位請信徒自己填份數
+      const hint = isAmt ? (fl.price ? `<div class="price">建議金額 ${money(fl.price)} 元（可自行調整）</div>` : '') : `<div class="price">單價 ${money(fl.price)} 元${askN}</div>`;
+      const autoTip = autoOn ? `<div class="price" style="color:var(--gold-dark,#8a6d1f);">數量依填寫內容自動算</div>` : '';
       html += `<div class="fee-row"${condAttr(fl)}>
         <div><div class="name">${fl.label}</div>${hint}${autoTip}</div>
         <input type="number" min="0" name="pf_${blockIdx}_fee_${fl.k}" data-feeinput data-mode="${fl.mode||'qty'}" data-price="${fl.price||0}" value="${isAmt?(fl.price||0):0}">
