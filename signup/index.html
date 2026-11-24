@@ -11,7 +11,6 @@
 <meta property="og:description" content="嘉義番路鄉古亭院 昇龍觀世音菩薩 法會線上報名：選位別、填姓名地址，送出後由志工核對回覆。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -1183,8 +1182,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.44 ・ 2026-11-24（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.45 ・ 2026-11-24（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.45（2026-11-24）</b>：加快報名網站開啟速度（小朱）：Excel 工具改成要匯出／匯入時才載入（原本一開頁就下載約 900KB）；海報圖片同時讀取；後台「平台設定」管理者多一個「🚀 整理圖片，加快開啟」，把舊場次還夾在場次清單裡的海報原圖搬出去、標頭小圖示縮小（先自動下載備份，開網頁本身只讀不寫）；之後上傳的標頭圖示自動縮成小圖。<br>
       <b>v5.44（2026-11-24）</b>：統計頁「各場法會報名筆數與金額」可以勾選要比較的場次，也可以加入信徒查詢的往年場次（小朱）。<br>
       <b>v5.43（2026-11-23）</b>：報名頁勾「同去年」不再顯示去年有沒有報、幾筆、多少錢（打別人姓名也看得到），改成送出後由志工核對回覆；要看詳細用 LINE 小幫手專屬連結（小朱）。<br>
       <b>v5.42（2026-11-23）</b>：LINE 小幫手認得是本人後，私訊的專屬報名連結（6 小時有效）打開報名頁，會列出去年每一筆詳細內容，可一鍵帶入報名表再自己修改（小朱；需小幫手 v1.84）。<br>
@@ -2503,13 +2503,120 @@ function posterImgTag(ref, style){
 }
 async function hydratePosters(root){
   const imgs = Array.from((root||document).querySelectorAll('img[data-poster]')).filter(im=>!im.getAttribute('src'));
-  for(const im of imgs){
+  // v5.45：多張海報同時讀取（原本一張讀完才讀下一張）
+  await Promise.all(imgs.map(async im=>{
     const ref = im.dataset.poster;
-    if(ref.indexOf('kv:')!==0) continue;
+    if(ref.indexOf('kv:')!==0) return;
     try{
       if(!posterCache[ref]){ const r = await window.storage.get(ref.slice(3), STORE_SHARED); if(r) posterCache[ref] = r.value; }
       if(posterCache[ref]){ im.src = posterCache[ref]; im.style.minHeight = ''; im.style.background = ''; }
     }catch(e){ console.error('poster load', ref, e); }
+  }));
+}
+/* v5.45（小朱 11-24 開啟慢）：Excel 工具（約 900KB）原本一開頁就下載，信眾報名用不到 → 改成要匯出／匯入 Excel 時才載入 */
+let xlsxLoading = null;
+function loadXlsx(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!xlsxLoading) xlsxLoading = new Promise((resolve, reject)=>{
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = ()=>resolve(window.XLSX);
+    sc.onerror = ()=>{ xlsxLoading = null; reject(new Error('Excel 工具載入失敗，請檢查網路後再試一次')); };
+    document.head.appendChild(sc);
+  });
+  return xlsxLoading;
+}
+/* v5.45：舊場次的海報原圖還夾在「場次清單」（kv/events）裡、標頭圖示存原尺寸照片，每次開網頁都要先下載。
+   管理者按「🚀 整理圖片，加快開啟」：先下載備份 → 海報搬成獨立一份（kv/poster_…，跟 v4.55 之後新上傳的一樣）→ 標頭圖示縮成小圖。
+   開網頁本身不寫入，只有按鈕才寫。 */
+const HEADER_IMG_DIM = 192;   // 標頭圓形圖示只顯示 44px，192px 足夠清楚
+function inlineImageStats(){
+  let posters = 0, posterBytes = 0;
+  events.forEach(ev=>{
+    [...(ev.posterImages||[]), ...(ev.posterImage ? [ev.posterImage] : [])].forEach(img=>{
+      if(String(img).indexOf('data:')===0){ posters++; posterBytes += String(img).length; }
+    });
+  });
+  const bigHeaders = (siteConfig.headerImages||[]).filter(img=>String(img).indexOf('data:')===0 && String(img).length > 60*1024);
+  const headerBytes = bigHeaders.reduce((a,img)=>a+String(img).length, 0);
+  return {posters, posterBytes, headers: bigHeaders.length, headerBytes, total: posterBytes + headerBytes};
+}
+function shrinkDataUrl(dataUrl, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let {width, height} = img;
+      if(width>maxDim || height>maxDim){
+        if(width>=height){ height = Math.round(height*maxDim/width); width = maxDim; }
+        else { width = Math.round(width*maxDim/height); height = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      try{ resolve(canvas.toDataURL('image/jpeg', quality)); }catch(err){ reject(err); }
+    };
+    img.onerror = ()=>reject(new Error('圖片格式無法讀取'));
+    img.src = dataUrl;
+  });
+}
+async function slimInlineImages(){
+  if(!staffIsAdmin()){ showToast('只有管理者可以整理'); return; }
+  const st = inlineImageStats();
+  if(!st.total){ showToast('圖片都已經整理好了'); render(); return; }
+  const kb = n=>Math.round(n/1024);
+  if(!(await showConfirm(`要整理的圖片：<ul style="margin:8px 0;padding-left:20px;line-height:1.8;">${st.posters?`<li>場次海報 ${st.posters} 張（約 ${kb(st.posterBytes)}KB）→ 搬成獨立一份，只有打開那一場才下載</li>`:''}${st.headers?`<li>標頭圖示 ${st.headers} 張（約 ${kb(st.headerBytes)}KB）→ 縮成小圖（約 10～20KB）</li>`:''}</ul>海報畫質不變。按確定會先下載備份檔，再整理。`))) return;
+  const btn = document.getElementById('slimImgBtn');
+  const t0 = Date.now();
+  const tick = setInterval(()=>{ if(btn) btn.textContent = `整理中…（${Math.round((Date.now()-t0)/1000)} 秒）`; }, 500);
+  if(btn) btn.disabled = true;
+  try{
+    try{
+      const {adminPassword:_p, adminPasswordHash:_h, ...cfgBak} = siteConfig;
+      const blob = new Blob([JSON.stringify({backupAt:new Date().toISOString(), events, siteConfig:cfgBak})], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `法會場次清單與標頭圖_整理前備份_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+    }catch(e){ console.error('slim backup', e); if(!(await showConfirm('備份檔下載失敗，仍要整理嗎？'))) return; }
+    // 1. 海報：先把每張存成獨立一份，全部成功才改場次清單
+    let movedN = 0;
+    if(st.posters){
+      const plan = [];
+      for(const ev of events){
+        const list = (ev.posterImages && ev.posterImages.length) ? ev.posterImages : (ev.posterImage ? [ev.posterImage] : []);
+        if(!list.some(img=>String(img).indexOf('data:')===0)) continue;
+        const refs = [];
+        for(const img of list){
+          if(String(img).indexOf('data:')===0){ refs.push(await storePoster(img)); movedN++; } else refs.push(img);
+        }
+        plan.push({ev, refs, oldImages: ev.posterImages, oldLegacy: ev.posterImage});
+      }
+      plan.forEach(p=>{ p.ev.posterImages = p.refs; delete p.ev.posterImage; });
+      if(!(await saveEvents())){
+        plan.forEach(p=>{ p.ev.posterImages = p.oldImages; if(p.oldLegacy !== undefined) p.ev.posterImage = p.oldLegacy; });
+        return;
+      }
+    }
+    // 2. 標頭圖示縮小
+    let headerN = 0;
+    if(st.headers){
+      const oldHeaders = (siteConfig.headerImages||[]).slice();
+      const out = [];
+      for(const img of oldHeaders){
+        if(String(img).indexOf('data:')===0 && String(img).length > 60*1024){ out.push(await shrinkDataUrl(img, HEADER_IMG_DIM, 0.85)); headerN++; }
+        else out.push(img);
+      }
+      siteConfig.headerImages = out;
+      if(!(await saveSiteConfig())){ siteConfig.headerImages = oldHeaders; return; }
+      applySiteConfig();
+    }
+    const after = inlineImageStats();
+    showToast(`✅ 整理完成（${Math.round((Date.now()-t0)/1000)} 秒）：海報 ${movedN} 張、標頭圖示 ${headerN} 張，每次開網頁少下載約 ${kb(st.total - after.total)}KB`, 6000);
+  }catch(e){
+    console.error('slimInlineImages', e);
+    showToast('⚠️ 整理失敗：'+(e && e.code==='permission-denied' ? '這個帳號沒有權限' : (e && e.message || '未知錯誤'))+'（資料沒有改動，可以再按一次）', 6000);
+  }finally{
+    clearInterval(tick);
+    render();
   }
 }
 async function storePoster(dataUrl){
@@ -4228,7 +4335,7 @@ function openRefImport(ev){
     const file = inp.files && inp.files[0];
     if(!file) return;
     let wb;
-    try{ wb = XLSX.read(await file.arrayBuffer(), {type:'array'}); }
+    try{ await loadXlsx(); wb = XLSX.read(await file.arrayBuffer(), {type:'array'}); }   // v5.45 用到才載入
     catch(e){ showToast('⚠️ 讀不到這個 Excel：'+(e && e.message || ''), 5000); return; }
     const sheets = wb.SheetNames.map(n=>{ const s = refReadSheet(wb.Sheets[n], ev); return s ? {...s, name:n} : null; }).filter(Boolean);
     if(!sheets.length){ showToast('⚠️ 這個檔案找不到「報名者姓名」的表頭，請確認是報名資料表', 5000); return; }
@@ -6373,6 +6480,10 @@ function renderSiteSettingsCard(){
       <button class="btn btn-ghost btn-sm" id="refreshDataBtn">重新整理資料</button>
       <button class="btn btn-ghost btn-sm" id="lockAdminBtn">登出後台管理</button>
     </div>
+    ${(()=>{ const st = staffIsAdmin() ? inlineImageStats() : {total:0}; return st.total ? `<div style="margin-top:12px;padding:12px;border:2px dashed var(--gold);border-radius:10px;background:#FFF8E6;line-height:1.7;">
+      <b style="color:var(--vermilion);">🚀 開網頁比較慢：</b>每次打開報名網站都要多下載約 ${Math.round(st.total/1024)}KB 的圖片（${st.posters?`舊場次海報 ${st.posters} 張夾在場次清單裡`:''}${st.posters&&st.headers?'、':''}${st.headers?`標頭圖示是原尺寸照片`:''}）。按一次就會整理好（會先下載備份）。
+      <div class="row-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" id="slimImgBtn" style="min-height:44px;">🚀 整理圖片，加快開啟</button></div>
+    </div>` : ''; })()}
     <div id="pwPanel" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;max-width:380px;">
       <div class="field"><label>目前的密碼</label><input type="password" id="pwCur" autocomplete="current-password" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:16px;box-sizing:border-box;"></div>
       <div class="field"><label>新密碼（至少 8 個字元）</label><input type="password" id="pwNew" autocomplete="new-password" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:16px;box-sizing:border-box;"></div>
@@ -7947,6 +8058,8 @@ function bindEvents(){
 
   const editSiteBtn = document.getElementById('editSiteBtn');
   if(editSiteBtn) editSiteBtn.onclick = openSiteSettingsEditor;
+  const slimImgBtn = document.getElementById('slimImgBtn');   // v5.45
+  if(slimImgBtn) slimImgBtn.onclick = slimInlineImages;
   const changePwdBtn = document.getElementById('changePwdBtn');
   if(changePwdBtn) changePwdBtn.onclick = ()=>{ const pn=document.getElementById('pwPanel'); if(pn){ pn.style.display = pn.style.display==='none' ? '' : 'none'; const c=document.getElementById('pwCur'); if(c && pn.style.display==='') c.focus(); } };
   const pwSaveBtn = document.getElementById('pwSaveBtn');
@@ -9172,7 +9285,7 @@ function openSiteSettingsEditor(){
       }
     }
     try{
-      const newDataUrls = await Promise.all(newFiles.map(file=>compressImageFile(file)));
+      const newDataUrls = await Promise.all(newFiles.map(file=>compressImageFile(file, HEADER_IMG_DIM, 0.85)));   // v5.45 標頭圖示只顯示 44px，存小圖
       keepImages = keepImages.concat(newDataUrls);
     }catch(err){
       showToast('圖片讀取失敗，請換一張圖片再試');
@@ -10050,7 +10163,8 @@ document.getElementById('ttl').addEventListener('input', render);
 render();
 <\/script></body></html>`;
 }
-function exportExcel(eventId){
+async function exportExcel(eventId){
+  try{ await loadXlsx(); }catch(e){ showToast('⚠️ '+e.message, 5000); return; }   // v5.45 用到才載入
   const ev = events.find(e=>e.id===eventId);
   let regs = (regsCache[eventId]||[]).slice();
   const cfg = ev.exportCfg || {};
