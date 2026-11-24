@@ -1182,8 +1182,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.45 ・ 2026-11-24（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.46 ・ 2026-11-24（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.46（2026-11-24）</b>：防止網站再變慢（小朱：之前就發生過）：之後任何一次儲存場次清單，都會自動把夾在清單裡的海報圖片搬成獨立一份；儲存標頭時大圖示自動縮小。「🚀 整理圖片」的備份改存雲端，iPhone／LINE 裡按也不會被下載畫面打斷。<br>
       <b>v5.45（2026-11-24）</b>：加快報名網站開啟速度（小朱）：Excel 工具改成要匯出／匯入時才載入（原本一開頁就下載約 900KB）；海報圖片同時讀取；後台「平台設定」管理者多一個「🚀 整理圖片，加快開啟」，把舊場次還夾在場次清單裡的海報原圖搬出去、標頭小圖示縮小（先自動下載備份，開網頁本身只讀不寫）；之後上傳的標頭圖示自動縮成小圖。<br>
       <b>v5.44（2026-11-24）</b>：統計頁「各場法會報名筆數與金額」可以勾選要比較的場次，也可以加入信徒查詢的往年場次（小朱）。<br>
       <b>v5.43（2026-11-23）</b>：報名頁勾「同去年」不再顯示去年有沒有報、幾筆、多少錢（打別人姓名也看得到），改成送出後由志工核對回覆；要看詳細用 LINE 小幫手專屬連結（小朱）。<br>
@@ -2466,6 +2467,9 @@ async function loadSiteConfig(){
 }
 async function saveSiteConfig(){
   try{
+    // v5.46：標頭圖示一律存小圖（不管從哪裡進來）
+    if((siteConfig.headerImages||[]).some(img=>String(img).indexOf('data:')===0 && String(img).length > 60*1024))
+      siteConfig.headerImages = await Promise.all(siteConfig.headerImages.map(img=>String(img).indexOf('data:')===0 && String(img).length > 60*1024 ? shrinkDataUrl(img, HEADER_IMG_DIM, 0.85) : img));
     const {adminPassword:_p, adminPasswordHash:_h, ...cfgToSave} = siteConfig; // v4：舊的共用管理密碼不再存回雲端
     await window.storage.set('siteConfig', JSON.stringify(cfgToSave), STORE_SHARED);
     return true;
@@ -2564,19 +2568,20 @@ async function slimInlineImages(){
   const st = inlineImageStats();
   if(!st.total){ showToast('圖片都已經整理好了'); render(); return; }
   const kb = n=>Math.round(n/1024);
-  if(!(await showConfirm(`要整理的圖片：<ul style="margin:8px 0;padding-left:20px;line-height:1.8;">${st.posters?`<li>場次海報 ${st.posters} 張（約 ${kb(st.posterBytes)}KB）→ 搬成獨立一份，只有打開那一場才下載</li>`:''}${st.headers?`<li>標頭圖示 ${st.headers} 張（約 ${kb(st.headerBytes)}KB）→ 縮成小圖（約 10～20KB）</li>`:''}</ul>海報畫質不變。按確定會先下載備份檔，再整理。`))) return;
+  if(!(await showConfirm(`要整理的圖片：<ul style="margin:8px 0;padding-left:20px;line-height:1.8;">${st.posters?`<li>場次海報 ${st.posters} 張（約 ${kb(st.posterBytes)}KB）→ 搬成獨立一份，只有打開那一場才下載</li>`:''}${st.headers?`<li>標頭圖示 ${st.headers} 張（約 ${kb(st.headerBytes)}KB）→ 縮成小圖（約 10～20KB）</li>`:''}</ul>海報畫質不變。按確定會先在雲端存一份備份，再整理（手機也可以按）。`))) return;
   const btn = document.getElementById('slimImgBtn');
   const t0 = Date.now();
   const tick = setInterval(()=>{ if(btn) btn.textContent = `整理中…（${Math.round((Date.now()-t0)/1000)} 秒）`; }, 500);
   if(btn) btn.disabled = true;
   try{
+    // v5.46：備份改存雲端（kv/bak_events_時間、kv/bak_siteConfig_時間），不再下載檔案——
+    //   iPhone／LINE 內建瀏覽器下載檔案會把整個頁面換成檔案畫面，整理就停住了（小朱 11-24）
+    const stamp = new Date(Date.now()+8*3600*1000).toISOString().slice(0,16).replace(/[-:T]/g,'');
+    const {adminPassword:_p, adminPasswordHash:_h, ...cfgBak} = siteConfig;
     try{
-      const {adminPassword:_p, adminPasswordHash:_h, ...cfgBak} = siteConfig;
-      const blob = new Blob([JSON.stringify({backupAt:new Date().toISOString(), events, siteConfig:cfgBak})], {type:'application/json'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = `法會場次清單與標頭圖_整理前備份_${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
-    }catch(e){ console.error('slim backup', e); if(!(await showConfirm('備份檔下載失敗，仍要整理嗎？'))) return; }
+      await window.storage.set('bak_events_'+stamp, JSON.stringify(events), STORE_SHARED);
+      await window.storage.set('bak_siteConfig_'+stamp, JSON.stringify(cfgBak), STORE_SHARED);
+    }catch(e){ console.error('slim backup', e); showToast('⚠️ 雲端備份失敗，這次沒有整理：'+(e && e.message || ''), 6000); return; }
     // 1. 海報：先把每張存成獨立一份，全部成功才改場次清單
     let movedN = 0;
     if(st.posters){
@@ -2767,8 +2772,22 @@ function fixStaleShowIf(ev, renames){
   });
   return n;
 }
+/* v5.46（小朱 11-24：網站變慢一直重複發生）：存場次清單前，一律把還內嵌在清單裡的海報圖片搬成獨立一份（kv/poster_…），
+   不管是從哪裡進來的（舊備份還原、複製場次、舊版存的）都不會再把大圖寫進場次清單；只有按儲存時才做，開網頁不寫。 */
+async function externalizeInlinePosters(){
+  let n = 0;
+  for(const ev of events){
+    const list = (ev.posterImages && ev.posterImages.length) ? ev.posterImages : (ev.posterImage ? [ev.posterImage] : []);
+    if(!list.some(img=>String(img).indexOf('data:')===0)) continue;
+    const refs = [];
+    for(const img of list){ if(String(img).indexOf('data:')===0){ refs.push(await storePoster(img)); n++; } else refs.push(img); }
+    ev.posterImages = refs; delete ev.posterImage;
+  }
+  return n;
+}
 async function saveEvents(){
   try{
+    await externalizeInlinePosters();   // v5.46
     await window.storage.set('events', JSON.stringify(events), STORE_SHARED);
     return true;
   }catch(e){
@@ -6481,7 +6500,7 @@ function renderSiteSettingsCard(){
       <button class="btn btn-ghost btn-sm" id="lockAdminBtn">登出後台管理</button>
     </div>
     ${(()=>{ const st = staffIsAdmin() ? inlineImageStats() : {total:0}; return st.total ? `<div style="margin-top:12px;padding:12px;border:2px dashed var(--gold);border-radius:10px;background:#FFF8E6;line-height:1.7;">
-      <b style="color:var(--vermilion);">🚀 開網頁比較慢：</b>每次打開報名網站都要多下載約 ${Math.round(st.total/1024)}KB 的圖片（${st.posters?`舊場次海報 ${st.posters} 張夾在場次清單裡`:''}${st.posters&&st.headers?'、':''}${st.headers?`標頭圖示是原尺寸照片`:''}）。按一次就會整理好（會先下載備份）。
+      <b style="color:var(--vermilion);">🚀 開網頁比較慢：</b>每次打開報名網站都要多下載約 ${Math.round(st.total/1024)}KB 的圖片（${st.posters?`舊場次海報 ${st.posters} 張夾在場次清單裡`:''}${st.posters&&st.headers?'、':''}${st.headers?`標頭圖示是原尺寸照片`:''}）。按一次就會整理好（會先在雲端存備份，手機也可以按）。
       <div class="row-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" id="slimImgBtn" style="min-height:44px;">🚀 整理圖片，加快開啟</button></div>
     </div>` : ''; })()}
     <div id="pwPanel" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;max-width:380px;">
