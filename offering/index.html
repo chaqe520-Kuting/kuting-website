@@ -264,6 +264,24 @@
   }
   .add-btn:hover{ background:var(--cinnabar-dark); border-color:var(--cinnabar-dark); }
   .add-btn:disabled{ background:var(--paper-sunken); border-color:var(--border); color:var(--ink-soft); cursor:not-allowed; }
+  /* v205 LINE 小幫手好友清單：電腦表格不捲、手機卡片 */
+  .lf-tools{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;}
+  .lf-tools input[type=search]{flex:1 1 200px; width:auto; min-width:160px; min-height:44px; font-size:16px;}
+  .lf-tools select{flex:0 0 auto; width:auto; min-height:44px; font-size:16px;}
+  .lf-table{width:100%; min-width:0; border-collapse:collapse; table-layout:fixed; font-size:.92rem;}
+  .lf-table th,.lf-table td{padding:7px 6px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; word-break:break-word;}
+  .lf-table th{background:var(--paper-sunken); color:var(--cinnabar-ink); font-weight:700;}
+  .lf-st{display:inline-block; padding:1px 8px; border-radius:10px; font-size:.82rem; white-space:nowrap;}
+  .lf-st.on{background:var(--success-bg); color:var(--success);}
+  .lf-st.off{background:var(--full-bg); color:var(--full-text);}
+  .lf-st.unk{background:var(--paper-sunken); color:var(--ink-soft);}
+  @media (max-width:760px){
+    .lf-table thead{display:none;}
+    .lf-table,.lf-table tbody,.lf-table tr,.lf-table td{display:block; width:auto;}
+    .lf-table tr{border:1px solid var(--border); border-radius:8px; padding:6px 10px; margin-bottom:8px; background:var(--paper-raised);}
+    .lf-table td{border:0; padding:3px 0;}
+    .lf-table td[data-l]::before{content:attr(data-l) "："; color:var(--ink-soft);}
+  }
   .ghost-btn{
     border:1px solid var(--border); background:var(--paper-sunken); color:var(--ink); font-weight:700; font-size:.85rem;
     padding:9px 16px; border-radius:10px; cursor:pointer;
@@ -1154,6 +1172,17 @@
           <div class="value num" id="regStatUnpaidAmount">NT$0</div>
         </div>
       </div>
+    </div>
+
+    <!-- v205：小朱 11-24：LINE 官方帳號後台只給好友人數、看不到名單 → 用小幫手記下的 lineUsers 列出好友清單（限管理者、預設收合） -->
+    <div class="section" id="lineFriendsSection" style="display:none;">
+      <details id="lineFriendsDetails">
+        <summary class="section-head" style="cursor:pointer;list-style:none;">
+          <h2><span class="tag"></span>LINE 小幫手好友清單</h2>
+          <span class="hint">點標題展開／收合。列出加過小幫手好友、或傳過訊息給小幫手的人（只限管理者看）</span>
+        </summary>
+        <div class="panel" id="lineFriendsBody"><p class="pdesc">展開後讀取…</p></div>
+      </details>
     </div>
 
     <!-- v180：小朱：帳號管理不常用，比照法會報名放最下面、預設收合 -->
@@ -2451,8 +2480,8 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v204";
-  var APP_UPDATED = "2026-11-22";
+  var APP_VERSION = "v205";
+  var APP_UPDATED = "2026-11-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
   // 列出版本號、日期、改動清單。這份清單是獨立維護的（程式裡原本每個版本修
@@ -2462,6 +2491,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v205", date: "2026-11-24", changes: [
+      "後台最下面新增「LINE 小幫手好友清單」（小朱；只有管理者看得到，預設收合）：LINE 官方帳號後台只有好友人數、看不到名單，這裡列出加過小幫手好友或傳過訊息的人：LINE 名稱、好友／已封鎖、對應的信徒姓名、最後互動時間、加入或封鎖時間（加入／封鎖時間要小幫手 v1.88 起才有）",
+      "可以搜尋 LINE 名稱或信徒姓名，也能切換只看好友、已封鎖、未確認；電腦是表格，手機是卡片。只加好友、從沒傳過訊息的人 LINE 不提供名稱，不會出現在清單"
+    ] },
     { version: "v204", date: "2026-11-22", changes: [
       "全站防連按（小朱）：任何按鈕按下後開始存到雲端或傳 LINE，這顆按鈕就鎖住（變淡 ⏳）直到完成，網路慢時連按不會重複報名或重複傳；和法會報名用同一份程式碼"
     ] },
@@ -4247,6 +4280,7 @@ window.KutingFinMatch = function(opts){
     lineInboxSync();
     loadCloudBotUrl();
     renderStaffAccounts();
+    renderLineFriendsSection();
     try { renderAll(); } catch(e){}
   }
 
@@ -4346,6 +4380,110 @@ window.KutingFinMatch = function(opts){
       if(btn) btn.disabled = false;
     });
   }
+
+  // v205 — LINE 小幫手好友清單（小朱 11-24）：LINE 官方帳號後台看不到好友名單，只有人數。
+  // 這裡讀小幫手記下的 lineUsers（加好友、私訊、群組發言時記 LINE 名稱與好友狀態；v1.88 起多記加入、封鎖、最後互動時間）。
+  // 只限管理者；展開時才讀，不寫任何資料。只加好友、從沒互動過的舊好友不在名單上（LINE 不提供）。
+  var lineFriendsRows = null, lineFriendsLoading = false;
+  function renderLineFriendsSection(){
+    var sec = document.getElementById("lineFriendsSection");
+    if(!sec) return;
+    if(!staffIsAdmin() || !fsDb){
+      sec.style.display = "none"; lineFriendsRows = null;
+      var b0 = document.getElementById("lineFriendsBody"); if(b0) b0.innerHTML = '<p class="pdesc">展開後讀取…</p>';
+      var d0 = document.getElementById("lineFriendsDetails"); if(d0) d0.open = false;
+      return;
+    }
+    sec.style.display = "";
+    var det = document.getElementById("lineFriendsDetails");
+    if(det && det.open) loadLineFriends(true);
+  }
+  function lfTime(v){
+    if(!v) return 0;
+    if(typeof v.toMillis === "function") return v.toMillis();
+    if(typeof v === "number") return v;
+    var t = Date.parse(v); return isNaN(t) ? 0 : t;
+  }
+  function lfFmt(ms){
+    if(!ms) return "—";
+    var d = new Date(ms), p = function(n){ return (n < 10 ? "0" : "") + n; };
+    return (d.getFullYear() - 1911) + "/" + p(d.getMonth() + 1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function loadLineFriends(force){
+    var body = document.getElementById("lineFriendsBody");
+    if(!body || lineFriendsLoading) return;
+    if(lineFriendsRows && !force){ return; }
+    lineFriendsLoading = true;
+    var t0 = Date.now();
+    body.innerHTML = '<p class="pdesc" id="lfWait">讀取中… 0 秒</p>';
+    var tick = setInterval(function(){ var w = document.getElementById("lfWait"); if(w) w.textContent = "讀取中… " + Math.round((Date.now() - t0) / 1000) + " 秒"; }, 1000);
+    fsDb.collection("lineUsers").get().then(function(snap){
+      var rows = [];
+      snap.forEach(function(d){
+        if(!/^U[0-9a-f]{32}$/.test(d.id)) return;   // 跳過 botConfig 等設定文件
+        var g = d.data() || {};
+        rows.push({
+          name: String(g.displayName || ""),
+          friend: g.friend === true ? "on" : (g.friend === false ? "off" : "unk"),
+          names: Array.isArray(g.names) ? g.names.map(String) : [],
+          followedAt: lfTime(g.followedAt),
+          blockedAt: lfTime(g.blockedAt),
+          lastActive: lfTime(g.lastActive) || lfTime(g.lastSeen)
+        });
+      });
+      rows.sort(function(a, b){ return b.lastActive - a.lastActive; });
+      lineFriendsRows = rows;
+      body.innerHTML = "";
+      drawLineFriends();
+    }).catch(function(e){
+      body.innerHTML = '<p class="pdesc" style="color:#a3271f;">讀不到好友清單：' + escHtml(e && (e.code || e.message) || "") + '（請確認已用管理者帳號登入，再收合後展開一次）</p>';
+    }).then(function(){ clearInterval(tick); lineFriendsLoading = false; });
+  }
+  function drawLineFriends(){
+    var body = document.getElementById("lineFriendsBody");
+    var rows = lineFriendsRows || [];
+    var qEl = document.getElementById("lfSearch"), fEl = document.getElementById("lfFilter");
+    if(!qEl){
+      var nOn = rows.filter(function(r){ return r.friend === "on"; }).length;
+      var nOff = rows.filter(function(r){ return r.friend === "off"; }).length;
+      body.innerHTML =
+        '<p class="pdesc">目前好友 <b>' + nOn + '</b> 位・已封鎖 ' + nOff + ' 位・未確認 ' + (rows.length - nOn - nOff) + ' 位（只在群組發言過、還不確定是不是好友）。' +
+        'LINE 後台的好友人數若比這裡多，差的是加了好友、但從沒傳過訊息的人，LINE 不提供他們的名稱。</p>' +
+        '<div class="lf-tools">' +
+          '<input type="search" id="lfSearch" placeholder="找 LINE 名稱或信徒姓名">' +
+          '<select id="lfFilter"><option value="on">只看好友</option><option value="all">全部</option><option value="off">已封鎖</option><option value="unk">未確認</option></select>' +
+          '<button type="button" class="ghost-btn" id="lfReloadBtn">🔄 重新讀取</button>' +
+        '</div><div id="lfList"></div>';
+      document.getElementById("lfSearch").addEventListener("input", drawLineFriends);
+      document.getElementById("lfFilter").addEventListener("change", drawLineFriends);
+      document.getElementById("lfReloadBtn").addEventListener("click", function(){ loadLineFriends(true); });
+      qEl = document.getElementById("lfSearch"); fEl = document.getElementById("lfFilter");
+    }
+    var q = qEl.value.trim(), f = fEl.value;
+    var list = rows.filter(function(r){
+      if(f !== "all" && r.friend !== f) return false;
+      if(q && (r.name + " " + r.names.join(" ")).indexOf(q) < 0) return false;
+      return true;
+    });
+    var ST = { on: '<span class="lf-st on">好友</span>', off: '<span class="lf-st off">已封鎖</span>', unk: '<span class="lf-st unk">未確認</span>' };
+    var box = document.getElementById("lfList");
+    if(!list.length){ box.innerHTML = '<p class="pdesc">沒有符合的人。</p>'; return; }
+    box.innerHTML = '<p class="pdesc" style="margin-bottom:6px;">共 ' + list.length + ' 位，依最後互動由新到舊。</p>' +
+      '<table class="lf-table"><thead><tr><th style="width:22%;">LINE 名稱</th><th style="width:11%;">狀態</th><th>對應信徒姓名</th><th style="width:17%;">最後互動</th><th style="width:19%;">加入／封鎖</th></tr></thead><tbody>' +
+      list.map(function(r){
+        var join = r.friend === "off" ? (r.blockedAt ? "封鎖 " + lfFmt(r.blockedAt) : "—") : (r.followedAt ? "加入 " + lfFmt(r.followedAt) : "—");
+        return '<tr><td data-l="LINE 名稱"><b>' + escHtml(r.name || "（沒有名稱）") + '</b></td>' +
+          '<td data-l="狀態">' + ST[r.friend] + '</td>' +
+          '<td data-l="信徒姓名">' + (r.names.length ? escHtml(r.names.join("、")) : '<span class="pdesc">尚未對應</span>') + '</td>' +
+          '<td data-l="最後互動">' + lfFmt(r.lastActive) + '</td>' +
+          '<td data-l="加入／封鎖">' + join + '</td></tr>';
+      }).join("") + '</tbody></table>' +
+      '<p class="pdesc" style="margin-top:6px;">「對應信徒姓名」是志工用小幫手傳過報名成功／收款確認、或登記過這位 LINE 報名的姓名。加入、封鎖時間從小幫手 v1.88（115/11/24）起才有紀錄，之前的顯示「—」。</p>';
+  }
+  (function(){
+    var det = document.getElementById("lineFriendsDetails");
+    if(det) det.addEventListener("toggle", function(){ if(det.open && staffIsAdmin()) loadLineFriends(); });
+  })();
 
   function renderStaffAccounts(){
     var sec = document.getElementById("staffAccountsSection");
