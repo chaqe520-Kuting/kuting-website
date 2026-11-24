@@ -2488,7 +2488,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v206";
+  var APP_VERSION = "v207";
   var APP_UPDATED = "2026-11-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2499,6 +2499,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v207", date: "2026-11-24", changes: [
+      "「LINE 小幫手好友清單」的信徒姓名（小朱：多數顯示尚未對應）：除了小幫手傳過卡片記下的姓名，也向小幫手補上「信徒關聯表」的姓名（志工手動加的、從現有報名產生的），志工的 LINE 標「志工」",
+      "清單上方說明「尚未對應」是什麼意思、怎樣會自動對應：志工私訊傳過報名成功／收款確認、他用 LINE 傳的報名被登記，或在信徒關聯表產生／手動加姓名"
+    ] },
     { version: "v206", date: "2026-11-24", changes: [
       "加快網站開啟、防止再變慢（小朱：之前就發生過）：公告圖片（海報）改成一張存一份，場次資料只記位置，要顯示那一場時才下載；存場次設定時會自動把舊的內嵌海報搬出去",
       "後台最下面（只有管理者、有需要時才出現）多一個「🚀 整理圖片，加快開啟」：把已結束場次還夾在場次資料裡的海報搬出去（原圖先存好才改，手機也可以按）"
@@ -4516,6 +4520,7 @@ window.KutingFinMatch = function(opts){
         if(!/^U[0-9a-f]{32}$/.test(d.id)) return;   // 跳過 botConfig 等設定文件
         var g = d.data() || {};
         rows.push({
+          id: d.id,
           name: String(g.displayName || ""),
           friend: g.friend === true ? "on" : (g.friend === false ? "off" : "unk"),
           names: Array.isArray(g.names) ? g.names.map(String) : [],
@@ -4528,9 +4533,36 @@ window.KutingFinMatch = function(opts){
       lineFriendsRows = rows;
       body.innerHTML = "";
       drawLineFriends();
+      lfMergePeopleNames(rows);
     }).catch(function(e){
       body.innerHTML = '<p class="pdesc" style="color:#a3271f;">讀不到好友清單：' + escHtml(e && (e.code || e.message) || "") + '（請確認已用管理者帳號登入，再收合後展開一次）</p>';
     }).then(function(){ clearInterval(tick); lineFriendsLoading = false; });
+  }
+  // v207 — 小朱 11-24 看到多數「尚未對應」：lineUsers.names 只記小幫手傳過卡片的姓名；
+  // 信徒關聯表（志工加的姓名、從報名產生的對應）在另一個資料庫，請小幫手（op friends，和法會選收件人同一份）補上，合併顯示。
+  // 小幫手沒回應時照舊只顯示 lineUsers 的姓名。
+  function lfMergePeopleNames(rows){
+    var url = linebotUrl(false);
+    if(!url || !fsAuth || !fsAuth.currentUser) return;
+    var note = document.getElementById("lfPeopleNote");
+    if(note) note.textContent = "（正在向小幫手補上信徒關聯表的姓名…）";
+    fsAuth.currentUser.getIdToken().then(function(idToken){
+      return fetch(url, { method: "POST", body: JSON.stringify({ action: "people", op: "friends", from: "gp", idToken: idToken }) });
+    }).then(function(r){ return r.json(); }).then(function(out){
+      if(!out || !out.ok || !Array.isArray(out.list)) throw new Error((out && out.error) || "小幫手沒有回應");
+      if(lineFriendsRows !== rows) return;
+      var byId = {}; out.list.forEach(function(x){ if(x && x.id) byId[x.id] = x; });
+      var added = 0;
+      rows.forEach(function(r){
+        var x = byId[r.id]; if(!x || !Array.isArray(x.names)) return;
+        x.names.forEach(function(n){ n = String(n || ""); if(n && r.names.indexOf(n) < 0){ r.names.push(n); added++; } });
+        if(x.staff) r.staff = true;
+      });
+      var n2 = document.getElementById("lfPeopleNote"); if(n2) n2.textContent = added ? "（已從信徒關聯表補上 " + added + " 個姓名）" : "";
+      if(document.getElementById("lfList")) drawLineFriends();
+    }).catch(function(e){
+      var n3 = document.getElementById("lfPeopleNote"); if(n3) n3.textContent = "（信徒關聯表的姓名沒有補上：" + (e && e.message || "網路問題") + "）";
+    });
   }
   function drawLineFriends(){
     var body = document.getElementById("lineFriendsBody");
@@ -4542,6 +4574,7 @@ window.KutingFinMatch = function(opts){
       body.innerHTML =
         '<p class="pdesc">目前好友 <b>' + nOn + '</b> 位・已封鎖 ' + nOff + ' 位・未確認 ' + (rows.length - nOn - nOff) + ' 位（只在群組發言過、還不確定是不是好友）。' +
         'LINE 後台的好友人數若比這裡多，差的是加了好友、但從沒傳過訊息的人，LINE 不提供他們的名稱。</p>' +
+        '<p class="pdesc">「尚未對應」＝還不知道這個 LINE 是哪位信徒，不是資料沒傳回。會自動對應的情況：志工用小幫手私訊傳過報名成功／收款確認給他、他用 LINE 傳給小幫手的報名已被志工登記、或在「📨 LINE 彙整通知 → 🔗 信徒關聯表」按「從現有報名產生／更新」或手動加姓名。<span id="lfPeopleNote"></span></p>' +
         '<div class="lf-tools">' +
           '<input type="search" id="lfSearch" placeholder="找 LINE 名稱或信徒姓名">' +
           '<select id="lfFilter"><option value="on">只看好友</option><option value="all">全部</option><option value="off">已封鎖</option><option value="unk">未確認</option></select>' +
@@ -4567,11 +4600,11 @@ window.KutingFinMatch = function(opts){
         var join = r.friend === "off" ? (r.blockedAt ? "封鎖 " + lfFmt(r.blockedAt) : "—") : (r.followedAt ? "加入 " + lfFmt(r.followedAt) : "—");
         return '<tr><td data-l="LINE 名稱"><b>' + escHtml(r.name || "（沒有名稱）") + '</b></td>' +
           '<td data-l="狀態">' + ST[r.friend] + '</td>' +
-          '<td data-l="信徒姓名">' + (r.names.length ? escHtml(r.names.join("、")) : '<span class="pdesc">尚未對應</span>') + '</td>' +
+          '<td data-l="信徒姓名">' + (r.staff ? '<span class="lf-st unk">志工</span> ' : '') + (r.names.length ? escHtml(r.names.join("、")) : '<span class="pdesc">尚未對應</span>') + '</td>' +
           '<td data-l="最後互動">' + lfFmt(r.lastActive) + '</td>' +
           '<td data-l="加入／封鎖">' + join + '</td></tr>';
       }).join("") + '</tbody></table>' +
-      '<p class="pdesc" style="margin-top:6px;">「對應信徒姓名」是志工用小幫手傳過報名成功／收款確認、或登記過這位 LINE 報名的姓名。加入、封鎖時間從小幫手 v1.88（115/11/24）起才有紀錄，之前的顯示「—」。</p>';
+      '<p class="pdesc" style="margin-top:6px;">「對應信徒姓名」是志工用小幫手傳過報名成功／收款確認、登記過這位 LINE 報名，或信徒關聯表裡連到這個 LINE 的姓名。加入、封鎖時間從小幫手 v1.88（115/11/24）起才有紀錄，之前的顯示「—」。</p>';
   }
   (function(){
     var det = document.getElementById("lineFriendsDetails");
