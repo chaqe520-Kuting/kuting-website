@@ -1185,6 +1185,14 @@
       </details>
     </div>
 
+    <!-- v206：小朱 11-24：網站變慢一直重複 → 海報改成獨立存；舊場次還夾在場次資料裡的海報，管理者按一次搬出去 -->
+    <div class="section" id="slimImgSection" style="display:none;">
+      <div class="panel" style="border:2px dashed var(--gold, #C9A54A);background:#FFF8E6;line-height:1.7;">
+        <p class="pdesc" id="slimImgMsg" style="margin:0 0 8px;"></p>
+        <button type="button" class="add-btn" id="slimImgBtn" style="min-height:44px;">🚀 整理圖片，加快開啟</button>
+      </div>
+    </div>
+
     <!-- v180：小朱：帳號管理不常用，比照法會報名放最下面、預設收合 -->
     <div class="section" id="staffAccountsSection" style="display:none;">
       <details id="staffAccountsDetails">
@@ -2480,7 +2488,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v205";
+  var APP_VERSION = "v206";
   var APP_UPDATED = "2026-11-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2491,6 +2499,10 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v206", date: "2026-11-24", changes: [
+      "加快網站開啟、防止再變慢（小朱：之前就發生過）：公告圖片（海報）改成一張存一份，場次資料只記位置，要顯示那一場時才下載；存場次設定時會自動把舊的內嵌海報搬出去",
+      "後台最下面（只有管理者、有需要時才出現）多一個「🚀 整理圖片，加快開啟」：把已結束場次還夾在場次資料裡的海報搬出去（原圖先存好才改，手機也可以按）"
+    ] },
     { version: "v205", date: "2026-11-24", changes: [
       "後台最下面新增「LINE 小幫手好友清單」（小朱；只有管理者看得到，預設收合）：LINE 官方帳號後台只有好友人數、看不到名單，這裡列出加過小幫手好友或傳過訊息的人：LINE 名稱、好友／已封鎖、對應的信徒姓名、最後互動時間、加入或封鎖時間（加入／封鎖時間要小幫手 v1.88 起才有）",
       "可以搜尋 LINE 名稱或信徒姓名，也能切換只看好友、已封鎖、未確認；電腦是表格，手機是卡片。只加好友、從沒傳過訊息的人 LINE 不提供名稱，不會出現在清單"
@@ -4281,6 +4293,7 @@ window.KutingFinMatch = function(opts){
     loadCloudBotUrl();
     renderStaffAccounts();
     renderLineFriendsSection();
+    renderSlimSection();   // v206
     try { renderAll(); } catch(e){}
   }
 
@@ -4398,6 +4411,86 @@ window.KutingFinMatch = function(opts){
     var det = document.getElementById("lineFriendsDetails");
     if(det && det.open) loadLineFriends(true);
   }
+  // v206 — 防止網站變慢（小朱 11-24：之前就發生過、一直重複）：每次開網頁都會讀全部場次的設定文件，
+  // 公告圖片（海報）以前直接塞在場次文件的 banner.posterImages 裡，已結束場次的海報也每次都要下載（10/27 場約 290KB）。
+  // 改成：海報一張存一份 occasions/{場次}/images/{id}，場次文件只記「img:場次/id」，畫面要顯示時才讀那一張。
+  // 存場次設定時一律先搬（任何來源進來的內嵌海報都擋住）；搬失敗（例如新規則還沒發布）就照舊內嵌，不影響存檔。
+  var OCC_IMG_SUB = "images";
+  var occImgCache = {};
+  function isOccImgRef(s){ return typeof s === "string" && s.indexOf("img:") === 0; }
+  function isInlineImg(s){ return typeof s === "string" && s.indexOf("data:") === 0; }
+  function occImgDocRef(ref){ var p = ref.slice(4).split("/"); return fsDb.collection(FS_COLLECTION).doc(p[0]).collection(OCC_IMG_SUB).doc(p[1]); }
+  function storeOccImage(occId, dataUrl){
+    var ref = "img:" + occId + "/" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    return occImgDocRef(ref).set({ data: dataUrl, createdAt: Date.now() }).then(function(){ occImgCache[ref] = dataUrl; return ref; });
+  }
+  function setOccImgSrc(img, src){
+    if(!isOccImgRef(src)){ img.src = src; return; }
+    if(occImgCache[src]){ img.src = occImgCache[src]; return; }
+    img.style.minHeight = "80px"; img.style.background = "#F3EAD7";
+    if(!fsDb) return;
+    occImgDocRef(src).get().then(function(d){
+      if(!d.exists) return;
+      occImgCache[src] = (d.data() || {}).data || "";
+      img.src = occImgCache[src]; img.style.minHeight = ""; img.style.background = "";
+    }).catch(function(e){ console.error("poster load", src, e); });
+  }
+  function externalizeOccPosters(o){
+    var list = (o && o.banner && o.banner.posterImages) || [];
+    if(!fsDb || !list.some(isInlineImg)) return Promise.resolve(0);
+    var n = 0;
+    return Promise.all(list.map(function(s){
+      if(!isInlineImg(s)) return s;
+      // 15 秒內沒存好（例如網路斷了）就照舊內嵌，不卡住場次設定的存檔
+      var timeout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error("timeout")); }, 15000); });
+      return Promise.race([storeOccImage(o.id, s), timeout]).then(function(r){ n++; return r; }, function(e){ console.warn("poster externalize", e); return s; });
+    })).then(function(out){
+      if(o.banner.posterImages === list) o.banner.posterImages = out;   // 這段時間使用者又改了圖片就不動
+      else n = 0;
+      return n;
+    });
+  }
+  function inlinePosterStats(){
+    var occN = 0, imgN = 0, bytes = 0;
+    occasions.forEach(function(o){
+      var l = ((o.banner && o.banner.posterImages) || []).filter(isInlineImg);
+      if(l.length){ occN++; imgN += l.length; l.forEach(function(s){ bytes += s.length; }); }
+    });
+    return { occN: occN, imgN: imgN, bytes: bytes };
+  }
+  function renderSlimSection(){
+    var sec = document.getElementById("slimImgSection");
+    if(!sec) return;
+    var st = (staffIsAdmin() && fsDb) ? inlinePosterStats() : { imgN: 0 };
+    if(!st.imgN){ sec.style.display = "none"; return; }
+    sec.style.display = "";
+    document.getElementById("slimImgMsg").innerHTML = '<b style="color:var(--vermilion, #9b2c1f);">🚀 開網頁比較慢：</b>' + st.occN + ' 個場次的公告圖片（' + st.imgN + ' 張，約 ' + Math.round(st.bytes / 1024) + 'KB）還夾在場次資料裡，每次打開都要下載。按一次就會整理好（圖片畫質不變，原圖先存好才改場次資料，手機也可以按）。';
+  }
+  function slimInlinePosters(){
+    if(!staffIsAdmin() || !fsDb){ showToast("只有管理者可以整理"); return; }
+    var targets = occasions.filter(function(o){ return ((o.banner && o.banner.posterImages) || []).some(isInlineImg); });
+    if(!targets.length){ showToast("圖片都已經整理好了"); renderSlimSection(); return; }
+    var btn = document.getElementById("slimImgBtn"), t0 = Date.now();
+    btn.disabled = true;
+    var tick = setInterval(function(){ btn.textContent = "整理中…（" + Math.round((Date.now() - t0) / 1000) + " 秒）"; }, 500);
+    var moved = 0, failed = 0;
+    targets.reduce(function(pr, o){
+      return pr.then(function(){
+        return externalizeOccPosters(o).then(function(n){
+          if(((o.banner && o.banner.posterImages) || []).some(isInlineImg)){ failed++; return; }
+          moved += n;
+          return fsGetOccRef(o.id).set({ banner: sanitizeBannerForFirestore(o.banner) }, { merge: true });
+        });
+      });
+    }, Promise.resolve()).then(function(){
+      showToast(failed ? ("⚠ 有 " + failed + " 個場次沒整理成功（可能是新的資料庫規則還沒發布），資料沒有改動，請稍後再按一次") : ("✅ 整理完成（" + Math.round((Date.now() - t0) / 1000) + " 秒）：搬出 " + moved + " 張公告圖片"), 6000);
+    }).catch(function(e){
+      console.error("slimInlinePosters", e);
+      showToast("⚠ 整理失敗：" + (e && e.message || "未知錯誤") + "（可以再按一次）", 6000);
+    }).then(function(){ clearInterval(tick); btn.disabled = false; btn.textContent = "🚀 整理圖片，加快開啟"; renderSlimSection(); });
+  }
+  (function(){ var b = document.getElementById("slimImgBtn"); if(b) b.addEventListener("click", slimInlinePosters); })();
+
   function lfTime(v){
     if(!v) return 0;
     if(typeof v.toMillis === "function") return v.toMillis();
@@ -5809,8 +5902,10 @@ window.KutingFinMatch = function(opts){
     metaSyncTimer = setTimeout(function(){
       var occ = occasions.filter(function(o){ return o.id === occId; })[0];
       if(!occ) return;
-      capOversizedBannerImagesInPlace(occ);
-      fsGetOccRef(occId).set(occToFirestoreMetaFields(occ), { merge: true }).then(function(){
+      externalizeOccPosters(occ).then(function(){   // v206 先把內嵌海報搬成獨立一份
+        capOversizedBannerImagesInPlace(occ);
+        return fsGetOccRef(occId).set(occToFirestoreMetaFields(occ), { merge: true });
+      }).then(function(){
         markOccConfirmed(occId);
         reportFsWriteIssue(null);
       }).catch(function(err){
@@ -6469,6 +6564,7 @@ window.KutingFinMatch = function(opts){
             updateFsStatusUI();
             applyIncomingOccMeta(list, meta);
             setCloudLoading("done");
+            try{ renderSlimSection(); }catch(e){}   // v206
           }, function(err){
             setCloudLoading("failed");
             fsReady = false;
@@ -6719,7 +6815,7 @@ window.KutingFinMatch = function(opts){
     if(occ.banner.posterImages && occ.banner.posterImages.length){
       occ.banner.posterImages.forEach(function(src){
         var img = document.createElement("img");
-        img.src = src; img.alt = "聖誕公告圖";
+        setOccImgSrc(img, src); img.alt = "聖誕公告圖";   // v206 獨立存的海報要用時才讀
         gallery.appendChild(img);
       });
       gallerySection.style.display = "block";
@@ -6782,7 +6878,8 @@ window.KutingFinMatch = function(opts){
     (occ.banner.posterImages || []).forEach(function(src, idx){
       var div = document.createElement("div");
       div.className = "poster-thumb";
-      div.innerHTML = '<img src="' + src + '" alt=""><button type="button" data-idx="' + idx + '">×</button>';
+      div.innerHTML = '<img alt=""><button type="button" data-idx="' + idx + '">×</button>';
+      setOccImgSrc(div.querySelector("img"), src);   // v206
       div.querySelector("button").addEventListener("click", function(){
         current().banner.posterImages.splice(idx, 1);
         renderPosterThumbs();
