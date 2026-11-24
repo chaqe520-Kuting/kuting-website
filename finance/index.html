@@ -1034,9 +1034,13 @@ let dataReady = false;   // 歷史資料載入完成前，不畫任何圖表／�
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 /* ---------------- 版本紀錄 ---------------- */
-const APP_VERSION = 'v1.20.9';
-const APP_DATE = '2026-11-19';
+const APP_VERSION = 'v1.20.10';
+const APP_DATE = '2026-11-24';
 const CHANGELOG = [
+  { version:'v1.20.10', date:'2026-11-24', items:[
+    '「📥 LINE 轉來的銀行截圖」：會計群組貼的截圖，小幫手收到就先列出「⏳ 小幫手 AI 讀取中」，讀完自動變成可「帶入」（需小幫手 v1.86）',
+    '小幫手讀取卡住被中斷（例如 11/24 10:41 那張存入 2,000 的截圖，Apps Script 逾時）時，過 7 分鐘會改顯示「⚠ 小幫手 AI 讀取失敗」，可按「重新讀取」用網頁再讀一次或「略過」，不會再整張消失'
+  ]},
   { version:'v1.20.9', date:'2026-11-19', items:[
     '「🔗 已對應」標籤的供品名稱拿掉項次數字（原本顯示「1、壽桃、2、長壽麵線」，現在是「壽桃、長壽麵線」）；現金、銀行收入，對應供品贊助或法會報名，全部固定用這個標籤：項目名稱＋筆數，點開看每筆姓名、項目、金額與合計'
   ]},
@@ -3952,10 +3956,21 @@ function lineNoteItems(note, dir){
   hits.forEach(h=>{ if(!out.some(o=>norm(o).includes(norm(h)))) out.push(h); });
   return out.sort((a,b)=>t.indexOf(norm(a)) - t.indexOf(norm(b)));
 }
+// v1.20.10 小幫手 v1.86 先寫「讀取中」（kind:'reading'）；超過 7 分鐘還沒讀完＝小幫手被逾時中斷，當成讀取失敗
+const BANK_READING_STALE_MS = 7 * 60 * 1000;
+let bankReadingTimer = null;
+function bankReadingState(p){
+  if(!p || p.kind !== 'reading') return '';
+  const t = Date.parse(p.readingAt || p.lineTime || '');
+  return (!isNaN(t) && Date.now() - t > BANK_READING_STALE_MS) ? 'stale' : 'reading';
+}
 function renderBankPending(){
   const bar = document.getElementById('bankPendingBar');
   if(!bar) return;
-  const list = bankPending.filter(p=>!bankPendingLoaded.has(p.id));
+  const list = bankPending.filter(p=>!bankPendingLoaded.has(p.id))
+    .map(p=> bankReadingState(p) === 'stale' ? { ...p, kind:'error' } : p);
+  if(bankReadingTimer){ clearTimeout(bankReadingTimer); bankReadingTimer = null; }
+  if(list.some(p=>p.kind === 'reading')) bankReadingTimer = setTimeout(renderBankPending, 30000);
   if(!list.length){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
   bar.style.display = '';
   bar.innerHTML = `<div class="bp-title">📥 LINE 轉來的銀行截圖：還有 <b>${list.length}</b> 張沒登記</div>` + list.map(p=>{
@@ -3969,10 +3984,11 @@ function renderBankPending(){
       ${!p.image && p.text ? `<div class="bp-text">💬 ${escHtml(p.text)}</div>` : ''}
       <div class="bp-info"><div class="muted" style="font-size:12.5px;">${escHtml(p.from || 'LINE')} ${when} ${p.text && !p.image ? '打字' : '轉傳'}${p.kind==='error' ? '' : `　共 ${rows.length} 筆（收入 ${ins.length} 筆${rows.length-ins.length ? `、支出 ${rows.length-ins.length} 筆` : ''}）`}</div>${p.note ? (()=>{ const its = lineNoteItems(p.note, ((p.rows||[])[0]||{}).dir==='out' ? 'out' : 'in'); return `<div style="font-size:13px;">💬 留言：${escHtml(p.note)}<br>${its.length ? `帶入項目／摘要：<b>${escHtml(its.join('、'))}</b>` : '<span class="muted">沒有對到項目／摘要清單，帶入時不填</span>'}</div>`; })() : ''}${p.kind==='error'
         ? `<span style="color:var(--temple-red);font-weight:600;">⚠ 小幫手 AI 讀取失敗</span><br><span class="muted" style="font-size:12px;">${escHtml(p.error||'')}</span>${p.image ? '<br>請按「重新讀取」用網頁再讀一次' : (p.text ? '<br>請照文字手動登記' : '<br>截圖太大沒存到，請從群組存圖後上傳')}`
+        : p.kind==='reading' ? '<span style="color:var(--temple-red-deep);font-weight:600;">⏳ 小幫手 AI 讀取中…</span><br><span class="muted" style="font-size:12px;">通常 10～30 秒，讀完會自動出現；超過 7 分鐘會改成「重新讀取」</span>'
         : (brief || '<span class="muted">AI 沒讀到交易，請看截圖</span>')}</div>
-      <div class="bp-btns">${p.kind==='error'
+      <div class="bp-btns">${p.kind==='reading' ? '' : p.kind==='error'
         ? (p.image ? `<button class="btn small" data-bp-retry="${escHtml(p.id)}">重新讀取</button>` : '')
-        : `<button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button>`}<button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button></div>
+        : `<button class="btn small" data-bp-load="${escHtml(p.id)}">帶入</button>`}${p.kind==='reading' ? '' : `<button class="btn secondary small" data-bp-skip="${escHtml(p.id)}">略過</button>`}</div>
     </div>`;
   }).join('');
   bar.querySelectorAll('[data-bp-load]').forEach(b=>b.addEventListener('click', ()=>loadBankPending(b.dataset.bpLoad)));
