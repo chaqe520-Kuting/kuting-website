@@ -1183,8 +1183,9 @@ window.KutingFinMatch = function(opts){
   <div id="view"></div>
   <!-- 版本紀錄：每次修改請在最上方新增一筆，並更新 summary 的版本號與日期 -->
   <details id="versionInfo" style="display:none;text-align:center;color:var(--muted);font-size:11px;margin-top:24px;">
-    <summary style="cursor:pointer;list-style:none;">版本 v5.43 ・ 2026-11-23（點此看更新紀錄）</summary>
+    <summary style="cursor:pointer;list-style:none;">版本 v5.44 ・ 2026-11-24（點此看更新紀錄）</summary>
     <div style="text-align:left;max-width:520px;margin:10px auto 0;line-height:1.8;">
+      <b>v5.44（2026-11-24）</b>：統計頁「各場法會報名筆數與金額」可以勾選要比較的場次，也可以加入信徒查詢的往年場次（小朱）。<br>
       <b>v5.43（2026-11-23）</b>：報名頁勾「同去年」不再顯示去年有沒有報、幾筆、多少錢（打別人姓名也看得到），改成送出後由志工核對回覆；要看詳細用 LINE 小幫手專屬連結（小朱）。<br>
       <b>v5.42（2026-11-23）</b>：LINE 小幫手認得是本人後，私訊的專屬報名連結（6 小時有效）打開報名頁，會列出去年每一筆詳細內容，可一鍵帶入報名表再自己修改（小朱；需小幫手 v1.84）。<br>
       <b>v5.41（2026-11-23）</b>：報名頁勾「內容和去年一樣」後多一顆「💬 用 LINE 小幫手看去年詳細內容」，點了開 LINE 小幫手並帶好「姓名 同去年」；網頁仍只顯示份數和金額（小朱）。<br>
@@ -6264,6 +6265,56 @@ function renderStatsUnpaid(sev, sregs){
   });
   return html + `</tbody></table></div>`;
 }
+/* v5.44（小朱 11-24）：「各場法會報名筆數與金額」可以自己勾選要比較哪幾場，
+   也可以加入信徒查詢的往年場次（要先在「同名法會往年比較」載入往年資料）。勾選記在這台電腦。 */
+let statsCmpOpen = false;
+function statsCmpLoad(){ try{ const v = JSON.parse(localStorage.getItem('fh_stats_cmp')||'null'); return Array.isArray(v) ? v : null; }catch(_){ return null; } }
+function statsCmpSave(v){ try{ localStorage.setItem('fh_stats_cmp', JSON.stringify(v)); }catch(_){} }
+function statsCmpItems(rows){
+  const items = rows.map(r=>({key:'ev:'+r.ev.id, label:r.ev.name, count:r.count, total:r.total, src:'online'}));
+  if(lookupHist){
+    const g = {};
+    lookupHist.forEach(r=>{ const k = 'h:'+r.year+'|'+r.rawName; const o = g[k] = g[k] || {key:k, year:r.year, raw:r.rawName, count:0, total:0, src:'hist'}; o.count++; o.total += r.amt; });
+    Object.values(g).sort((a,b)=>b.year-a.year || a.raw.localeCompare(b.raw,'zh-Hant')).forEach(o=>{
+      o.label = (/\d{2,3}\s*年/.test(o.raw) ? '' : o.year + '年 ') + o.raw;
+      items.push(o);
+    });
+  }
+  return items;
+}
+function renderStatsCompare(rows){
+  const items = statsCmpItems(rows);
+  const saved = statsCmpLoad();
+  const have = new Set(items.map(i=>i.key));
+  const sel = new Set(saved ? saved.filter(k=>have.has(k)) : items.filter(i=>i.src==='online').map(i=>i.key));
+  const shown = items.filter(i=>sel.has(i.key));
+  const box = (i)=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:14px;cursor:pointer;"><input type="checkbox" data-stcmp="${escHtml(i.key)}" ${sel.has(i.key)?'checked':''} style="width:20px;height:20px;flex:0 0 auto;"><span style="flex:1;min-width:0;">${escHtml(i.label)}</span><span style="color:var(--muted);font-size:12.5px;white-space:nowrap;">${money(i.count)} 筆</span></label>`;
+  const on = items.filter(i=>i.src==='online'), hi = items.filter(i=>i.src==='hist');
+  let html = `<div class="card"><h2>各場法會報名筆數與金額</h2><p class="st-sub">長條長度＝報名金額，右邊為筆數與金額。紅色＝本平台線上報名，金色＝信徒查詢往年資料</p>
+    <details id="stCmpBox" ${statsCmpOpen?'open':''} style="background:var(--paper);border:1px dashed var(--gold-light);border-radius:10px;padding:8px 12px;margin-bottom:12px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--vermilion);font-size:14.5px;">⚙️ 選擇要比較的場次（已選 ${shown.length} 場，點這裡更換）</summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px;"><button type="button" class="btn btn-ghost btn-sm" data-stcmpall="online">只選本平台全部</button><button type="button" class="btn btn-ghost btn-sm" data-stcmpall="none">全部取消</button></div>
+      <div style="font-size:13px;font-weight:700;margin-top:6px;">本平台場次</div>${on.map(box).join('')}
+      <div style="font-size:13px;font-weight:700;margin-top:8px;">信徒查詢往年場次</div>
+      ${hi.length ? `<div style="max-height:320px;overflow-y:auto;">${hi.map(box).join('')}</div>` : `<div class="hint" style="padding:4px 0;">要加入往年場次，請先在下面「同名法會往年比較」輸入信徒查詢密碼、按「載入往年資料」（只在這次開啟的頁面有效）。</div>`}
+    </details>`;
+  if(!shown.length) return html + `<div class="empty">還沒有勾選場次，請點上面「⚙️ 選擇要比較的場次」。</div></div>`;
+  const maxT = Math.max(1, ...shown.map(i=>i.total));
+  shown.forEach(i=>{ html += statBarRow(i.label, i.total/maxT*100, i.src==='online' ? 'var(--vermilion)' : 'var(--gold)', `<b>${money(i.total)} 元</b><br><span style="color:var(--muted);font-size:11.5px;">${money(i.count)} 筆</span>`); });
+  return html + `</div>`;
+}
+function bindStatsCompare(){
+  const box = document.getElementById('stCmpBox');
+  if(!box) return;
+  box.addEventListener('toggle', ()=>{ statsCmpOpen = box.open; });
+  const cur = ()=>Array.from(box.querySelectorAll('[data-stcmp]')).filter(x=>x.checked).map(x=>x.dataset.stcmp);
+  box.querySelectorAll('[data-stcmp]').forEach(cb=>{ cb.onchange = ()=>{ statsCmpSave(cur()); render(); }; });
+  box.querySelectorAll('[data-stcmpall]').forEach(b=>{ b.onclick = ()=>{
+    const all = Array.from(box.querySelectorAll('[data-stcmp]'));
+    statsCmpSave(b.dataset.stcmpall==='online' ? all.map(x=>x.dataset.stcmp).filter(k=>k.startsWith('ev:')) : []);
+    render();
+  }; });
+}
 async function renderStatsAsync(){
   if(!events.length) return `<div class="card"><div class="empty">尚無法會場次。</div></div>`;
   await Promise.all(events.filter(e=>!regsCache[e.id]).map(e=>loadRegs(e.id)));
@@ -6284,10 +6335,7 @@ async function renderStatsAsync(){
       <div class="st-kpi"><div class="k">已收款</div><div class="v" style="color:#2E7D32;"><small>NT$</small>${money(tPaid)}</div><div class="n">${money(tPaidCount)} 筆</div></div>
       <div class="st-kpi"><div class="k">收款率</div><div class="v" style="color:var(--gold);">${rate.toFixed(1)}%</div><div class="n">未收 NT$ ${money(tTotal-tPaid)}</div></div>
     </div></div>`;
-  const maxCount = Math.max(1, ...rows.map(r=>r.count));
-  html += `<div class="card"><h2>各場法會報名筆數與金額</h2><p class="st-sub">長條長度＝報名筆數，右邊為筆數與金額</p>`;
-  rows.forEach(r=>{ html += statBarRow(r.ev.name, r.count/maxCount*100, 'var(--vermilion)', `<b>${money(r.count)} 筆</b><br><span style="color:var(--gold);">${money(r.total)} 元</span>`); });
-  html += `</div>`;
+  html += renderStatsCompare(rows);   // v5.44 可勾選要比較的場次（含信徒查詢往年場次）
   html += `<div class="card"><h2>各場收款進度</h2><p class="st-sub">綠色＝已收款金額佔報名金額的比例</p>`;
   rows.forEach(r=>{
     const p = r.total ? r.paid/r.total*100 : 0;
@@ -7859,6 +7907,7 @@ function bindEvents(){
       lkBtn.disabled = false; lkBtn.textContent = '載入往年資料';
     }
   };
+  bindStatsCompare();   // v5.44
   const stSel = document.getElementById('statsEventSel');
   if(stSel) stSel.onchange = ()=>{ statsEventId = stSel.value; render(); };
   document.querySelectorAll('[data-admpick]').forEach(el=>{
