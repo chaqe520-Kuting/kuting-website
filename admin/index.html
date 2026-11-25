@@ -41,7 +41,7 @@
     display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;
   }
   .platform-card {
-    display: block; text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; text-decoration: none; color: inherit;
     background: white; border: 1px solid var(--border); border-radius: 4px;
     padding: 24px 22px; transition: border-color .15s, transform .15s;
   }
@@ -69,8 +69,7 @@
     font-size: 11px; color: #7a5a12; background: #f8f0dc; border: 1px solid #ead9ae;
     padding: 1px 7px; border-radius: 3px;
   }
-  .platform-card .use { margin: 0 0 4px; font-size: 13px; color: var(--ink); line-height: 1.6; }
-  .platform-card .updated { margin-top: 10px; font-size: 11px; color: var(--muted); }
+  .platform-card .updated { margin-top: auto; padding-top: 10px; font-size: 11px; color: var(--muted); }
   footer.bottom details { margin-top: 8px; }
   footer.bottom summary { cursor: pointer; }
   footer.bottom ul { text-align: left; display: inline-block; margin: 8px 0 0; padding-left: 18px; line-height: 1.8; }
@@ -100,7 +99,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 19h16M6 19V9l6-5 6 5v10M9 19v-6h6v6" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg></div>
       <h3>法會報名</h3>
       <div class="meta"><span class="ver">v5.46</span><span class="who">工作人員後台</span></div>
-      <p class="use">信眾線上報名法會；後台查看、核對、匯出報名資料與收款（可對照財務收入）；法會照片配對與 LINE 傳送；LINE 報名成功／收款確認通知（同戶合併）；116 梁皇寶懺範本（超薦蓮位含地基主、主蓮位分姓氏祖先／已逝先人兩格／消災牌位，公告價格）；誤刪場次或報名可從自動備份救回單一場次；每場有自己的報名網址與 QR；報名頁「內容和去年一樣」（只顯示份數與金額，不顯示個資）；同類型多筆合成一筆；LINE 帶入地基主姓名／地址放對欄位；報名完成直接跳出報名成功通知，手機清單看得到通知按鈕；LINE 貼上認得梁皇 6 種報名範例格式；每一位可「🧹 清空重填」；比照上次報名留查詢紀錄（管理者可看）；梁皇報名頁分紅色牌位／黃色蓮位，選位別只出現該填的欄位；字放大時匯入去年 Excel 視窗也拉得到底；梁皇唱名名單 A3（主蓮位、小蓮位、地基主、消災主牌位、小牌位 5 種直書）；姓氏祖先範例寫「王氏祖先」；LINE 連結預覽顯示報名介紹（不再顯示版本說明）；報名網址改 kuting.tw/signup?e=代碼，信徒只能用各場報名網址報名；進後台預設選開放中的場次；手機填寫時點哪格游標就到哪格（不會被拉回空白格）；報名頁統計可勾選要比較的場次（含信徒查詢往年場次）；同去年網頁不顯示筆數金額（保護個資），可一鍵用 LINE 小幫手看詳細內容，小幫手認得本人會給專屬連結，網頁上看去年詳細並帶入修改；從這裡點進去未登入時有「登入後台管理」按鈕；後台「平台設定」可一鍵整理圖片（手機也能按），之後存場次時海報自動獨立存，防止網站變慢。</p>
       <p class="updated">最近更新：115.11.24</p>
     </a>
 
@@ -108,7 +106,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.3-4.9-2.6-4.9 2.6.9-5.3-4-3.9 5.5-.8z" stroke="#9b2c1f" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></div>
       <h3>供品贊助</h3>
       <div class="meta"><span class="ver">v209</span><span class="who">工作人員後台</span></div>
-      <p class="use">信眾登記贊助供品；後台查看登記、LINE 貼上快速登記、報名成功圖與收款通知（同戶合併）、列印紅紙與匯出資料；每場有自己的報名網址與 QR；管理者可看「LINE 小幫手好友清單」（LINE 名稱、對應信徒、最後互動、加入／封鎖時間）；公告圖片獨立存、要顯示才讀，後台可一鍵整理舊海報加快開啟。</p>
       <p class="updated">最近更新：115.11.25</p>
     </a>
 
@@ -116,7 +113,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M4 10h16M9 14h6" stroke="#9b2c1f" stroke-width="1.6"/></svg></div>
       <h3>財務記帳</h3>
       <div class="meta"><span class="ver">v1.20.10</span><span class="who">限財務人員</span></div>
-      <p class="use">收支記帳與財務儀表板；LINE 轉來的銀行截圖快速登記、對照法會／供品未收款（現金、銀行的已對應標籤都顯示品項名稱與金額；小幫手讀取中斷的截圖也會列出可重新讀取），每筆修改都留有操作紀錄。</p>
       <p class="updated">最近更新：115.11.24</p>
     </a>
 
@@ -124,7 +120,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M21 21l-4.35-4.35" stroke="#9b2c1f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
       <h3>信徒查詢</h3>
       <div class="meta"><span class="ver">v2.10</span><span class="who">限名冊內人員</span></div>
-      <p class="use">依姓名查詢信徒歷年法會報名與供品贊助紀錄，可匯出 Excel。</p>
       <p class="updated">最近更新：115.11.05</p>
     </a>
 
@@ -132,7 +127,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M3 8l9 5 9-5M12 13v8" stroke="#9b2c1f" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></div>
       <h3>庫房管理</h3>
       <div class="meta"><span class="ver">v1.7</span><span class="who">需管理者啟用</span></div>
-      <p class="use">物資進出登記、庫存查詢與盤點，可匯出 Excel。</p>
       <p class="updated">最近更新：115.11.04</p>
     </a>
 
@@ -140,7 +134,6 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 3v-3H4z" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M8 10h8M8 13h5" stroke="#9b2c1f" stroke-width="1.6" stroke-linecap="round"/></svg></div>
       <h3>LINE 報名小幫手</h3>
       <div class="meta"><span class="ver">v1.88</span><span class="who">所有人</span></div>
-      <p class="use">信眾用 LINE 打字、語音、照片報名法會與供品、查詢我的報名（只列開放中場次）；「同去年」只給本人和志工看內容（不再用 LINE 名稱認本人，本人可查同一戶家人，法會同去年最多列 20 筆，並私訊專屬報名連結可在網頁看去年詳細並帶入修改；同去年合計照姓名補算沒寫份數的位別，和網頁一致）；只有一場法會時「報名表」按鈕直接開那一場；會計群組銀行截圖轉財務（先列「讀取中」，讀取卡住也不會漏掉）；記下好友加入、封鎖與最後互動時間，供品後台可看好友清單。背景另有自動備份 v1.12（每週備份各平台）。</p>
       <p class="updated">最近更新：115.11.24</p>
     </a>
 
@@ -148,14 +141,12 @@
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 19h16M6 19V9l6-5 6 5v10" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg></div>
       <h3>寺院介紹網站</h3>
       <div class="meta"><span class="who">所有人</span></div>
-      <p class="use">古亭院簡介、行事曆、法會相簿與影片。</p>
     </a>
 
     <a class="platform-card" href="../volunteer/" target="_blank" rel="noopener">
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></div>
       <h3>志工名冊 / 權限管理</h3>
       <div class="meta"><span class="ver">v2.1</span><span class="who">限管理者</span></div>
-      <p class="use">查看每位志工可進入的平台，直接開通或停用各平台帳號。</p>
       <p class="updated">最近更新：115.10.08</p>
     </a>
 
@@ -164,8 +155,9 @@
   <footer class="bottom">
     古亭院・昇龍觀世音菩薩 ｜ 本頁僅作為各平台入口連結
     <details>
-      <summary>入口頁 v3.82 ・ 2026-11-25（點此看更新紀錄）</summary>
+      <summary>入口頁 v3.83 ・ 2026-11-25（點此看更新紀錄）</summary>
       <ul>
+        <li><b>v3.83（2026-11-25）</b>：各平台卡片拿掉功能說明文字，只留名稱、版本、使用對象與最近更新日期，卡片高度一致、版面整齊。</li>
         <li><b>v3.82（2026-11-25）</b>：供品贊助 v209（LINE 小幫手好友清單：沒加好友的不再標成已封鎖，改標「未加好友」）。</li>
         <li><b>v3.81（2026-11-25）</b>：供品贊助 v208（LINE 小幫手好友清單姓名多時欄內換行、超過 5 位收合成「等 N 位」）。</li>
         <li><b>v3.80（2026-11-24）</b>：供品贊助 v207（LINE 小幫手好友清單也帶出信徒關聯表的姓名，並說明「尚未對應」怎樣會自動對應）。</li>
