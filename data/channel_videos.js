@@ -3,7 +3,7 @@ window.CHANNEL_VIDEOS = [
  {
   "id": "ej3itc6UyqM",
   "title": "古亭院建設紀實 第二部 正殿建設",
-  "date": "2026-11-18"
+  "date": "2026-11-17"
  },
  {
   "id": "tdSXIGRc2nY",
