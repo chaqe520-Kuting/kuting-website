@@ -269,8 +269,9 @@
   .lf-tools input[type=search]{flex:1 1 200px; width:auto; min-width:160px; min-height:44px; font-size:16px;}
   .lf-tools select{flex:0 0 auto; width:auto; min-height:44px; font-size:16px;}
   .lf-table{width:100%; min-width:0; border-collapse:collapse; table-layout:fixed; font-size:.92rem;}
-  .lf-table th,.lf-table td{padding:7px 6px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; word-break:break-word;}
+  .lf-table th,.lf-table td{padding:7px 6px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; white-space:normal; word-break:break-word; overflow-wrap:anywhere;}
   .lf-table th{background:var(--paper-sunken); color:var(--cinnabar-ink); font-weight:700;}
+  .lf-more summary{cursor:pointer; color:var(--cinnabar-ink); list-style:none; min-height:28px;}
   .lf-st{display:inline-block; padding:1px 8px; border-radius:10px; font-size:.82rem; white-space:nowrap;}
   .lf-st.on{background:var(--success-bg); color:var(--success);}
   .lf-st.off{background:var(--full-bg); color:var(--full-text);}
@@ -2488,7 +2489,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v207";
+  var APP_VERSION = "v208";
   var APP_UPDATED = "2026-11-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2499,6 +2500,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v208", date: "2026-11-25", changes: [
+      "「LINE 小幫手好友清單」信徒姓名很多時會蓋到「最後互動」欄（小朱）：改成欄內換行，超過 5 位只列前 5 位＋「等 N 位 ▸」，點開看全部；很長的 LINE 名稱也會換行"
+    ] },
     { version: "v207", date: "2026-11-24", changes: [
       "「LINE 小幫手好友清單」的信徒姓名（小朱：多數顯示尚未對應）：除了小幫手傳過卡片記下的姓名，也向小幫手補上「信徒關聯表」的姓名（志工手動加的、從現有報名產生的），志工的 LINE 標「志工」",
       "清單上方說明「尚未對應」是什麼意思、怎樣會自動對應：志工私訊傳過報名成功／收款確認、他用 LINE 傳的報名被登記，或在信徒關聯表產生／手動加姓名"
@@ -4564,6 +4568,12 @@ window.KutingFinMatch = function(opts){
       var n3 = document.getElementById("lfPeopleNote"); if(n3) n3.textContent = "（信徒關聯表的姓名沒有補上：" + (e && e.message || "網路問題") + "）";
     });
   }
+  // v208 — 小朱 11-25：姓名很多時蓋到旁邊欄位 → 欄內換行，超過 5 位只列前 5 位＋「等 N 位」點開看全部
+  function lfNamesHtml(names){
+    if(!names.length) return '<span class="pdesc">尚未對應</span>';
+    if(names.length <= 5) return escHtml(names.join("、"));
+    return '<details class="lf-more"><summary>' + escHtml(names.slice(0, 5).join("、")) + ' 等 ' + names.length + ' 位 ▸</summary>' + escHtml(names.slice(5).join("、")) + '</details>';
+  }
   function drawLineFriends(){
     var body = document.getElementById("lineFriendsBody");
     var rows = lineFriendsRows || [];
@@ -4600,7 +4610,7 @@ window.KutingFinMatch = function(opts){
         var join = r.friend === "off" ? (r.blockedAt ? "封鎖 " + lfFmt(r.blockedAt) : "—") : (r.followedAt ? "加入 " + lfFmt(r.followedAt) : "—");
         return '<tr><td data-l="LINE 名稱"><b>' + escHtml(r.name || "（沒有名稱）") + '</b></td>' +
           '<td data-l="狀態">' + ST[r.friend] + '</td>' +
-          '<td data-l="信徒姓名">' + (r.staff ? '<span class="lf-st unk">志工</span> ' : '') + (r.names.length ? escHtml(r.names.join("、")) : '<span class="pdesc">尚未對應</span>') + '</td>' +
+          '<td data-l="信徒姓名">' + (r.staff ? '<span class="lf-st unk">志工</span> ' : '') + lfNamesHtml(r.names) + '</td>' +
           '<td data-l="最後互動">' + lfFmt(r.lastActive) + '</td>' +
           '<td data-l="加入／封鎖">' + join + '</td></tr>';
       }).join("") + '</tbody></table>' +
