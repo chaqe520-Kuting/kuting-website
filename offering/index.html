@@ -2489,7 +2489,7 @@ window.KutingFinMatch = function(opts){
 
   // Bump these whenever this page is republished with a change, same convention
   // as the 法會報名平台: shows信眾／志工 at a glance whether they're on the latest copy.
-  var APP_VERSION = "v208";
+  var APP_VERSION = "v209";
   var APP_UPDATED = "2026-11-24";
 
   // 版本紀錄（見頁尾「版本紀錄」按鈕）——仿照財務儀表板的呈現方式，每個版本
@@ -2500,6 +2500,9 @@ window.KutingFinMatch = function(opts){
   // 更新。較早期（v68 之前）的版本沒有留下實際發布日期的紀錄，所以那些項目
   // 的日期欄位留空，只呈現版本號與改動內容。
   var CHANGELOG = [
+    { version: "v209", date: "2026-11-25", changes: [
+      "「LINE 小幫手好友清單」狀態修正（小朱：古亭院昇龍觀世音菩薩應是沒加好友，不是封鎖）：LINE 分不出「沒加好友」和「封鎖」，改成只有小幫手真的收到封鎖通知的才標「已封鎖」，其他標「未加好友」；篩選多一個「未加好友」"
+    ] },
     { version: "v208", date: "2026-11-25", changes: [
       "「LINE 小幫手好友清單」信徒姓名很多時會蓋到「最後互動」欄（小朱）：改成欄內換行，超過 5 位只列前 5 位＋「等 N 位 ▸」，點開看全部；很長的 LINE 名稱也會換行"
     ] },
@@ -4526,7 +4529,8 @@ window.KutingFinMatch = function(opts){
         rows.push({
           id: d.id,
           name: String(g.displayName || ""),
-          friend: g.friend === true ? "on" : (g.friend === false ? "off" : "unk"),
+          // v209 小朱 11-25：LINE 查不到「沒加好友」和「封鎖」的差別；只有小幫手收到封鎖事件（blockedAt）才算已封鎖，其他 friend:false 都是「未加好友」
+          friend: g.friend === true ? "on" : (g.friend === false ? (g.blockedAt ? "off" : "nf") : "unk"),
           names: Array.isArray(g.names) ? g.names.map(String) : [],
           followedAt: lfTime(g.followedAt),
           blockedAt: lfTime(g.blockedAt),
@@ -4581,13 +4585,14 @@ window.KutingFinMatch = function(opts){
     if(!qEl){
       var nOn = rows.filter(function(r){ return r.friend === "on"; }).length;
       var nOff = rows.filter(function(r){ return r.friend === "off"; }).length;
+      var nNf = rows.filter(function(r){ return r.friend === "nf"; }).length;
       body.innerHTML =
-        '<p class="pdesc">目前好友 <b>' + nOn + '</b> 位・已封鎖 ' + nOff + ' 位・未確認 ' + (rows.length - nOn - nOff) + ' 位（只在群組發言過、還不確定是不是好友）。' +
+        '<p class="pdesc">目前好友 <b>' + nOn + '</b> 位・未加好友 ' + nNf + ' 位（在群組發言過、但沒加小幫手好友）・已封鎖 ' + nOff + ' 位・未確認 ' + (rows.length - nOn - nOff - nNf) + ' 位。' +
         'LINE 後台的好友人數若比這裡多，差的是加了好友、但從沒傳過訊息的人，LINE 不提供他們的名稱。</p>' +
         '<p class="pdesc">「尚未對應」＝還不知道這個 LINE 是哪位信徒，不是資料沒傳回。會自動對應的情況：志工用小幫手私訊傳過報名成功／收款確認給他、他用 LINE 傳給小幫手的報名已被志工登記、或在「📨 LINE 彙整通知 → 🔗 信徒關聯表」按「從現有報名產生／更新」或手動加姓名。<span id="lfPeopleNote"></span></p>' +
         '<div class="lf-tools">' +
           '<input type="search" id="lfSearch" placeholder="找 LINE 名稱或信徒姓名">' +
-          '<select id="lfFilter"><option value="on">只看好友</option><option value="all">全部</option><option value="off">已封鎖</option><option value="unk">未確認</option></select>' +
+          '<select id="lfFilter"><option value="on">只看好友</option><option value="all">全部</option><option value="nf">未加好友</option><option value="off">已封鎖</option><option value="unk">未確認</option></select>' +
           '<button type="button" class="ghost-btn" id="lfReloadBtn">🔄 重新讀取</button>' +
         '</div><div id="lfList"></div>';
       document.getElementById("lfSearch").addEventListener("input", drawLineFriends);
@@ -4601,7 +4606,7 @@ window.KutingFinMatch = function(opts){
       if(q && (r.name + " " + r.names.join(" ")).indexOf(q) < 0) return false;
       return true;
     });
-    var ST = { on: '<span class="lf-st on">好友</span>', off: '<span class="lf-st off">已封鎖</span>', unk: '<span class="lf-st unk">未確認</span>' };
+    var ST = { on: '<span class="lf-st on">好友</span>', off: '<span class="lf-st off">已封鎖</span>', nf: '<span class="lf-st unk">未加好友</span>', unk: '<span class="lf-st unk">未確認</span>' };
     var box = document.getElementById("lfList");
     if(!list.length){ box.innerHTML = '<p class="pdesc">沒有符合的人。</p>'; return; }
     box.innerHTML = '<p class="pdesc" style="margin-bottom:6px;">共 ' + list.length + ' 位，依最後互動由新到舊。</p>' +
@@ -4614,7 +4619,7 @@ window.KutingFinMatch = function(opts){
           '<td data-l="最後互動">' + lfFmt(r.lastActive) + '</td>' +
           '<td data-l="加入／封鎖">' + join + '</td></tr>';
       }).join("") + '</tbody></table>' +
-      '<p class="pdesc" style="margin-top:6px;">「對應信徒姓名」是志工用小幫手傳過報名成功／收款確認、登記過這位 LINE 報名，或信徒關聯表裡連到這個 LINE 的姓名。加入、封鎖時間從小幫手 v1.88（115/11/24）起才有紀錄，之前的顯示「—」。</p>';
+      '<p class="pdesc" style="margin-top:6px;">「對應信徒姓名」是志工用小幫手傳過報名成功／收款確認、登記過這位 LINE 報名，或信徒關聯表裡連到這個 LINE 的姓名。加入、封鎖時間從小幫手 v1.88（115/11/24）起才有紀錄，之前的顯示「—」。LINE 不分辨「沒加好友」和「封鎖」，所以只有 115/11/24 以後小幫手收到封鎖通知的才標「已封鎖」，其他都標「未加好友」。</p>';
   }
   (function(){
     var det = document.getElementById("lineFriendsDetails");
