@@ -9,8 +9,11 @@
 <style>
   :root {
     --accent: #9b2c1f;
+    --accent-deep: #7a1f15;
     --gold: #b8860b;
+    --gold-soft: #d9bf7f;
     --bg: #faf6ef;
+    --paper: #fffdf8;
     --ink: #2b211a;
     --muted: #6b5d50;
     --border: #e4d9c8;
@@ -19,67 +22,128 @@
   body {
     margin: 0;
     font-family: 'Noto Sans TC', system-ui, sans-serif;
-    background: var(--bg);
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(184,134,11,.10), transparent 60%),
+      var(--bg);
     color: var(--ink);
     min-height: 100vh;
+    border-top: 5px solid var(--accent);
   }
   .serif { font-family: 'Noto Serif TC', serif; }
 
-  /* ---- Main content ---- */
-  #main { display: block; max-width: 920px; margin: 0 auto; padding: 56px 24px 72px; }
-  header.top {
-    text-align: center; padding-bottom: 40px;
+  #main { display: block; max-width: 980px; margin: 0 auto; padding: 48px 24px 64px; }
+
+  /* ---- Header ---- */
+  header.top { text-align: center; padding-bottom: 36px; }
+  header.top .ring { display: inline-block; padding: 0 8px; }
+  header.top .seal {
+    width: 58px; height: 58px; margin: 0 auto 14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--paper); border: 1.5px solid var(--gold-soft);
+    box-shadow: 0 0 0 5px var(--bg), 0 0 0 6px rgba(184,134,11,.25);
   }
-  header.top .ring {
-    display: inline-block; border-top: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold);
-    padding: 20px 44px;
+  header.top h1 { margin: 0; font-size: 38px; font-weight: 900; letter-spacing: 12px; padding-left: 12px; color: var(--accent); }
+  header.top p {
+    margin: 12px 0 0; font-size: 14px; letter-spacing: 4px; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; gap: 14px;
   }
-  header.top h1 { margin: 0; font-size: 34px; letter-spacing: 8px; color: var(--accent); }
-  header.top p { margin: 8px 0 0; font-size: 13px; letter-spacing: 3px; color: var(--muted); }
+  header.top p::before, header.top p::after {
+    content: ""; width: 48px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+  }
+  header.top p::after { background: linear-gradient(90deg, var(--gold), transparent); }
+
+  /* ---- Groups ---- */
+  .group { margin-top: 30px; }
+  .group-title {
+    display: flex; align-items: center; gap: 14px;
+    margin: 0 0 14px; font-size: 16px; font-weight: 700; letter-spacing: 4px; color: var(--accent-deep);
+  }
+  .group-title::before {
+    content: ""; width: 8px; height: 8px; transform: rotate(45deg);
+    background: var(--gold); flex: none;
+  }
+  .group-title::after {
+    content: ""; flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--gold-soft), transparent);
+  }
 
   .grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
   }
+
+  /* ---- Cards ---- */
   .platform-card {
-    display: flex; flex-direction: column; text-decoration: none; color: inherit;
-    background: white; border: 1px solid var(--border); border-radius: 4px;
-    padding: 24px 22px; transition: border-color .15s, transform .15s;
+    position: relative;
+    display: flex; align-items: center; gap: 16px;
+    min-height: 96px;
+    text-decoration: none; color: inherit;
+    background: var(--paper); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px 40px 16px 18px;
+    box-shadow: 0 1px 2px rgba(80,50,20,.04);
+    transition: border-color .15s, box-shadow .15s, transform .15s;
   }
-  .platform-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .platform-card::before {
+    content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px;
+    background: var(--accent); border-radius: 0 2px 2px 0; opacity: 0; transition: opacity .15s;
+  }
+  .platform-card:hover, .platform-card:focus-visible {
+    border-color: var(--gold-soft); transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(120,70,20,.10); outline: none;
+  }
+  .platform-card:hover::before, .platform-card:focus-visible::before { opacity: 1; }
   .platform-card .icon {
-    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-    margin-bottom: 14px;
+    flex: none; width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: #fbefe9; border: 1px solid #f0d9cf;
   }
-  .platform-card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
-  .platform-card p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
-  .platform-card .url-note {
-    margin-top: 12px; font-size: 10.5px; color: #b45309; background: #fef3c7;
-    padding: 4px 8px; border-radius: 3px; display: inline-block;
+  .platform-card .body { min-width: 0; flex: 1; }
+  .platform-card h3 {
+    margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: 1px;
+    font-family: 'Noto Serif TC', serif; color: var(--ink);
   }
-
-
-  .platform-card .meta {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px;
-  }
+  .platform-card .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
   .platform-card .ver {
-    font-size: 11px; font-weight: 700; color: var(--accent); background: #fbefe9;
-    border: 1px solid #ecd2c6; padding: 1px 7px; border-radius: 3px; letter-spacing: .5px;
+    font-size: 12px; font-weight: 700; color: var(--accent); background: #fbefe9;
+    border: 1px solid #ecd2c6; padding: 1px 8px; border-radius: 3px; letter-spacing: .5px;
   }
   .platform-card .who {
-    font-size: 11px; color: #7a5a12; background: #f8f0dc; border: 1px solid #ead9ae;
-    padding: 1px 7px; border-radius: 3px;
+    font-size: 12px; color: #7a5a12; background: #f8f0dc; border: 1px solid #ead9ae;
+    padding: 1px 8px; border-radius: 3px;
   }
-  .platform-card .updated { margin-top: auto; padding-top: 10px; font-size: 11px; color: var(--muted); }
-  footer.bottom details { margin-top: 8px; }
-  footer.bottom summary { cursor: pointer; }
-  footer.bottom ul { text-align: left; display: inline-block; margin: 8px 0 0; padding-left: 18px; line-height: 1.8; }
-
-  .platform-card.disabled {
-    opacity: .5; pointer-events: none; background: #f3eee4;
+  .platform-card .updated { margin: 7px 0 0; font-size: 12px; color: var(--muted); }
+  .platform-card .updated span { margin-right: 6px; color: #a08f7c; }
+  .platform-card .go {
+    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    font-size: 24px; line-height: 1; color: var(--gold-soft); transition: color .15s, right .15s;
   }
+  .platform-card:hover .go { color: var(--accent); right: 12px; }
+  .platform-card.disabled { opacity: .5; pointer-events: none; background: #f3eee4; }
 
+  /* ---- Footer ---- */
   footer.bottom {
-    margin-top: 48px; text-align: center; font-size: 11.5px; color: var(--muted);
+    margin-top: 52px; padding-top: 22px; border-top: 1px solid var(--border);
+    text-align: center; font-size: 12px; color: var(--muted); line-height: 1.8;
+  }
+  footer.bottom .foot-mark { font-size: 14px; letter-spacing: 3px; color: var(--accent-deep); }
+  footer.bottom details { margin-top: 10px; }
+  footer.bottom summary { cursor: pointer; display: inline-block; padding: 8px 4px; min-height: 44px; }
+  footer.bottom ul {
+    text-align: left; display: block; max-width: 760px; margin: 8px auto 0; padding: 14px 18px 14px 34px;
+    line-height: 1.8; background: var(--paper); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 420px; overflow-y: auto;
+  }
+
+  @media (max-width: 600px) {
+    #main { padding: 32px 16px 48px; }
+    header.top { padding-bottom: 20px; }
+    header.top h1 { font-size: 32px; letter-spacing: 10px; padding-left: 10px; }
+    header.top p { font-size: 13px; letter-spacing: 2px; gap: 10px; }
+    header.top p::before, header.top p::after { width: 28px; }
+    .group { margin-top: 24px; }
+    .grid { grid-template-columns: 1fr; gap: 10px; }
+    .platform-card { min-height: 84px; padding: 14px 36px 14px 14px; gap: 14px; }
+    .platform-card .icon { width: 46px; height: 46px; }
   }
 </style>
 </head>
@@ -88,75 +152,107 @@
 <div id="main">
   <header class="top">
     <div class="ring">
+      <div class="seal" aria-hidden="true"><svg width="36" height="36" viewBox="0 0 24 24"><path d="M12 4c1.8 2.2 2.6 4.4 2.6 6.4S13.8 14 12 15.6C10.2 14 9.4 12.4 9.4 10.4S10.2 6.2 12 4z" fill="#b8860b"/><path d="M12 15.6c-2.6.2-5.2-1-7-3.6 2.4-.6 4.6-.2 6.4 1.2M12 15.6c2.6.2 5.2-1 7-3.6-2.4-.6-4.6-.2-6.4 1.2M5 18.5h14" stroke="#b8860b" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></div>
       <h1 class="serif">古亭院</h1>
       <p>數位服務中心・昇龍觀世音菩薩</p>
     </div>
   </header>
 
-  <div class="grid">
-
+  <section class="group">
+    <h2 class="group-title serif"><span>法會與供品</span></h2>
+    <div class="grid">
     <a class="platform-card" href="../signup/?admin" target="_blank" rel="noopener">
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 19h16M6 19V9l6-5 6 5v10M9 19v-6h6v6" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg></div>
+      <div class="body">
       <h3>法會報名</h3>
       <div class="meta"><span class="ver">v5.46</span><span class="who">工作人員後台</span></div>
-      <p class="updated">最近更新：115.11.24</p>
+      <p class="updated"><span>最近更新</span>115.11.24</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
     </a>
-
     <a class="platform-card" href="../offering/?admin" target="_blank" rel="noopener">
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.3-4.9-2.6-4.9 2.6.9-5.3-4-3.9 5.5-.8z" stroke="#9b2c1f" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></div>
+      <div class="body">
       <h3>供品贊助</h3>
       <div class="meta"><span class="ver">v209</span><span class="who">工作人員後台</span></div>
-      <p class="updated">最近更新：115.11.25</p>
+      <p class="updated"><span>最近更新</span>115.11.25</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
     </a>
-
-    <a class="platform-card" href="../finance/" target="_blank" rel="noopener">
-      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M4 10h16M9 14h6" stroke="#9b2c1f" stroke-width="1.6"/></svg></div>
-      <h3>財務記帳</h3>
-      <div class="meta"><span class="ver">v1.20.10</span><span class="who">限財務人員</span></div>
-      <p class="updated">最近更新：115.11.24</p>
-    </a>
-
-    <a class="platform-card" href="../query/" target="_blank" rel="noopener">
-      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M21 21l-4.35-4.35" stroke="#9b2c1f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
-      <h3>信徒查詢</h3>
-      <div class="meta"><span class="ver">v2.10</span><span class="who">限名冊內人員</span></div>
-      <p class="updated">最近更新：115.11.05</p>
-    </a>
-
-    <a class="platform-card" href="../stock/" target="_blank" rel="noopener">
-      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M3 8l9 5 9-5M12 13v8" stroke="#9b2c1f" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></div>
-      <h3>庫房管理</h3>
-      <div class="meta"><span class="ver">v1.7</span><span class="who">需管理者啟用</span></div>
-      <p class="updated">最近更新：115.11.04</p>
-    </a>
-
     <a class="platform-card" href="../line/" target="_blank" rel="noopener">
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 3v-3H4z" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M8 10h8M8 13h5" stroke="#9b2c1f" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+      <div class="body">
       <h3>LINE 報名小幫手</h3>
       <div class="meta"><span class="ver">v1.88</span><span class="who">所有人</span></div>
-      <p class="updated">最近更新：115.11.24</p>
+      <p class="updated"><span>最近更新</span>115.11.24</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
     </a>
-
-    <a class="platform-card" href="../" target="_blank" rel="noopener">
-      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 19h16M6 19V9l6-5 6 5v10" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg></div>
-      <h3>寺院介紹網站</h3>
-      <div class="meta"><span class="who">所有人</span></div>
+    </div>
+  </section>
+  <section class="group">
+    <h2 class="group-title serif"><span>行政管理</span></h2>
+    <div class="grid">
+    <a class="platform-card" href="../finance/" target="_blank" rel="noopener">
+      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M4 10h16M9 14h6" stroke="#9b2c1f" stroke-width="1.6"/></svg></div>
+      <div class="body">
+      <h3>財務記帳</h3>
+      <div class="meta"><span class="ver">v1.20.10</span><span class="who">限財務人員</span></div>
+      <p class="updated"><span>最近更新</span>115.11.24</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
     </a>
-
+    <a class="platform-card" href="../query/" target="_blank" rel="noopener">
+      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M21 21l-4.35-4.35" stroke="#9b2c1f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div class="body">
+      <h3>信徒查詢</h3>
+      <div class="meta"><span class="ver">v2.10</span><span class="who">限名冊內人員</span></div>
+      <p class="updated"><span>最近更新</span>115.11.05</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
+    </a>
+    <a class="platform-card" href="../stock/" target="_blank" rel="noopener">
+      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M3 8l9 5 9-5M12 13v8" stroke="#9b2c1f" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></div>
+      <div class="body">
+      <h3>庫房管理</h3>
+      <div class="meta"><span class="ver">v1.7</span><span class="who">需管理者啟用</span></div>
+      <p class="updated"><span>最近更新</span>115.11.04</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
+    </a>
     <a class="platform-card" href="../volunteer/" target="_blank" rel="noopener">
       <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2" stroke="#9b2c1f" stroke-width="1.8" fill="none"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></div>
+      <div class="body">
       <h3>志工名冊 / 權限管理</h3>
       <div class="meta"><span class="ver">v2.1</span><span class="who">限管理者</span></div>
-      <p class="updated">最近更新：115.10.08</p>
+      <p class="updated"><span>最近更新</span>115.10.08</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
     </a>
-
-  </div>
+    </div>
+  </section>
+  <section class="group">
+    <h2 class="group-title serif"><span>對外網站</span></h2>
+    <div class="grid">
+    <a class="platform-card" href="../" target="_blank" rel="noopener">
+      <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 19h16M6 19V9l6-5 6 5v10" stroke="#9b2c1f" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg></div>
+      <div class="body">
+      <h3>寺院介紹網站</h3>
+      <div class="meta"><span class="who">所有人</span></div>
+      <p class="updated">&nbsp;</p>
+      </div>
+      <span class="go" aria-hidden="true">›</span>
+    </a>
+    </div>
+  </section>
 
   <footer class="bottom">
-    古亭院・昇龍觀世音菩薩 ｜ 本頁僅作為各平台入口連結
+    <div class="foot-mark serif">古亭院・昇龍觀世音菩薩</div>
+    <div>本頁僅作為各平台入口連結</div>
     <details>
-      <summary>入口頁 v3.83 ・ 2026-11-25（點此看更新紀錄）</summary>
+      <summary>入口頁 v3.84 ・ 2026-11-25（點此看更新紀錄）</summary>
       <ul>
+        <li><b>v3.84（2026-11-25）</b>：入口頁重新排版：平台依「法會與供品／行政管理／對外網站」分組；卡片改為左邊圓形圖示、右邊名稱與版本，右側箭頭；標頭加金色蓮花印記與分隔線；手機版一欄緊湊排列；更新紀錄改成可捲動的框。</li>
         <li><b>v3.83（2026-11-25）</b>：各平台卡片拿掉功能說明文字，只留名稱、版本、使用對象與最近更新日期，卡片高度一致、版面整齊。</li>
         <li><b>v3.82（2026-11-25）</b>：供品贊助 v209（LINE 小幫手好友清單：沒加好友的不再標成已封鎖，改標「未加好友」）。</li>
         <li><b>v3.81（2026-11-25）</b>：供品贊助 v208（LINE 小幫手好友清單姓名多時欄內換行、超過 5 位收合成「等 N 位」）。</li>
